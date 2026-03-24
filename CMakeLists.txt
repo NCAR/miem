@@ -24,6 +24,11 @@ include(cmake/dependencies.cmake)
 add_subdirectory(src)
 
 if(MIEM_BUILD_FORTRAN)
+  if(NOT MIEM_DOUBLE_PRECISION)
+    message(FATAL_ERROR
+      "MIEM_BUILD_FORTRAN=ON requires MIEM_DOUBLE_PRECISION=ON. "
+      "The Fortran bindings use the C API which requires double precision.")
+  endif()
   enable_language(Fortran)
   add_subdirectory(fortran)
 endif()

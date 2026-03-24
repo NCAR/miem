@@ -29,9 +29,25 @@ add_executable(test_emissions_module unit/test_emissions_module.cpp)
 target_link_libraries(test_emissions_module PRIVATE miem GTest::gtest_main)
 gtest_discover_tests(test_emissions_module)
 
-# Copy test data to build directory
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/
-     DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/data/)
+add_executable(test_emissions_integration unit/test_emissions_integration.cpp)
+target_link_libraries(test_emissions_integration PRIVATE miem netCDF::netcdf GTest::gtest_main)
+gtest_discover_tests(test_emissions_integration)
+
+# Copy test data to build directory at build time (not configure time),
+# so changes to fixtures propagate without re-running cmake.
+file(GLOB_RECURSE MIEM_TEST_DATA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/*")
+add_custom_command(
+  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/data/.stamp"
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_CURRENT_SOURCE_DIR}/data"
+    "${CMAKE_CURRENT_BINARY_DIR}/data"
+  COMMAND ${CMAKE_COMMAND} -E touch "${CMAKE_CURRENT_BINARY_DIR}/data/.stamp"
+  DEPENDS ${MIEM_TEST_DATA_FILES}
+  COMMENT "Copying test data to build directory"
+)
+add_custom_target(miem_test_data ALL
+  DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/data/.stamp"
+)
 
 # Fortran tests
 if(MIEM_BUILD_FORTRAN)

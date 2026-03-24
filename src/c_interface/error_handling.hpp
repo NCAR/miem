@@ -4,19 +4,8 @@
 #include <exception>
 #include <functional>
 
+#include "miem/miem_c.h"
 #include "miem/util/error.hpp"
-
-// C-visible error struct. Uses MIEM_Error to avoid name collision with
-// the C++ miem::MIEMError exception class.
-extern "C" {
-
-struct MIEM_Error {
-  int code;
-  char category[64];
-  char message[256];
-};
-
-}  // extern "C"
 
 namespace miem {
 namespace c_api {

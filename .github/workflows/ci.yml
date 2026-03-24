@@ -10,30 +10,44 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        compiler: [gcc]
-        build_type: [Debug, Release]
+        include:
+          - build_type: Debug
+            double_precision: ON
+            fortran: ON
+          - build_type: Release
+            double_precision: ON
+            fortran: ON
+          - build_type: Release
+            double_precision: OFF
+            fortran: OFF
+
+    name: "${{ matrix.build_type }} (double=${{ matrix.double_precision }}, fortran=${{ matrix.fortran }})"
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
+        env:
+          INSTALL_FORTRAN: ${{ matrix.fortran }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            cmake \
-            g++ \
-            gfortran \
-            libnetcdf-dev \
-            libnetcdff-dev
+          sudo apt-get install -y cmake g++ libnetcdf-dev
+          if [ "$INSTALL_FORTRAN" = "ON" ]; then
+            sudo apt-get install -y gfortran libnetcdff-dev
+          fi
 
       - name: Configure
         env:
           BUILD_TYPE: ${{ matrix.build_type }}
+          DOUBLE_PREC: ${{ matrix.double_precision }}
+          BUILD_FORTRAN: ${{ matrix.fortran }}
         run: |
           cmake -B build \
-            -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
-            -DMIEM_BUILD_FORTRAN=ON \
+            -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+            -DMIEM_BUILD_FORTRAN="$BUILD_FORTRAN" \
+            -DMIEM_DOUBLE_PRECISION="$DOUBLE_PREC" \
             -DMIEM_BUILD_TESTS=ON
 
       - name: Build

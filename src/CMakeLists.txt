@@ -1,4 +1,4 @@
-add_library(miem
+set(MIEM_CORE_SOURCES
   emissions_module.cpp
   emis_state.cpp
   source_offline.cpp
@@ -10,9 +10,19 @@ add_library(miem
   dataset_descriptor.cpp
   ces_reader.cpp
   util/error.cpp
+)
+
+set(MIEM_C_API_SOURCES
   c_interface/miem_c_interface.cpp
   c_interface/emis_state_c_interface.cpp
 )
+
+# C API requires double precision (static_assert enforced)
+if(MIEM_DOUBLE_PRECISION)
+  add_library(miem ${MIEM_CORE_SOURCES} ${MIEM_C_API_SOURCES})
+else()
+  add_library(miem ${MIEM_CORE_SOURCES})
+endif()
 
 add_library(musica::miem ALIAS miem)
 
