@@ -1,0 +1,1159 @@
+We have had to do some interation to get the build process working. In light of that, create an agent team to examine the codebase from different angles: one teammate an expert on the existing MUSICA ecosystem, one teammate as a lead scientist with expertise in emissions (including the GOCART-2G repo), one as the architect and expert in best practices, and one as the senior software engineer (also with best practice knowledge)
+
+---
+
+<task-notification>
+<task-id>adb6dc9df4d679444</task-id>
+<tool-use-id>toolu_01RCCJXC8yfKE4sdHNKCqBEE</tool-use-id>
+<output-file>/private/tmp/claude-44897/-Users-vweeks-NCAR-ACOM-CheMPAS-MIEM/694831ca-f66c-40b0-9a19-7b972691b060/tasks/adb6dc9df4d679444.output</output-file>
+<status>completed</status>
+<summary>Agent "Emissions scientist review" completed</summary>
+<result>I now have a thorough understanding of the entire codebase. Here is the detailed scientific review.
+
+---
+
+# MIEM Scientific Review: Atmospheric Scientist Evaluation
+
+## Executive Summary
+
+MIEM v1 is a well-structured software scaffolding for an emissions processing module. The C++/C/Fortran architecture is clean and the design principles (host-model independence, configuration-driven operation, the `EmissionSource` abstraction) are sound. However, from a scientific correctness and atmospheric chemistry standpoint, the implementation has significant gaps and several scientifically incorrect or incomplete behaviors that would need to be addressed before MIEM could be used in a production atmospheric model. These range from a non-functional temporal interpolation engine (it only ever brackets from the same static file), to missing diurnal cycle support, to a unit handling system that relies entirely on user-supplied scalars with no self-checking, to an incomplete VOC speciation model. The structure is right; the science needs to be filled in.
+
+---
+
+## 1. Emissions Data Handling and CES Reader
+
+### Scientific Assessment: Structurally Sound, But Missing Metadata Validation
+
+The `CESReader` (`/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/ces_reader.cpp`) correctly detects file format via the `miem_version` global attribute (line 52), discovers species by variable prefix (`emi_*`, line 88-100), and reads 1-D or 2-D (Time, nCells) arrays via NetCDF-C calls.
+
+**Problem 1: Time coordinate is read but not interpreted (lines 128-140 in ces_reader.cpp).**
+`GetTimeValues()` reads the raw double values from the `Time` variable but does not read the `units` attribute of that variable (e.g., `"days since 2000-01-01"`, `"hours since 1970-01-01 00:00:00"`). The raw numbers are passed directly to the temporal interpolator as seconds (the bracket search in `source_offline.cpp` lines 57-58 compares `times[t] <= time_current`). If the file stores time in days since a reference epoch and the host model passes time in seconds since a different epoch, the bracket search will silently fail, producing wrong or zero emissions. This is a fundamental CF-Conventions violation. Real-world files (CEDS, EDGAR, GFED, FINN) all use `CF:units` and `calendar` attributes on their time coordinate, and a production reader must parse these.
+
+**Problem 2: Fill value and missing value handling is absent.**
+No code reads `_FillValue`, `missing_value`, or `valid_range` from emission variables. For datasets like GFED where ocean cells carry fill values, raw flux data will contain large negative or sentinel values that will pass through all layers to the host model as unphysical emissions.
+
+**Problem 3: CES compliance detection is fragile.**
+The test is simply whether `miem_version` exists as a global attribute (line 52-53). The `validate_ces.py` script (line 25) confirms this is the only required marker. A file that happens to have any `miem_version` attribute would be treated as fully CES-compliant, bypassing all descriptor overrides, even if it has non-standard dimension names. The compliance flag should be a multi-criteria check (required dimensions, required variable naming convention, required units attribute).
+
+**Problem 4: No support for 3-D emissions in the reader.**
+The `ReadFlux` method handles only 1-D (`nCells`) and 2-D (`Time, nCells`) variables (lines 186-202). GFED and some CEDS sectors provide emissions on a 3-D grid `(Time, Level, nCells)` for elevated sources (e.g., stack heights, aircraft). The reader silently skips any variable with ndims != 1 or 2 without raising an error.
+
+---
+
+## 2. Temporal Interpolation
+
+### Scientific Assessment: Architecturally Correct, But Bracket Loading is Broken for Real Use
+
+The `TemporalInterpolator` class (`/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/temporal_interpolator.cpp`) itself is mathematically correct: linear interpolation (lines 55-68), nearest neighbor (lines 48-52), and constant modes are all implemented cleanly with proper alpha clamping and degenerate-case handling.
+
+**Critical Problem: The bracket is only ever loaded once per file (source_offline.cpp lines 38-88), and `ResolveFilePath()` always returns the same static path (line 32-36).**
+
+The comment in `ResolveFilePath()` at line 33-35 explicitly acknowledges this: "For v1, return the file pattern directly. Future: expand `{YYYY}{MM}{DD}` tokens based on time." This means:
+
+- Monthly emissions (CEDS, EDGAR): MIEM will read January data and use it for the entire simulation year. Month transitions will never load new data.
+- Daily fire emissions (FINN, GFED daily): Same — the first day's file is never replaced.
+- The `CoversTime()` check in `Update()` (line 94) will return false once the model advances past the first bracket, triggering `LoadBrackets()` again on the same file. On a file with 2 time steps, the bracket indices will saturate at `{n_times-2, n_times-1}` (lines 65-68 in source_offline.cpp) and hold constant for all subsequent model time steps. Emissions will be frozen.
+
+**Missing: Diurnal cycle support.**
+Standard anthropogenic emissions inventories (CEDS, EDGAR) are monthly. Applying a diurnal profile (typically a normalized 24-hour cycle per sector from Olivier et al. or CAMS temporal factors) is a standard pre-processing step. MIEM has no mechanism for this. HEMCO and GOCART-2G both support diurnal multiplier fields that are applied on top of the monthly base emissions. MIEM's `TemporalInterpolator` could support this if an additional multiplicative diurnal profile layer were added.
+
+**Missing: Climatological cycle ("cycling") mode.**
+Monthly climatological inventories must wrap around: December (time step 12) and January (time step 1) must be bracketed at year-end. The current bracket search will simply freeze at the last time step when `time_current > times[n_times - 1]` (lines 65-68 in source_offline.cpp). There is no modular arithmetic or wrap-around for climatological cycling.
+
+**Missing: Nearest-neighbor for monthly data.**
+For monthly average datasets where the correct semantics is "use January values for all of January," nearest-neighbor mode is appropriate. However, the midpoint test in `kNearest` (line 49: `double mid = 0.5 * (time_left_ + time_right_)`) computes the arithmetic mean of two timestamps in whatever time unit the file uses. For monthly data this is numerically correct only if the two timestamps are the midpoints of their respective months. Most inventories store timestamps at the start of the month (day 1, hour 0), so the midpoint would be the 15th of month M, meaning data transitions in the middle of the month rather than at the start. This is scientifically acceptable but should be documented.
+
+---
+
+## 3. Species Mapping and Resolution
+
+### Scientific Assessment: Design is Good, Implementation Has Important Limitations
+
+The `SpeciesMap` class (`/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/species_map.cpp`) correctly implements the N:M fan-out pattern (one inventory species maps to multiple mechanism species with individual scaling factors). The `Apply()` method at lines 84-120 correctly accumulates across all mappings, enabling both 1:1 passthrough and speciation.
+
+**Problem 1: The scaling factor warning is scientifically inadequate (lines 52-59 in species_map.cpp).**
+The warning `"scaling factors for inventory species 'X' sum to N (>1.0) — mass is being amplified"` uses a greater-than-1.0 threshold. However, it emits no warning when the sum is less than 1.0 (mass destruction). For VOC speciation, it is common and scientifically legitimate for scaling factors to sum to less than 1.0 (the rest goes to unspeciated NMVOC that the mechanism does not track). But in other contexts, a sum less than 1.0 is a configuration error. There should be a way to declare whether a mapping is "mass-conserving" (must sum to 1.0) or "fraction-based" (allowed to not sum to 1.0). The example species map (`configs/example_species_map.yaml`) maps NMVOC to three mechanism species with factors 0.3+0.2+0.15=0.65, silently discarding 35% of NMVOC mass with no warning.
+
+**Problem 2: Species name matching is case-sensitive exact-match only.**
+`ResolveHostIndices()` (`emissions_module.cpp` lines 45-62) uses `std::map<std::string, int>` with exact string matching. Real-world inventories and chemical mechanisms use inconsistent naming: `NO`, `no`, `No`, `NOx`, `nox`, `NOX`, `NO_x`. HEMCO handles this with case-insensitive matching and an alias system. MIEM will silently return `-1` (not found) for any case mismatch.
+
+**Problem 3: No molar mass conversion in the species mapping layer.**
+The `scaling_factor` in `SpeciesMapping` is documented as "mass-based" (header, line 13 of species_map.hpp). But many inventories report NOx as NO2-equivalent mass while models track NO and NO2 separately in terms of molecular mass. Converting NOx (as NO2-equivalent, molecular weight 46 g/mol) to NO (molecular weight 30 g/mol) requires multiplying by 30/46 = 0.652, not 0.9 and 0.1. The example config uses 0.9/0.1 for NO/NO2 split of NOx without clarifying whether this is a mass-fraction split or a molar-fraction split, and there is no facility to declare or enforce the distinction.
+
+**Problem 4: Aggregation across sources uses simple addition without any mass-balance check (emissions_module.cpp lines 77-93).**
+When the same mechanism species appears in both the anthropogenic and fire emission sources (e.g., `CO` from CAMS and `CO` from FINN), their fluxes are added element-wise at line 90. This is scientifically correct. However, if the two sources have different `n_cells` (e.g., the file was generated for a different grid), the inner loop at line 89 will silently use the wrong values because both are indexed by `n_cells_` without validation of the source's actual cell count against `n_cells_`.
+
+---
+
+## 4. Spatial Considerations
+
+### Scientific Assessment: Deliberately Grid-Independent, But Fragile
+
+The flat `nCells` convention is consistent with the MPAS/MPAS-A unstructured mesh world, where columns are the fundamental spatial unit. For structured grid models (CAM-SIMA, WRF), columns are obtained by linearizing the 2-D lat-lon grid. This is a valid design choice and matches what MICM does.
+
+**Problem 1: Cell count mismatch between file and host is not validated.**
+`OfflineEmissionSource::Update()` receives `n_cells` from `EmissionsModule::Run()` (emissions_module.cpp line 81), but `LoadBrackets()` reads the cell count from the file (`reader_.NumCells()`). If the file was preprocessed for 40,962 cells but the model has 40,960 cells (a common regridding edge case), the species mapping `Apply()` call at line 79 uses `n_cells` (reader's count) while the outer aggregation loop at line 89 uses `n_cells_` (module's count). This will either corrupt memory or silently produce incorrect results.
+
+**Problem 2: No coordinate metadata is read or stored.**
+The CES reader does not read latitude/longitude coordinate variables. This means MIEM cannot validate that a file is spatially consistent with the host model's domain (e.g., a global file vs. a regional domain file). All spatial matching is left entirely to the upstream preprocessing (UPTEMPO or equivalent).
+
+---
+
+## 5. Unit Handling
+
+### Scientific Assessment: Dangerously Simplistic
+
+The unit system in MIEM reduces to a single scalar multiplier: `DatasetDescriptor::unit_conversion_factor` (a `Real`, defaulting to 1.0). This is applied uniformly to all species in the file (ces_reader.cpp lines 204-208).
+
+**Problem 1: Unit conversions are not species-aware.**
+Different species in the same file may have different units (e.g., some inventories report aerosol precursors in `μg m-2 s-1` and gas-phase species in `kg m-2 s-1`). A single scalar cannot handle mixed-unit files. HEMCO applies per-species unit conversions; GOCART-2G embeds unit attributes on each variable. MIEM reads `var.units` attributes in `validate_ces.py` (line 54) but the C++ reader never reads or uses them.
+
+**Problem 2: The example descriptor has a likely incorrect unit conversion factor.**
+In `test/unit/test_config.cpp` line 42 and `configs/example_descriptor.yaml` line 3:
+```
+flux_units: "molecules/cm2/s"
+unit_conversion_factor: 1.66054e-21
+```
+Converting `molecules cm-2 s-1` to `kg m-2 s-1` requires: multiply by molecular mass (g/mol), divide by Avogadro's number (6.022e23), multiply by 1e-3 (g to kg), multiply by 1e4 (cm-2 to m-2). For CO (molecular mass 28 g/mol): `28 / 6.022e23 / 1e3 * 1e4 = 4.65e-22 kg per molecule per m-2`. The factor `1.66054e-21` corresponds to `1 / (6.022e23) * 1e4 / 1e3 = 1 amu * m2/cm2 * kg/g` — this is `1 amu = 1.66054e-27 kg` converted, but it equals 1/Avogadro in kg, which would be correct only for a species with molecular weight of 1 g/mol (hydrogen atoms). For CO the factor is off by a factor of 28, and for NOx (as NO2) by a factor of 46. A correct implementation must either read the molecular weight from a configuration or from the file's attributes.
+
+**Problem 3: The `flux_units` string field in `DatasetDescriptor` is never parsed or validated by the C++ code.** It is stored as a string (dataset_descriptor.hpp line 14) but no code ever reads it to derive the conversion factor. It is documentation only. A user who provides `flux_units: "molecules/cm2/s"` but `unit_conversion_factor: 1.0` will get emissions that are 21 orders of magnitude too large, with no error.
+
+---
+
+## 6. Scalability for Real Inventories
+
+### Scientific Assessment: Proof-of-Concept Only
+
+The current implementation handles a single static NetCDF file per source. Real inventory support requires:
+
+| Inventory | Temporal Structure | Spatial Coverage | Special Requirements |
+|-----------|-------------------|------------------|---------------------|
+| CEDS | Monthly means, 1970-present | Global, ~0.5° lat-lon | Sector splitting (ENE, IND, TRA, RCO, SHP, AGR, AWB, WST, SLV) |
+| EDGAR | Monthly means or annual | Global, 0.1° | Sector splitting per IPCC categories |
+| GFED4 | Daily or 8-day | Global, 0.25° | Burned area × emission factor structure |
+| FINN v2.5 | Daily | Global | Fire radiative power scaling |
+| Volcanic SO2 | Event-based + climatological | Point sources at specific altitudes | Requires 3-D injection |
+| Aircraft | Per-pressure-level 3-D | Global | Level-by-level injection, not single layer |
+| MEGAN (biogenic) | Online, diurnal | Requires leaf area index, canopy temperature | Fundamentally incompatible with offline offline mode |
+
+MIEM v1 cannot handle any of these without significant extensions. The most critical gaps:
+
+1. File-pattern token expansion (`{YYYY}{MM}{DD}`) is stubbed out in `ResolveFilePath()` — this must be implemented to read monthly files across a simulation year.
+2. No sector-splitting support (CEDS has 9 sectors per species, each in separate variables or files).
+3. No 3-D injection from source-level file data (volcanic SO2, aircraft).
+4. No online source type (dust, sea salt, MEGAN biogenic) — these require host-model state input (wind speed, soil moisture, leaf area index) that the current `EmissionSource::Update()` interface does not accept.
+
+---
+
+## 7. GOCART-2G Comparison
+
+GOCART-2G (as implemented in GFDL FV3/GEOS) provides the most direct architectural comparison. Key lessons from GOCART-2G that MIEM has not yet absorbed:
+
+**What GOCART-2G does that MIEM lacks:**
+
+1. **Climatological cycling with calendar-aware time interpolation.** GOCART-2G uses a `CF_Time` module that parses NetCDF `time:units` and `time:calendar` attributes, converts to a common internal epoch, and supports annual cycling for monthly climatologies. MIEM has no calendar awareness.
+
+2. **Per-species molecular weight table.** GOCART-2G maintains an internal table of molecular weights for all tracked species and uses this to convert between molar and mass emission rates. MIEM's `scaling_factor` is a single real number with no unit annotation.
+
+3. **Sector aggregation is explicit in configuration.** GOCART-2G configuration files explicitly list which sectors (ENE, IND, TRA, etc.) contribute to each mechanism species, with individual sector scaling factors (for sensitivity studies or policy scenarios). MIEM has `SourceConfig::type` (anthropogenic, fire, biogenic) but no sector-level decomposition.
+
+4. **Dynamic scaling factors for sensitivity and scenario runs.** GOCART-2G supports `scaling_factor` fields that can be time-varying or scenario-specific multipliers applied at the sector level. This is essential for emissions sensitivity experiments. MIEM's `scaling_factor` is a compile-time constant per mapping entry.
+
+5. **Online dust and sea-salt emission parameterizations.** These are computed from host-model wind speed, soil properties, and sea surface state at every time step. MIEM's `EmissionSource` base class defines `Update(double time_current, int n_cells, ...)` with no mechanism to pass host-model meteorological state. Online sources cannot be implemented within the current interface.
+
+6. **Regridding as an integrated capability.** GOCART-2G calls ESMF regridding internally for most sources. MIEM deliberately defers regridding to UPTEMPO. This is a defensible design choice for a MUSICA module, but it means MIEM is unusable without an upstream preprocessing step that does not yet exist for all target grids.
+
+**Where MIEM's design is superior to or competitive with GOCART-2G:**
+
+1. The three-layer C++/C/Fortran API is cleaner than GOCART-2G's Fortran-only interface and enables use from Python or other languages.
+2. The `DatasetDescriptor` pattern for non-standard files is more explicit and maintainable than GOCART-2G's internal format-specific readers.
+3. The `EmissionSource` abstract base class is a cleaner extension point than GOCART-2G's procedural dispatch.
+
+---
+
+## Prioritized Recommendations
+
+**P0 (Correctness-blocking):**
+
+1. `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/ces_reader.cpp` lines 128-140: Implement CF-Conventions time coordinate parsing. Read `units` and `calendar` attributes and convert all time values to a single internal epoch (seconds since a fixed reference). Without this, `LoadBrackets()` in source_offline.cpp will never correctly bracket across any real-world file.
+
+2. `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/source_offline.cpp` lines 32-36: Implement `{YYYY}{MM}{DD}` token expansion in `ResolveFilePath()`. This is the single highest-leverage change — without it, MIEM cannot advance through a simulation year.
+
+3. `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/ces_reader.cpp` lines 180-209: Add fill value masking. Read `_FillValue` and `missing_value` attributes and replace sentinel values with 0.0 before the unit conversion.
+
+**P1 (Scientifically incorrect):**
+
+4. `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/source_offline.cpp` lines 38-88: Add climatological wrap-around in `LoadBrackets()`. When `time_current` exceeds the last time step in the file, attempt to re-open the file for the next year (for multi-year runs) or wrap to time step 0 (for climatological cycling).
+
+5. `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/dataset_descriptor.hpp`: Replace the scalar `unit_conversion_factor` with a per-species map (`std::map<std::string, Real>`) and add code in `CESReader::ReadFlux()` to read each variable's `units` attribute and auto-derive the conversion factor from a molecular weight table.
+
+6. `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/species_map.cpp` lines 52-59: Add a warning (or optional error) when scaling factors sum to less than `1.0 - epsilon` for mappings declared as mass-conserving.
+
+7. `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/emissions_module.cpp` lines 81-93: Validate that each source's cell count matches `n_cells_` before accumulating flux, and throw a `ValidationError` on mismatch.
+
+**P2 (Missing capabilities needed for real use):**
+
+8. Add a diurnal profile multiplier layer. This could be a separate `DiurnalProfile` class that wraps a normalized 24-hour cycle per sector and is applied after temporal interpolation in `OfflineEmissionSource::Update()`.
+
+9. Extend `EmissionSource::Update()` to accept an optional meteorological state struct (`wind_speed`, `soil_moisture`, `sea_surface_temperature`) so that online sources (dust, sea salt) can be implemented as subclasses.
+
+10. Add 3-D elevated injection reading support in `CESReader::ReadFlux()` for `ndims == 3` (Time, Level, nCells) variables, storing the level dimension in `EmisState::injection_layer` per-cell rather than per-species.
+
+11. Add case-insensitive species name comparison in `ResolveHostIndices()` and an alias table in `SpeciesMap`.
+
+---
+
+## Essential Files for Understanding the Codebase
+
+These files, read in order, provide complete understanding of MIEM:
+
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/PURPOSE.md` — design philosophy and scope
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/emis_state.hpp` — the central data structure
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/source.hpp` — the extensibility interface
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/dataset_descriptor.hpp` — the non-CES adapter model
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/ces_reader.cpp` — NetCDF I/O and format detection
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/source_offline.cpp` — the bracket loading and temporal interpolation driver (where the multi-file stubbing is most visible)
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/species_map.cpp` — the N:M fan-out mapping logic
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/flux_converter.cpp` — the flux-to-tendency conversion
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/emissions_module.cpp` — the top-level pipeline
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/configs/example_miem.yaml` — the intended user-facing configuration
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/configs/example_species_map.yaml` — illustrates VOC speciation fractions
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/scripts/generate_test_data.py` — reveals what the CES format is expected to look like</result>
+<usage><total_tokens>51509</total_tokens><tool_uses>45</tool_uses><duration_ms>172837</duration_ms></usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-44897/-Users-vweeks-NCAR-ACOM-CheMPAS-MIEM/694831ca-f66c-40b0-9a19-7b972691b060/tasks/adb6dc9df4d679444.output
+
+---
+
+<task-notification>
+<task-id>a8fadc2d337fce131</task-id>
+<tool-use-id>toolu_01LsXvEeEeuTbGmaPuvmhw2o</tool-use-id>
+<output-file>/private/tmp/claude-44897/-Users-vweeks-NCAR-ACOM-CheMPAS-MIEM/694831ca-f66c-40b0-9a19-7b972691b060/tasks/a8fadc2d337fce131.output</output-file>
+<status>completed</status>
+<summary>Agent "MUSICA ecosystem expert review" completed</summary>
+<result>I now have a thorough understanding of the entire codebase. Here is the comprehensive evaluation report.
+
+---
+
+# MIEM MUSICA Ecosystem Compatibility Evaluation
+
+## Executive Summary
+
+MIEM is a well-structured v1 implementation that follows the MUSICA three-layer architecture pattern faithfully. The C++ core is clean, the C API error handling closely mirrors MICM's `HandleErrors` template, and the Fortran `iso_c_binding` layer is complete enough for a host model to call. However, there are specific gaps that must be addressed before MIEM can be used in a production CAM-SIMA/CCPP integration. The most critical are: a `HandleErrors` catch ordering bug that silently eats MIEM's own typed exceptions, the fixed-`double` C API that breaks when `MIEM_USE_DOUBLE` is off, and a Fortran layer that is not yet shaped for CCPP metadata compliance. The dependency strategy has one significant deviation from MUSICA convention: yaml-cpp is fetched unconditionally rather than being optional for downstream consumers.
+
+---
+
+## 1. Three-Layer Architecture and MICM Comparison
+
+### Overall Conformance
+
+The pattern is correct: C++ classes in `include/miem/` and `src/`, opaque-pointer `extern "C"` functions in `src/c_interface/`, and Fortran derived types with `iso_c_binding` interfaces in `fortran/`. This mirrors MICM's layout (`include/micm/`, `src/micm/`, `src/micm/util/error.hpp`, `fortran/`).
+
+### HandleErrors Template
+
+`/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/c_interface/error_handling.hpp`, lines 39-52.
+
+The template exists and is used consistently on every C API function. The structure is correct. However there is a catch-ordering defect at line 44:
+
+```cpp
+} catch (const MIEMError& e) {
+    // Already a C error struct — shouldn't happen but handle gracefully
+    if (error) *error = e;
+```
+
+`MIEMError` here refers to the C struct (`struct MIEMError { int code; char category[64]; char message[256]; }`) defined earlier in the same header at line 9. But the C++ exception hierarchy defined in `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/util/error.hpp` also uses the name `miem::MIEMError` (a `std::runtime_error` subclass). Inside `namespace miem::c_api`, the unqualified `MIEMError` resolves to the C struct in the outer `extern "C"` block, not the C++ exception type. This means `ConfigError`, `IOError`, `SpeciesError`, and `ValidationError` — which all inherit from `miem::MIEMError` — will fall through to the `std::exception` handler at line 47 and lose their category string. Their messages survive, but the `category` field will always read `"Exception"` instead of `"Configuration"`, `"IO"`, etc. The fix is to catch `const miem::MIEMError& e` (the C++ type) explicitly before `std::exception`. In MICM this ambiguity does not arise because MICM uses a separate `Error` struct type rather than reusing the C boundary name.
+
+### C API Surface
+
+`/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/c_interface/miem_c_interface.cpp`
+
+`MIEMRun` at line 65 takes `const double*` for `air_density` and `layer_thickness` regardless of the `MIEM_USE_DOUBLE` compile flag. When the library is built with `MIEM_USE_DOUBLE=OFF`, `Real = float`, and the internal conversion at line 71-72 (`std::vector<Real> rho(air_density, air_density + n_atm_elements)`) silently truncates the caller's doubles to floats. The C API should use `const Real*` (exposed as a `#ifdef`-guarded typedef in a public header) or document that the C API is always `double`. MICM takes the latter approach and documents it explicitly.
+
+The `emis_state_c_interface.cpp` data-pointer functions `MIEMGetSurfaceFlux` and `MIEMGetTendency` at lines 9-16 return `double*` unconditionally for the same reason.
+
+There is no C header (`miem.h`) declaring these functions. Every caller — including the Fortran module — re-declares the prototypes manually. MICM ships `include/micm/micm.h`. MIEM needs an equivalent public C header so that host models written in C, Python (via ctypes/cffi), or Julia can consume the API without transcribing the signatures.
+
+### Fortran iso_c_binding Layer
+
+`/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/fortran/miem.F90` and `emis_state.F90`
+
+The Fortran `miem_t` type correctly wraps an opaque `c_ptr`, declares `init`/`run`/`finalize` as type-bound procedures, and uses `miem_util_mod::error_t` (a `bind(C)` struct matching `MIEMError`). These are the right structural choices.
+
+Three specific issues in the Fortran layer:
+
+**Issue F1 — `CreateMIEM` error argument (`miem.F90` line 30).**
+The interface declares `error` as `type(c_ptr), value :: error`. This passes a pointer-to-pointer, which is wrong when the Fortran caller writes `c_loc(error)` at line 100 — that produces a C pointer to the `error_t` struct, which is what the C function expects (`MIEMError*`). Actually the `c_loc(error)` usage is correct at the call site, but the interface declaration says `type(c_ptr), value` meaning it expects a `c_ptr` by value, not a pointer to an error struct. The correct declaration should be `type(MIEMError_t), intent(inout)` with `bind(C)` semantics, or equivalently pass `c_loc(error)` as `type(c_ptr), value` at the interface level. The current code is inconsistent: `c_loc(error)` produces a raw C address, then it is passed where the interface says `type(c_ptr), value` — this will compile but may misbehave on strict ABI targets. MICM's Fortran bindings pass error structs by reference using explicit `type(c_ptr)` at the interface and `c_loc()` at the call site, which is what MIEM does at line 100. The interface prototype at line 30 needs to declare `error` with `intent(in)` removed and typed consistently.
+
+**Issue F2 — Array memory layout in `emis_state.F90` lines 82-90.**
+The C `surface_flux` layout is `[species * n_cells + cell]` (species-major, row = species). The Fortran `c_f_pointer` reinterpretation at line 82 uses shape `[this%n_cells, this%n_species]`. Since Fortran is column-major, `surface_flux(ic, isp)` in Fortran maps to offset `(isp-1)*n_cells + (ic-1)` in C — which is correct. The comment at line 79 says "(n_species, n_cells) — species-major in C, becomes (n_cells, n_species)" which correctly describes the transposition. This is fine, but it must be documented as a deliberate convention because it will surprise CAM-SIMA developers who expect `(species, cell)` Fortran ordering. Similarly, `tendency` at lines 86-90 uses shape `[n_cells, n_vert_levels, n_species]` matching the C layout `[species * n_vert_levels * n_cells + level * n_cells + cell]`. The mapping is correct but the innermost-fast dimension difference needs explicit documentation in the interop header.
+
+**Issue F3 — `miem_resolve_host_indices` string passing (`miem.F90` lines 136-150).**
+The construction of `c_names` as `type(c_ptr), allocatable, target :: c_names(:)` and `c_strings` as `character(len=64, kind=c_char)` is a reasonable approach, but the hardcoded length of 64 characters per species name at line 137 is a silent truncation hazard. Species names longer than 63 characters (unlikely in practice, but possible in custom mechanisms) would be silently truncated with no warning. MICM uses a parameter constant for its maximum name length; MIEM should do the same and emit a diagnostic if truncation would occur.
+
+---
+
+## 2. CCPP/CAM-SIMA Integration Readiness
+
+The three lifecycle phases are structurally present:
+- Init: `miem_t%init(config_path, n_cells, n_vert_levels, error)` — `miem.F90` line 89
+- Run: `miem_t%run(time_current, dt, air_density, layer_thickness, state, error)` — line 105
+- Finalize: `miem_t%finalize(error)` — line 170
+
+This is the right shape. However CCPP physics schemes require specific conventions that MIEM does not yet satisfy:
+
+**CCPP metadata.** CCPP schemes must have a companion `.meta` file (or DDT metadata) declaring every argument with `standard_name`, `units`, `dimensions`, and `intent`. MIEM has none of this. Before wrapping as a CCPP scheme, each argument to the run subroutine needs a `standard_name` from the CCPP Standard Names Library — for example, `air_density` would be `air_density_of_dry_air_and_water_vapor` and `layer_thickness` would need a CCPP-recognized pressure or thickness name.
+
+**CCPP subroutine naming.** CCPP requires the scheme name to appear as a prefix in the subroutine names: e.g., `miem_init`, `miem_run`, `miem_finalize`. The current names (`miem_t%init`, `miem_t%run`, `miem_t%finalize`) are type-bound procedures on `miem_t`. CCPP cannot call type-bound procedures directly; it needs standalone subroutines with the correct naming convention. A thin CCPP wrapper module that delegates to the `miem_t` methods would be the right approach — this wrapper does not yet exist.
+
+**Host model constituent array pattern.** CAM-SIMA provides constituents as a 3D array `(ncol, pver, pcnst)` through its `cam_constituents` infrastructure. The current MIEM interface takes separate `air_density` and `layer_thickness` arrays and returns an `emis_state_t` that the host must then scatter into its constituent array using `emis_to_chem_idx`. This is workable but requires a non-trivial coupling layer in the host. Consider whether MIEM should accept (or optionally accept) the full constituent tendency array as an inout argument and write directly to it — more complex but reduces coupling code in the host model.
+
+**`dt` parameter.** The `miem_run` interface accepts a `dt` timestep argument (`miem.F90` line 109) that is passed to `MIEMRun` but the C++ `EmissionsModule::Run` at `emissions_module.cpp` line 64 receives `dt` without using it in any computation. The `FluxConverter::Convert` call at line 97 does not use `dt`. This is a placeholder that may confuse integrators who assume `dt` is applied. Either use it (some emission schemes scale by `dt` to produce increments) or remove it from the interface with a comment explaining the design decision.
+
+---
+
+## 3. EmisState and Data Exchange
+
+### Pointer Pattern vs. MICM
+
+MICM's `State` and `RateConstants` expose data via `.data()` on internal `std::vector` members, and the Fortran layer uses `c_f_pointer` to wrap those raw pointers into Fortran array pointers. MIEM follows this exact pattern:
+
+- `EmisState::SurfaceFluxData()` / `TendencyData()` / `EmisToChemIdxData()` — `emis_state.hpp` lines 38-45
+- `MIEMGetSurfaceFlux` / `MIEMGetTendency` / `MIEMGetEmisToChemIdx` in `emis_state_c_interface.cpp`
+- `c_f_pointer` calls in `emis_state.F90` lines 82-97
+
+This is structurally correct and consistent with MICM.
+
+### Ownership Semantics
+
+`MIEMRun` allocates a new `EmisState` on the heap (`new EmisState(...)` at `miem_c_interface.cpp` line 73) and returns a `void*`. The caller is responsible for calling `DeleteMIEMState`. In the Fortran layer, `emis_state_t%delete` calls `DeleteMIEMState_c`, but there is no destructor or `FINAL` procedure on `emis_state_t`. If a Fortran host goes out of scope without calling `state%delete(error)`, the `EmisState` leaks. MICM uses `FINAL` procedures on its Fortran wrapper types. MIEM should add `FINAL :: emis_state_destructor` to `emis_state_t` (`emis_state.F90` line 15).
+
+### State Returned vs. State Accumulated
+
+`MIEMRun` returns a freshly allocated `EmisState` on every call. This means every time step requires a heap allocation followed by a deallocation after the host reads the data. For high-frequency calls in a large model, this adds allocation pressure. MICM avoids this by mutating state in-place. Consider an in-place variant: `MIEMRunInPlace(void* miem, void* state, ...)` where the host pre-allocates one `EmisState` and MIEM writes into it. The current allocation-per-call approach is acceptable for v1 but should be noted as a performance consideration.
+
+### Array Layout Documentation
+
+The layout comment in `emis_state.hpp` lines 16-21 (`flux[species_idx * n_cells + cell_idx]`) is critical information for integrators. It should be replicated in the C API header (once that exists) and in the Fortran module as a comment on `surface_flux` and `tendency`. The Fortran array pointer shapes (`[n_cells, n_species]` and `[n_cells, n_vert_levels, n_species]`) established in `emis_state.F90` lines 82-90 are the authoritative access pattern for Fortran callers and need more prominent documentation.
+
+---
+
+## 4. Species Discovery: QuerySpecies and ResolveHostIndices
+
+### Design Alignment with MICM
+
+MICM's constituent registration pattern uses `micm::SolverParameters::species` and the solver builder to enumerate known species before construction, with the host passing its own list for index mapping. MIEM implements a parallel two-phase protocol:
+
+1. `EmissionsModule::QuerySpecies(config_path)` — static, reads YAML and opens source objects to extract mechanism species. Call this before constructing.
+2. `EmissionsModule::ResolveHostIndices(host_species, indices)` — instance method, maps emission species to host chemistry indices.
+
+This is structurally correct. However there are two issues:
+
+**Issue S1 — Double config parsing.** `QuerySpecies` at `emissions_module.cpp` line 14 calls `MIEMConfig::FromYAML(config_path)` and constructs an `OfflineEmissionSource` per source just to call `QuerySpecies()` on it. Then the constructor at line 28 calls `MIEMConfig::FromYAML` again and constructs `OfflineEmissionSource` objects a second time. For sources that open NetCDF files during construction (they do — `OfflineEmissionSource` loads the species map from YAML in its constructor at `source_offline.cpp` line 15), this doubles the I/O cost of initialization. MICM avoids this by separating configuration parsing from object construction. Consider a `MIEMConfig` + `static QuerySpecies(const MIEMConfig&)` overload, or caching parsed config.
+
+**Issue S2 — `ResolveHostIndices` output length.** The method resizes `indices` to `aggregated_species_.size()` (`emissions_module.cpp` line 48), meaning the output is indexed by emission species, not by host species. The host must therefore iterate over emission species and use `indices[i]` to find where to scatter species `i` into the host's chemistry array. The docstring in `emissions_module.hpp` line 24 says "maps each emission species to its host index" which is correct, but this is the opposite of MICM's constituent index convention (MICM maps host constituent index to mechanism species index). This is a valid design choice but should be called out explicitly in documentation, as a CAM-SIMA developer will initially assume the MICM convention.
+
+**Issue S3 — Index base mismatch.** `ResolveHostIndices` sets `indices[i] = -1` for not-found species (`emissions_module.cpp` line 48). In the Fortran layer, the `emis_to_chem_idx` pointer is `integer(c_int)` and a value of -1 from C maps correctly to -1 in Fortran. However Fortran arrays are 1-based by default. A host developer reading `emis_to_chem_idx(i)` and using it as a Fortran index will need to add 1. This is a common source of off-by-one errors at language boundaries. MICM documents this convention explicitly and some versions provide a Fortran-specific +1 adjustment. MIEM should do the same.
+
+---
+
+## 5. YAML Configuration Compatibility
+
+The YAML configuration approach is consistent with MUSICA philosophy — MusicBox, MICM's box model driver, and TUV-x all use YAML as the configuration format. The specific structure (`miem:` top-level key, `sources:` list, per-source `species_map:` reference) is clean and readable. The example configs in `configs/` demonstrate the intended pattern clearly.
+
+**Issue C1 — yaml-cpp as a PUBLIC link dependency.** In `src/CMakeLists.txt` line 26-27, yaml-cpp is `PUBLIC`, which means any downstream CMake project that does `find_package(MIEM)` or uses the installed `musica::miem` target will automatically have yaml-cpp as a transitive compile and link dependency. This is unnecessary: yaml-cpp is used only in MIEM's `.cpp` files and has no presence in any public header. It should be `PRIVATE`. MICM has the same consideration with its dependency management. Leaving it `PUBLIC` will cause yaml-cpp to contaminate the downstream build graph, potentially conflicting with the host model's own yaml-cpp version.
+
+**Issue C2 — FetchContent for yaml-cpp is always ON.** `cmake/dependencies.cmake` line 4-12 always fetches yaml-cpp via FetchContent. For downstream users who already have yaml-cpp installed (e.g., MUSICA's monorepo, which manages yaml-cpp centrally), this causes a second copy to be built. The pattern should be `find_package(yaml-cpp QUIET)` first, and only `FetchContent_Declare` if not found. MICM uses this two-phase approach.
+
+**Issue C3 — `MIEMConfig` exported in public headers.** `include/miem/config.hpp` exposes `MIEMConfig::FromYAML` in the public include path. This pulls `miem/temporal_interpolator.hpp` (for `InterpolationMode`) into the public API of `config.hpp`. Host models that only need the C API or Fortran bindings should not need to know about internal config types. The public umbrella header `include/miem/miem.hpp` exposes all internal headers including `config.hpp`, `ces_reader.hpp`, `dataset_descriptor.hpp`, etc. This is fine for C++ consumers but the header organization should distinguish the "user-facing" API (C++ core: `EmissionsModule`, `EmisState`) from the "internal plumbing" (config parsing, CES reader, species map, flux converter). MICM separates these via a `micm/micm.hpp` convenience header vs. individual subsystem headers.
+
+---
+
+## 6. Dependencies and CMake
+
+### yaml-cpp
+
+Covered above under C1 and C2. Key action: change to `PRIVATE` in `target_link_libraries`, add `find_package` fallback before `FetchContent`.
+
+### GoogleTest
+
+`cmake/dependencies.cmake` lines 15-23. Follows MICM's convention: guard under `if(MIEM_BUILD_TESTS)`, fetch from GitHub with a pinned tag (`v1.14.0`). This is correct.
+
+### NetCDF
+
+`cmake/FindnetCDF.cmake` is a well-written fallback finder. The two-step approach (try `netCDFConfig.cmake` first via the standard `find_package`, then fall back to `nc-config`) is exactly right for HPC environments. The imported target `netCDF::netcdf` matches what `netCDFConfig.cmake` creates, so downstream code using this target name is portable across both discovery paths.
+
+However, `netCDF::netcdf` appears as `PUBLIC` in `src/CMakeLists.txt` line 27. NetCDF types (`nc_open`, `NC_CHECK`) appear only in `src/ces_reader.cpp` — they are fully encapsulated. This should also be `PRIVATE`. Making it `PUBLIC` forces every consumer of `musica::miem` to find and link NetCDF, even if they only use `EmissionsModule` via the pre-built library.
+
+### CMake Minimum Version
+
+`CMakeLists.txt` line 1: `cmake_minimum_required(VERSION 3.14)`. FetchContent became reliable in 3.14, so this is appropriate. MICM uses 3.21+. If MIEM ever needs `FetchContent_MakeAvailable` with `FIND_PACKAGE_ARGS` (the three-phase pattern for yaml-cpp fallback), that requires 3.24. For now, 3.14 is fine.
+
+### Install Rules
+
+`CMakeLists.txt` lines 38-44. The `miem` library install is present but lacks the export set. The `fortran/CMakeLists.txt` lines 20-24 install `miem-fortran` into `MIEMTargets`. But the root `CMakeLists.txt` never calls `install(EXPORT MIEMTargets ...)`. This means `MIEMConfig.cmake.in` (which includes `MIEMTargets.cmake`) will be incomplete after installation — downstream `find_package(MIEM)` will fail to load the imported targets. The comment at line 36-37 acknowledges this is deferred, but it should be resolved before any host model attempts to use the installed package.
+
+The `musica::miem` alias target at `src/CMakeLists.txt` line 16 is a nice touch that follows MUSICA conventions.
+
+### CI
+
+`.github/workflows/ci.yml` is functional but limited:
+- Only `gcc` compiler is tested; clang and Intel oneAPI (common on NCAR HPC) are absent.
+- The CI matrix does not test `MIEM_BUILD_FORTRAN=OFF` — if the Fortran feature flag is ever used in anger, a separate matrix entry should verify the C++-only build.
+- `libnetcdff-dev` (the Fortran NetCDF interface) is installed but MIEM does not directly use it — only the C library is needed. This is harmless but noisy.
+
+---
+
+## 7. Observations: Strengths, Issues, and Opportunities
+
+### Strengths
+
+The `EmissionSource` abstract base class in `include/miem/source.hpp` is the right extensibility point. Adding dust, sea salt, or online biogenic sources requires only a new subclass — it will plug into `EmissionsModule`'s source list and species aggregation without any changes to the core module logic.
+
+The `DatasetDescriptor` / `CESReader` pairing is a clean solution to the practical problem that emissions inventories come in many formats. Non-CES files can be adapted through a configuration-only descriptor rather than code changes.
+
+The `SpeciesMap` with fan-out scaling (`NOx → 0.9 NO + 0.1 NO2`) is exactly the pattern needed for MOZART-T1 and CAM-Chem coupling, and the warning for scaling sums > 1.0 (`species_map.cpp` line 54-58) is a useful runtime guard.
+
+The `TemporalInterpolator` is well-isolated and fully tested. The three modes (linear, nearest, none) cover the practical needs of offline emissions with monthly climatologies.
+
+### Issues Summary
+
+| ID | Location | Severity | Description |
+|----|----------|----------|-------------|
+| H1 | `error_handling.hpp:44` | High | `HandleErrors` catches C struct `MIEMError`, not C++ exception `miem::MIEMError`; all typed exceptions reach the generic `std::exception` handler and lose category string |
+| H2 | `miem_c_interface.cpp:65-72`, `emis_state_c_interface.cpp:9-15` | High | `double` hardcoded in C API; breaks type-consistency when `MIEM_USE_DOUBLE=OFF` |
+| H3 | (missing) | High | No public C header (`miem.h`) — C, Python, Julia callers must manually transcribe prototypes |
+| H4 | `CMakeLists.txt:38-44` / `fortran/CMakeLists.txt:20-24` | High | Install rules incomplete: `install(EXPORT MIEMTargets)` call missing; installed `find_package(MIEM)` will fail |
+| M1 | `src/CMakeLists.txt:26-27` | Medium | yaml-cpp and netCDF linked `PUBLIC`; both should be `PRIVATE` |
+| M2 | `cmake/dependencies.cmake:4-12` | Medium | yaml-cpp always fetched; no `find_package` fallback for existing system installs |
+| M3 | `emis_state.F90:15` | Medium | No `FINAL` destructor on `emis_state_t`; heap-allocated `EmisState` will leak if `delete` is not called |
+| M4 | (missing) | Medium | No CCPP wrapper subroutines or `.meta` file; cannot be registered as a CCPP physics scheme |
+| M5 | `miem.F90:105-128` | Medium | `dt` passed to `MIEMRun` but unused in any computation |
+| M6 | `emissions_module.cpp:14-43` | Medium | Config parsed and source objects constructed twice (once in `QuerySpecies`, once in constructor) |
+| L1 | `miem.F90:137` | Low | Species name buffer hardcoded at 64 chars; silent truncation for long names |
+| L2 | `emis_state.F90:79-90` | Low | Array layout transposition convention not prominently documented |
+| L3 | `emissions_module.hpp:24` | Low | `ResolveHostIndices` index convention (0-based C, emission-species-indexed) not documented for Fortran callers |
+
+### Opportunities
+
+The `OfflineEmissionSource` currently opens its NetCDF file on first `Update()` call (lazy loading). For a model with many sources and a warm restart, eager opening at construction time would allow the host to detect missing files at initialization rather than mid-run.
+
+A future `MIEMRunInPlace` C API function that takes a pre-allocated `EmisState*` would eliminate per-timestep heap allocation and align more closely with MICM's state mutation pattern.
+
+Once the CCPP wrapper is added, MIEM would benefit from a `standard_name` registry comment in the Fortran source linking each variable to its CCPP standard name — a pattern used in CAM-SIMA physics schemes for maintainability.
+
+---
+
+## Essential Files Reference
+
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/c_interface/error_handling.hpp` — HandleErrors template (issue H1)
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/c_interface/miem_c_interface.cpp` — C API entry points (issue H2, H3)
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/c_interface/emis_state_c_interface.cpp` — EmisState data accessor C functions (issue H2)
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/fortran/miem.F90` — Fortran miem_t type, init/run/finalize (issues F1, F3, M5)
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/fortran/emis_state.F90` — Fortran emis_state_t, c_f_pointer layout (issues M3, L2)
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/fortran/util.F90` — error_t bind(C) struct, string helpers
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/emissions_module.hpp` — C++ public API, QuerySpecies/ResolveHostIndices
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/emis_state.hpp` — EmisState layout documentation
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/emissions_module.cpp` — QuerySpecies and Run implementation (issue M6)
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/CMakeLists.txt` — target_link_libraries PUBLIC/PRIVATE (issue M1)
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/cmake/dependencies.cmake` — yaml-cpp FetchContent (issue M2)
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/CMakeLists.txt` — install rules (issue H4)
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/cmake/FindnetCDF.cmake` — HPC NetCDF discovery fallback
+- `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/source.hpp` — EmissionSource abstract base class (extensibility design)</result>
+<usage><total_tokens>57598</total_tokens><tool_uses>53</tool_uses><duration_ms>229389</duration_ms></usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-44897/-Users-vweeks-NCAR-ACOM-CheMPAS-MIEM/694831ca-f66c-40b0-9a19-7b972691b060/tasks/a8fadc2d337fce131.output
+
+---
+
+<task-notification>
+<task-id>a5c87bea4bb8b6501</task-id>
+<tool-use-id>toolu_01ErPuJo9ZmDTEFNJWNFivJZ</tool-use-id>
+<output-file>/private/tmp/claude-44897/-Users-vweeks-NCAR-ACOM-CheMPAS-MIEM/694831ca-f66c-40b0-9a19-7b972691b060/tasks/a5c87bea4bb8b6501.output</output-file>
+<status>completed</status>
+<summary>Agent "Software architect review" completed</summary>
+<result>I now have a complete picture of the entire codebase. Let me deliver the architectural review.
+
+---
+
+# MIEM Architectural Review
+
+## Executive Summary
+
+MIEM is a well-structured scientific computing module with a clean three-layer design, good SOLID alignment for a v1 codebase, and thoughtful conventions inherited from the MICM pattern. The primary concerns are not with the overall architecture — which is sound — but with several specific design choices that will become pain points as the module grows: a hardwired concrete type inside `EmissionsModule`, several memory ownership hazards at the C/Fortran boundary, a `Real`-type mismatch at the C API, and a `CESReader` that conflates too many responsibilities. None of these are blockers; they are correctable with targeted, backward-compatible changes.
+
+---
+
+## 1. Overall Architecture: Three-Layer Design
+
+**Verdict: Clean, with one abstraction leak at the C boundary.**
+
+The layering is correctly ordered and the intent is sound:
+
+```
+miem::EmissionsModule / miem::EmissionSource
+         |
+src/c_interface/  (error_handling.hpp + two .cpp files)
+         |
+fortran/miem.F90 + emis_state.F90 + util.F90
+```
+
+Each layer adds a narrow, well-defined transformation: the C++ layer owns all memory and all logic; the C layer translates exceptions to error structs and object lifecycles to opaque `void*`; the Fortran layer wraps those pointers in derived types and re-exposes them with idiomatic Fortran procedure binding.
+
+**Abstraction leak — `Real` vs `double` at the C boundary.**
+
+`MIEMRun` in `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/c_interface/miem_c_interface.cpp` at line 65 declares `air_density` and `layer_thickness` as `const double*`, hard-coded regardless of the `MIEM_USE_DOUBLE` compile flag. The Fortran interface at `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/fortran/miem.F90` line 111 correctly uses `real(c_double)`, but the two `emis_state_c_interface.cpp` accessors `MIEMGetSurfaceFlux` and `MIEMGetTendency` return `double*` regardless of precision mode. When `MIEM_USE_DOUBLE=OFF`, the internal `EmisState` holds `float` data but the C API hands out `double*` — a type-punning error. The `types.hpp` `Real` alias exists precisely to abstract this, but it was not applied to the C boundary.
+
+**Abstraction leak — `MIEMQuerySpeciesNames` buffer contract is undocumented.**
+
+`/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/c_interface/miem_c_interface.cpp` line 43 calls `strncpy(names[i], ..., 63)`. The magic constant 63 is not defined anywhere — no `MIEM_MAX_SPECIES_NAME_LEN` constant — so Fortran callers must allocate `character(len=64, kind=c_char)` and know to match this number. The Fortran module at line 137 does this correctly, but the contract is implicit rather than enforced.
+
+---
+
+## 2. Class Design and Separation of Concerns
+
+**EmissionsModule: good orchestration, one tight coupling.**
+
+`EmissionsModule` at `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/emissions_module.hpp` manages a `vector<unique_ptr<EmissionSource>>` which is correct OCP design. However, the constructor at `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/emissions_module.cpp` lines 35-39 directly instantiates `OfflineEmissionSource`. This couples the module orchestrator to a concrete subclass, bypassing the `EmissionSource` interface entirely. When a second source type (say, `OnlineBiogenicSource`) is added, `EmissionsModule.cpp` must be edited to add another `if (src_config.type == "biogenic")` branch. This is a direct OCP violation.
+
+The fix is a factory: a `SourceFactory::Create(const SourceConfig&)` free function (or static method) that maps `src_config.type` to concrete subclass construction, keeping `EmissionsModule` free of concrete type names.
+
+**`EmissionSource` interface: mostly right, one design smell.**
+
+`/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/source.hpp` defines a clean abstract base. The `Init(config_path)` method at line 18, however, was designed as an alternative construction path but `OfflineEmissionSource::Init` at `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/source_offline.cpp` line 24 is a no-op stub with the comment "Already initialized via constructor." This creates a confusing two-path API. The `Init` method should either be removed from the interface or given a clear purpose. Until it's meaningful, it is dead interface weight that misrepresents how the class is actually used.
+
+**`CESReader`: too many responsibilities.**
+
+`/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/ces_reader.hpp` conflates three jobs:
+1. File I/O and lifecycle (open/close, NetCDF handle)
+2. Format detection (CES-compliant vs descriptor-driven, `DetectFormat()`)
+3. Variable name canonicalization (`CanonicalName()`, the reverse-rename logic in `ReadFlux`)
+
+The reverse-rename loop in `ces_reader.cpp` lines 164-170 is particularly problematic: it iterates the full `descriptor_.species_rename` map for every species on every `ReadFlux` call. If a file has 50 species and 3000 cells, that is 50 map-scans per call. More importantly, it points to a design gap: `CanonicalName` converts file-var-name to canonical name, but `ReadFlux` needs the inverse. The correct solution is to pre-build a bidirectional name map during `Open`/`DiscoverSpecies` and store it, rather than re-deriving it on every read.
+
+`CESReader` should ultimately split into a `NetCDFReader` (file handle + raw variable reads) and a `CESAdapter` (name canonicalization + format normalization). This is not urgent for v1 but will be needed before adding a second file format.
+
+**`FluxConverter`: correctly minimal.**
+
+A static utility class with two methods. Both are pure functions in practice (no state, no side effects). Consider whether it should be a free function in a `miem::physics` namespace rather than a class with only static methods. The class shell buys nothing here. Not a defect, but worth noting.
+
+**`SpeciesMap`: correct but O(n) per `Apply` call.**
+
+`Apply()` in `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/species_map.cpp` lines 88-99 rebuilds `mech_idx` and `inv_idx` `std::map` objects from scratch on every invocation. For hourly timestep updates this cost is negligible, but it is worth caching these maps as pre-computed members, built once in the constructor or after `AddMapping`. The same is true for `MechanismSpecies()` and `InventorySpecies()` which each iterate and build a `std::set` on every call.
+
+---
+
+## 3. Memory Management
+
+**RAII in C++ layer: good.**
+
+`EmissionsModule` holds `vector<unique_ptr<EmissionSource>>` — correct. `EmisState` owns its `vector<Real>` data via value semantics. `CESReader` has a manual `Close()`/destructor gap: the class manages a `ncid_` file handle but has no destructor that calls `Close()`. If an exception is thrown after `Open()` succeeds, the NetCDF file handle leaks. This is a straightforward RAII omission.
+
+The fix: add a destructor `~CESReader() { Close(); }` at `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/ces_reader.hpp`.
+
+**C boundary: ownership protocol is correct but undocumented.**
+
+`CreateMIEM` returns a heap-allocated `EmissionsModule*` cast to `void*`. `MIEMRun` returns a heap-allocated `EmisState*` cast to `void*`. Both are deleted by `DeleteMIEM` and `DeleteMIEMState` respectively. This is a correct and conventional opaque-handle pattern. The risk is that callers can forget to call `Delete*`. The Fortran bindings handle this in `miem_finalize` and `emis_state_delete`, but a C caller has no guard. A comment block in the C API header documenting transfer of ownership would help; MICM's approach of `MUSICA_RESULT` structs with lifetime comments is worth adopting.
+
+**Fortran layer: one dangling-pointer scenario.**
+
+`emis_state_t` in `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/fortran/emis_state.F90` lines 12-14 holds `real(c_double), pointer :: surface_flux(:,:)` that points into C++ `vector<Real>` memory inside an `EmisState` heap allocation. The Fortran code is correct as long as `emis_state_delete` is called before the Fortran pointers are used again after a `miem_run` call. However, if a user calls `miem_run` a second time, the old `state_ptr` is overwritten at line 121-122 of `miem.F90` without deleting the previous `EmisState`. The old heap allocation leaks and the old Fortran pointer is now dangling. The `miem_run` subroutine should call `state%delete(error)` on its `state` argument if `state%is_associated()` before overwriting the pointer.
+
+**`MIEMRun` copies `air_density` and `layer_thickness` into `std::vector`.**
+
+Lines 71-72 of `miem_c_interface.cpp` copy the input atmospheric arrays into local `std::vector<Real>`. For large grids (MPAS at 3km resolution: ~100 million cells) this is a significant allocation per timestep. The `EmissionsModule::Run` signature at line 31 of `emissions_module.hpp` takes `const std::vector<Real>&`, which drives this copy at the C boundary. The idiomatic solution for MUSICA-style modules is a `std::span<const Real>` (C++20) or simply changing the C++ signature to accept raw pointer + size, eliminating the copy. This is a performance concern, not a correctness defect.
+
+---
+
+## 4. Error Handling Strategy
+
+**Overall strategy: sound.**
+
+The `HandleErrors` template at `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/c_interface/error_handling.hpp` lines 40-52 correctly catches all C++ exceptions and downcasts them. The exception hierarchy in `error.hpp` with `MIEMError` as base and `ConfigError`, `IOError`, `SpeciesError`, `ValidationError` as specific subtypes is clean.
+
+**Three specific gaps.**
+
+First: the `HandleErrors` catch block at line 44 catches `const MIEMError& e` but `MIEMError` is a C++ exception class, not the C `MIEMError` struct — these are two types with the same name in different scopes. The C struct is declared inside `extern "C"` and the C++ class is in `namespace miem`. They are distinct types; the comment "shouldn't happen but handle gracefully" is accurate. However, the identical name across scopes is a latent confusion risk.
+
+Second: `MIEMError` exception subclasses (`ConfigError`, `IOError`, `SpeciesError`, `ValidationError`) are caught by the `std::exception` branch at line 47 rather than a dedicated `miem::MIEMError` branch. This means the error category from `MIEMError::Category()` is never propagated to the C `MIEMError` struct — the `category` field always receives "Exception". Callers who check `error.category` to distinguish `IO` errors (possibly retryable) from `Validation` errors (not retryable) cannot do so. Fix: add a `catch (const miem::MIEMError& e)` branch before the `std::exception` catch.
+
+Third: C API functions that do not take a `MIEMError*` parameter — `MIEMGetNumSpecies`, `MIEMGetSurfaceFlux`, `MIEMGetTendency`, etc. — silently return 0 or null on bad input. `MIEMGetNumSpecies` in `miem_c_interface.cpp` line 78 has a raw `if (!miem) return 0` guard without error reporting. This is acceptable for accessor methods, but the implicit contract (null returns zero-sized results silently) should be explicitly documented.
+
+---
+
+## 5. Thread Safety
+
+**Current state: not thread-safe, and this is not declared.**
+
+There are multiple shared mutable state problems for concurrent use:
+
+`OfflineEmissionSource` has `brackets_loaded_` (line 41 of `source_offline.hpp`) and the caches inside `CESReader` (`available_species_`, `ncid_`, `n_time_steps_`, `n_cells_`). If two threads call `source->Update()` concurrently — plausible in an OpenMP loop over multiple emission sectors — there is no synchronization on `LoadBrackets` or on `CESReader::Open`. The `ncid_` file handle update at `ces_reader.cpp` line 29 is definitely a race.
+
+`EmissionsModule::Run` rebuilds `agg_idx` as a local `std::map` (line 72 of `emissions_module.cpp`) which is fine, but then calls `source->Update()` on shared `sources_` without any mutex. Multiple `EmissionsModule` instances for different time steps (common in MPI + OMP ensemble configurations) are safe because each instance owns its own sources. But a single `EmissionsModule` accessed from multiple threads is not safe.
+
+The practical mitigation for MPI+OMP models is typically one `EmissionsModule` instance per MPI rank, with OpenMP parallelism inside the tendency computation (the inner cell loop at `emissions_module.cpp` lines 88-93). That loop over `n_cells_` is a natural OpenMP target. No synchronization is needed there because each cell index maps to a unique array position. Documenting the "one instance per MPI rank" contract and adding `#pragma omp parallel for` to the inner cell loop would be the right v1 thread safety story.
+
+---
+
+## 6. Build System
+
+**Dependencies.cmake: functional with one concern.**
+
+yaml-cpp is fetched via `FetchContent` at a pinned tag (`0.8.0`). This is correct. The concern is that `yaml-cpp` is linked `PUBLIC` in `src/CMakeLists.txt` line 25, which propagates the dependency to all consumers of `miem`. A consumer that does not use yaml-cpp directly is forced to link it. yaml-cpp is an implementation detail of MIEM config parsing; it should be `PRIVATE`. The same applies to `netCDF::netcdf` — it is used only in `ces_reader.cpp`, an internal component, but is currently a `PUBLIC` link dependency. This will cause issues when MIEM is embedded in a larger project that has its own yaml-cpp at a different version.
+
+**FindnetCDF.cmake: robust.**
+
+The two-step fallback (Config mode first, then `nc-config`, then manual path search) is the correct approach for HPC environments where modules systems expose NetCDF via `nc-config` without installing `netCDFConfig.cmake`. The `REQUIRED_VARS` check and imported target creation are standard-compliant.
+
+**Install rules: incomplete.**
+
+The root `CMakeLists.txt` lines 38-44 install the `miem` target and headers, but the `miem` target is not added to a CMake export set (`EXPORT MIEMTargets`). `fortran/CMakeLists.txt` line 21 does use `EXPORT MIEMTargets`, but the `MIEMConfig.cmake.in` at line 3 includes `MIEMTargets.cmake` which will not exist for a C++-only install because `miem` was never exported. The `MIEMConfig.cmake.in` is also missing the `configure_package_config_file` call that generates the actual installed config file — there is no `install(FILES ...)` for `MIEMConfig.cmake` in any `CMakeLists.txt`. This means `find_package(MIEM)` from a downstream project will fail.
+
+**CI matrix: limited.**
+
+`ci.yml` only tests `gcc` on `ubuntu-latest`. For a library targeting MPAS (which uses Intel compilers on HPC) and CAM-SIMA, a Clang column and an Intel column (via Intel's oneAPI GitHub action) would be valuable. The matrix also only varies `build_type`; it does not test `MIEM_DOUBLE_PRECISION=OFF`, so the float-precision path is never CI-validated. This is where the `double*` vs `Real*` bug at the C boundary would be caught.
+
+---
+
+## 7. API Design
+
+**C++ public API: well-designed.**
+
+The `QuerySpecies` / construct / `ResolveHostIndices` / `Run` lifecycle is clear and hard to use out of order. Returning `EmisState` by value from `Run` is ergonomic in C++ and enables move semantics. The dimension accessor methods (`NumSpecies`, `NumCells`, `NumVertLevels`) are correct.
+
+**C API: correct lifecycle, one usability gap.**
+
+The opaque handle pattern is correct MUSICA style. The gap is `MIEMQuerySpeciesNames` at `miem_c_interface.cpp` line 37: it requires the caller to pre-allocate a `char**` array of the right size, but the only way to know the right size is to call `MIEMQuerySpeciesCount` first — a two-call pattern that requires reading the documentation. This is acceptable but should be explicitly documented with a usage example. The magic constant 63 for species name length should be a `#define MIEM_MAX_SPECIES_NAME_LEN 64` in a C-visible header.
+
+**Fortran API: mostly idiomatic, one pattern gap.**
+
+The `miem_t` and `emis_state_t` derived types with procedure bindings are clean. The `miem_run` subroutine at `miem.F90` line 105 receives `state` as `intent(out)` (line 112), which means Fortran will finalize any previous value of `state` before the call — but `emis_state_t` has no `FINAL` procedure, so the old C++ `EmisState` heap allocation is leaked (as noted in section 3). Adding a `FINAL :: emis_state_final` procedure that calls `emis_state_delete` would make the Fortran type self-managing under Fortran's object lifetime rules.
+
+The `miem_util_mod` module at `util.F90` has an empty `interface` block at lines 12-14 — vestigial scaffolding that should be removed.
+
+---
+
+## 8. Extensibility Points
+
+**New emission file format** (e.g., GRIB2, CSV-based inventory): currently requires modifying `CESReader` or creating a parallel reader class. The cleanest path is to extract an abstract `IEmissionReader` interface (`Open`, `QuerySpecies`, `GetTimeValues`, `ReadFlux`) and let `CESReader` implement it. `OfflineEmissionSource` would hold an `IEmissionReader*` instead of a `CESReader` by value. The `DatasetDescriptor` / `SourceConfig` would carry a `reader_type` field that the factory uses to construct the right reader.
+
+**New temporal profile** (e.g., climatological monthly mean): `TemporalInterpolator` at `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/temporal_interpolator.hpp` uses a `switch` on `InterpolationMode`. Adding a new mode requires adding an enum value, a switch case, and a `ParseInterpolationMode` case — three edits across the file, all in one place. This is acceptable for a small enum. If the number of modes grows, the strategy pattern (subclassing `TemporalInterpolator`) is the alternative, but the current approach is proportionate to v1 scope.
+
+**New emission source type** (dust, sea salt, online biogenic): the `EmissionSource` base class at `source.hpp` is the correct hook. The missing piece is the factory (as noted in section 2) so that `EmissionsModule` does not need to know concrete types.
+
+**New spatial operation** (column-distributed injection, plume rise): currently out of scope per `PURPOSE.md`. When added, the natural location is a new `SpatialDistributor` component between the flux aggregation step and `FluxConverter::Convert` in `EmissionsModule::Run`. The current `injection_layer` per-species vector in `EmisState` is the stub for this.
+
+---
+
+## 9. SOLID Principles Assessment
+
+| Principle | Assessment |
+|-----------|------------|
+| Single Responsibility | Minor violation in `CESReader` (format detection + I/O + name canonicalization). All other classes are well-focused. |
+| Open/Closed | `EmissionsModule` constructor hardwires `OfflineEmissionSource` — requires source edit to add new source types. Needs a factory. |
+| Liskov Substitution | `EmissionSource` interface is clean; `Init` stub in `OfflineEmissionSource` creates a behavioral inconsistency (calling `Init` after construction is a no-op). |
+| Interface Segregation | No issue at this scale. `EmissionSource` has five pure virtual methods, all of which a concrete source needs. |
+| Dependency Inversion | `EmissionsModule` depends on `OfflineEmissionSource` concretely, not through `EmissionSource`. `SpeciesMap` and `TemporalInterpolator` are embedded by value in `OfflineEmissionSource` — testable in isolation but not injectable. |
+
+---
+
+## Prioritized Action List
+
+**High priority (correctness or safety):**
+
+1. Fix `MIEMGetSurfaceFlux` / `MIEMGetTendency` return types to use `Real*` rather than `double*`, guarded by the same `MIEM_USE_DOUBLE` preprocessor flag as `types.hpp`. File: `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/c_interface/emis_state_c_interface.cpp` lines 9-10.
+
+2. Add `~CESReader() { Close(); }` destructor. File: `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/ces_reader.hpp`.
+
+3. Add `catch (const miem::MIEMError& e)` branch in `HandleErrors` to propagate the `Category()` string into the C error struct. File: `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/c_interface/error_handling.hpp` line 44.
+
+4. Fix Fortran `miem_run` to delete the previous `emis_state_t` before overwriting `state_ptr`, or add a `FINAL` procedure to `emis_state_t`. File: `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/fortran/miem.F90` line 121 and `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/fortran/emis_state.F90`.
+
+**Medium priority (design quality):**
+
+5. Introduce a `SourceFactory::Create(const SourceConfig&)` to decouple `EmissionsModule` from `OfflineEmissionSource`. File: new `include/miem/source_factory.hpp`, modify `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/emissions_module.cpp` lines 35-39.
+
+6. Change `yaml-cpp` and `netCDF::netcdf` link visibility from `PUBLIC` to `PRIVATE`. File: `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/CMakeLists.txt` lines 25-28.
+
+7. Pre-build the `mech_idx` / `inv_idx` lookup maps in `SpeciesMap` at construction time instead of rebuilding them in every `Apply()` call. File: `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/species_map.cpp`.
+
+8. Fix `install()` rules: add `miem` to `EXPORT MIEMTargets` and add the `configure_package_config_file` + `install(FILES ...)` for `MIEMConfig.cmake`. File: `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/CMakeLists.txt` lines 38-44.
+
+**Low priority (polish):**
+
+9. Define `MIEM_MAX_SPECIES_NAME_LEN 64` in a public C header and use it in both `miem_c_interface.cpp` and `miem.F90`.
+
+10. Remove the no-op `Init` override from `OfflineEmissionSource` and document the `EmissionSource::Init` contract, or remove `Init` from the interface if the constructor-initialized pattern is universal.
+
+11. Add `MIEM_DOUBLE_PRECISION=OFF` to the CI matrix. File: `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/.github/workflows/ci.yml`.
+
+12. Remove the empty `interface` block from `miem_util_mod`. File: `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/fortran/util.F90` lines 12-14.</result>
+<usage><total_tokens>60663</total_tokens><tool_uses>55</tool_uses><duration_ms>212836</duration_ms></usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-44897/-Users-vweeks-NCAR-ACOM-CheMPAS-MIEM/694831ca-f66c-40b0-9a19-7b972691b060/tasks/a5c87bea4bb8b6501.output
+
+---
+
+<task-notification>
+<task-id>a8bf66bf1e1f21a20</task-id>
+<tool-use-id>toolu_01LbGuFYZMamGZ8nUor3ihaN</tool-use-id>
+<output-file>/private/tmp/claude-44897/-Users-vweeks-NCAR-ACOM-CheMPAS-MIEM/694831ca-f66c-40b0-9a19-7b972691b060/tasks/a8bf66bf1e1f21a20.output</output-file>
+<status>completed</status>
+<summary>Agent "Senior SWE code quality review" completed</summary>
+<result>Now I have everything I need to write a thorough review. Here is the full analysis:
+
+---
+
+## MIEM Code Review — `feature/scaffolding`
+
+Reviewing all source files, headers, build system, C API, Fortran bindings, and unit tests.
+
+---
+
+## CRITICAL Issues
+
+### 1. Build: `miem` install target missing from `MIEMTargets` export set
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/CMakeLists.txt`, lines 38–44
+**Confidence: 100**
+
+The top-level `install(TARGETS miem ...)` block has no `EXPORT MIEMTargets` argument. `miem-fortran` in `fortran/CMakeLists.txt` (line 21) correctly exports to `MIEMTargets`, but the core `miem` library is never added to that export set. The `MIEMConfig.cmake.in` template then tries to `include(MIEMTargets.cmake)`, which will either fail with a file-not-found error (if `miem-fortran` is disabled) or produce an incomplete export where `musica::miem` is absent.
+
+Fix: add `EXPORT MIEMTargets` to the core library's install rule and generate the config file properly.
+
+```cmake
+install(TARGETS miem
+  EXPORT MIEMTargets
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  INCLUDES DESTINATION include
+)
+
+include(CMakePackageConfigHelpers)
+install(EXPORT MIEMTargets
+  NAMESPACE musica::
+  DESTINATION lib/cmake/MIEM
+)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/MIEMConfig.cmake
+  DESTINATION lib/cmake/MIEM
+)
+```
+
+---
+
+### 2. Build: Fortran `LANGUAGES` declaration is missing from `project()`
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/CMakeLists.txt`, line 4
+**Confidence: 95**
+
+`project(... LANGUAGES C CXX)` omits Fortran. `enable_language(Fortran)` is called later (line 27) only when `MIEM_BUILD_FORTRAN=ON`. While `enable_language` works after `project()`, calling it inside a conditional means the Fortran compiler is not checked during the initial `cmake` configure step, which can cause confusing errors at build time on systems with a missing or mismatched Fortran compiler. The CMake documentation recommends listing all languages in `project()`.
+
+Fix: `project(MIEM VERSION 1.0.0 LANGUAGES C CXX Fortran)` and guard with `if(MIEM_BUILD_FORTRAN)` around `add_subdirectory(fortran)` only.
+
+---
+
+### 3. Build: `dependencies.cmake` appends to `CMAKE_MODULE_PATH` using `CMAKE_CURRENT_LIST_DIR` but targets wrong directory
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/cmake/dependencies.cmake`, line 28
+**Confidence: 100**
+
+```cmake
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
+```
+
+`CMAKE_CURRENT_LIST_DIR` inside `dependencies.cmake` resolves to the `cmake/` subdirectory — which is exactly where `FindnetCDF.cmake` lives, so this is correct. However, the `find_package(netCDF REQUIRED)` on line 29 will first search for a `netCDFConfig.cmake` (the config-mode package from a CMake-built NetCDF install) before falling back to the `FindnetCDF.cmake` module. On systems that have a CMake-installed NetCDF, the config file creates a target named `netCDF::netCDF` (capital C), while `FindnetCDF.cmake` creates `netCDF::netcdf` (lowercase c). `src/CMakeLists.txt` line 27 links against `netCDF::netcdf`. If the config-mode path is taken, the target name won't match and the link step will fail.
+
+Fix: standardize on one target name. Either always use the module (force module mode with `find_package(netCDF MODULE REQUIRED)`) or, if config mode is supported, query whichever target name actually exists:
+
+```cmake
+if(TARGET netCDF::netCDF)
+  add_library(netCDF::netcdf ALIAS netCDF::netCDF)
+endif()
+```
+
+---
+
+### 4. C API: `MIEMRun` copies `double` arrays into `Real` vectors but `Real` can be `float`
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/c_interface/miem_c_interface.cpp`, lines 71–72
+**Confidence: 100**
+
+```cpp
+std::vector<Real> rho(air_density, air_density + n_atm_elements);
+std::vector<Real> dz(layer_thickness, layer_thickness + n_atm_elements);
+```
+
+The C API takes `const double*` parameters. When `MIEM_USE_DOUBLE` is not defined, `Real` is `float`. The range-constructor used here performs an implicit narrowing conversion from `double` to `float` — the C caller is always required to provide `double` arrays even though the internal computation may use `float`. This mismatch is silent data loss and also breaks the API contract stated by the signature. The Fortran bindings pass `real(c_double)` arrays, so the Fortran path is only correct when `MIEM_USE_DOUBLE` is on.
+
+Fix: the C API parameters should use `Real*` (exposed as either `float*` or `double*` via a typedef), or the function should be explicitly templated on precision with a separate compile-time switch. At minimum, add a static_assert:
+
+```cpp
+static_assert(std::is_same_v<Real, double>,
+  "MIEMRun C API only supports double precision; recompile with MIEM_USE_DOUBLE");
+```
+
+---
+
+### 5. C API: `emis_state_c_interface.cpp` hardcodes `double*` return type regardless of `Real`
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/c_interface/emis_state_c_interface.cpp`, lines 9–15
+**Confidence: 100**
+
+`MIEMGetSurfaceFlux` and `MIEMGetTendency` return `double*`. When `MIEM_USE_DOUBLE` is not set, `EmisState::surface_flux` is `std::vector<float>` and `SurfaceFluxData()` returns `float*`. The cast is silently wrong. The Fortran binding `emis_state.F90` maps the returned pointer as `real(c_double)`, which compounds the problem.
+
+Fix: the return type must match `Real*` / `float*` / `double*` consistently, or the API must be locked to double only via `static_assert`.
+
+---
+
+### 6. C API: `error_handling.hpp` — type name collision between C struct `MIEMError` and C++ class `miem::MIEMError`
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/c_interface/error_handling.hpp`, lines 9–14
+**Confidence: 95**
+
+The C struct `MIEMError` is declared in global scope inside `extern "C"`. The C++ class `miem::MIEMError` exists in `include/miem/util/error.hpp`. Inside the `HandleErrors` template (line 44), the `catch (const MIEMError& e)` clause will match the C struct `MIEMError` (which is visible in the same translation unit), not `miem::MIEMError`. The comment "shouldn't happen but handle gracefully" is misleading — this catch arm will never fire as intended because C++ exceptions cannot be of a POD C-struct type. More dangerously, if there's an ADL or shadowing ambiguity in any translation unit that includes both headers, the wrong type can silently be picked up.
+
+Fix: rename the C struct to `MIEM_Error_t` or `MIEMErrorC` to avoid the collision, or prefix the C++ catch with the full namespace: `catch (const miem::MIEMError& e)`.
+
+---
+
+## HIGH Issues
+
+### 7. Build: `src/CMakeLists.txt` links `yaml-cpp` and `netCDF` as `PUBLIC`
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/CMakeLists.txt`, lines 24–28
+**Confidence: 90**
+
+Both `yaml-cpp::yaml-cpp` and `netCDF::netcdf` are listed as `PUBLIC` link dependencies of `miem`. This means any downstream target that links `miem` will inherit transitive link dependencies on both libraries. Neither `yaml-cpp` nor `netCDF` types appear in any public header; they are strictly implementation details. They should be `PRIVATE`. Using `PUBLIC` forces all consumers to have these libraries present at link time even if they don't use them, which is problematic for projects that consume `miem` as a static library on HPC systems where yaml-cpp is not installed.
+
+Fix:
+```cmake
+target_link_libraries(miem
+  PRIVATE
+    yaml-cpp::yaml-cpp
+    netCDF::netcdf
+)
+```
+
+---
+
+### 8. Code correctness: `OfflineEmissionSource::Update` does not validate that `n_cells` from caller matches `n_cells` from file
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/source_offline.cpp`, lines 90–109
+**Confidence: 90**
+
+`Update` receives `n_cells` from `EmissionsModule::Run` (the host model's grid size) and resizes `flux_out` to `n_mech * n_cells`. However, the interpolated data in `interpolated` has size `n_mech * reader_.NumCells()` (the file's cell count). The loop on line 107:
+
+```cpp
+for (size_t i = 0; i < interpolated.size() && i < flux_out.size(); ++i) {
+    flux_out[i] += interpolated[i];
+}
+```
+
+silently clips data to whichever is smaller when these sizes differ, producing wrong (truncated/zero-padded) results with no error. This will happen on any real use case where the host grid differs from the file grid.
+
+Fix: either enforce that sizes match and throw a `ValidationError`, or explicitly document and implement spatial regridding. At minimum, add a check:
+
+```cpp
+if (static_cast<int>(mechanism_species_.size()) * n_cells !=
+    static_cast<int>(interpolated.size())) {
+  throw ValidationError("OfflineEmissionSource: n_cells mismatch ...");
+}
+```
+
+---
+
+### 9. Code correctness: `CESReader::DetectFormat` reads `miem_version` attribute into a 64-byte stack buffer without checking buffer size
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/ces_reader.cpp`, lines 51–53
+**Confidence: 85**
+
+```cpp
+char version_buf[64] = {0};
+int status = nc_get_att_text(ncid_, NC_GLOBAL, "miem_version", version_buf);
+```
+
+`nc_get_att_text` writes exactly as many bytes as the attribute contains — it does not null-terminate. If the attribute is 64 bytes or larger, this overflows the stack buffer. While unlikely in practice, the CES standard doesn't bound this attribute's length. Use `nc_inq_attlen` first to get the length, then allocate appropriately.
+
+---
+
+### 10. Code correctness: `CESReader` is not closed in its destructor — NetCDF file descriptor is leaked
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/ces_reader.hpp` / `src/ces_reader.cpp`
+**Confidence: 100**
+
+`CESReader` has `ncid_` as a member and manually calls `nc_open`/`nc_close`, but there is no destructor that calls `Close()`. If a `CESReader` object is destroyed while a file is open (e.g., exception thrown in `OfflineEmissionSource::LoadBrackets` after `reader_.Open()`), the NetCDF file descriptor is leaked. On HPC systems with limited open file descriptor counts this is a real resource leak.
+
+Fix: add a destructor:
+```cpp
+~CESReader() { Close(); }
+```
+And document that `CESReader` is not copyable (or implement proper copy semantics), since copying with an open `ncid_` would be doubly-closed.
+
+---
+
+### 11. Fortran bindings: `error_t` default initialization of `category` and `message` char arrays is unspecified
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/fortran/util.F90`, lines 7–10
+**Confidence: 85**
+
+```fortran
+type, bind(C) :: error_t
+  integer(c_int) :: code = 0
+  character(kind=c_char) :: category(64)
+  character(kind=c_char) :: message(256)
+end type error_t
+```
+
+`code` is default-initialized to 0, but `category` and `message` have no default initializer. In Fortran, local variables without `SAVE` attribute and without default initializers are undefined. The `test_error_default` test checks `error_is_success(err)` which only looks at `code`, but `error_message(err)` iterates `message(1:255)` looking for `c_null_char`. If `message` is not zeroed, this loop can read garbage characters and produce a garbage string (though it won't crash). On the C side `ClearError` zeros the struct, but purely Fortran-constructed `error_t` values that are never passed through C can have uninitialized char arrays.
+
+Fix: initialize the arrays in `error_t`:
+```fortran
+character(kind=c_char) :: category(64) = c_null_char
+character(kind=c_char) :: message(256) = c_null_char
+```
+
+---
+
+### 12. Fortran bindings: `CreateMIEM_c` interface declares `error` as `type(c_ptr), value` but C side expects `MIEMError*`
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/fortran/miem.F90`, lines 29–31
+**Confidence: 90**
+
+The Fortran interface for `CreateMIEM_c` (and similarly `DeleteMIEM_c`, `MIEMRun_c`, etc.) declares the `error` parameter as `type(c_ptr), value`. The Fortran caller passes `c_loc(error)` which produces a `c_ptr` value — but the `type(c_ptr), value` argument passes the pointer by value, meaning C receives the address held inside the `c_ptr`, which is a pointer to the `error_t` struct. This is the correct pattern.
+
+However, if `error` is declared with `TARGET` attribute but is a local variable (stack), `c_loc` requires the variable to have the `TARGET` attribute — which is correctly specified in each calling subroutine. This is fine.
+
+The real issue is that `DeleteMIEM_c` and other subroutines accepting `error` pass it as `type(c_ptr), value` in the interface, but the C signature is `void DeleteMIEM(void* miem, MIEMError* error)`. The `void* miem` side is a `type(c_ptr), value` — this also works. The mapping is consistent. Downgrading this to a note.
+
+---
+
+## MEDIUM Issues
+
+### 13. Code correctness: `TemporalInterpolator` division result cast from `double` to `Real` silently loses precision in float mode
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/temporal_interpolator.cpp`, lines 61–66
+**Confidence: 80**
+
+The interpolation alpha is computed as `double` correctly, but the output is:
+```cpp
+output[i] = data_left_[i] * (1.0 - alpha) + data_right_[i] * alpha;
+```
+When `Real` is `float`, `data_left_[i]` and `data_right_[i]` are `float`. The mixed-precision expression promotes to `double`, computes, then implicitly narrows back to `float`. This is not a bug per se, but a noteworthy precision issue for the float build path. Adding `static_cast<Real>` would make the narrowing explicit and silence compiler warnings.
+
+---
+
+### 14. Code quality: `SpeciesMap::Apply` rebuilds `MechanismSpecies()` (and its `std::set`) on every call
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/species_map.cpp`, line 89
+**Confidence: 85**
+
+`Apply` calls `MechanismSpecies()` which iterates all mappings into a `std::set` and returns a sorted vector. This is called every time emissions are updated (each time step). For large species maps the O(N log N) rebuild is unnecessary. Cache the result either as a member or lazily.
+
+---
+
+### 15. Code quality: `std::cerr` warning in production library code
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/species_map.cpp`, lines 52–57
+**Confidence: 80**
+
+The `SpeciesMap` constructor writes a warning to `std::cerr` when scaling factors sum above 1.0. A library should not write directly to `stderr` — it bypasses the host model's logging system and can pollute output from parallel runs. This warning should either be converted to a structured warning callback, a logged message via a project-level logger, or at minimum suppressed unless a verbose mode is enabled.
+
+---
+
+### 16. Naming convention violation: private member `n_cells` in `miem_t` Fortran type is public
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/fortran/miem.F90`, lines 10–11
+**Confidence: 80**
+
+Per CLAUDE.md, private member variables should use a trailing underscore. In the Fortran type `miem_t`, `n_cells` and `n_vert_levels` are module-level data members with no `private` attribute on the individual fields. They're accessible from outside the type. If they're supposed to be read-only state, they should be private with accessor procedures, consistent with how `ptr` is declared `private`.
+
+---
+
+### 17. Build: `test/CMakeLists.txt` — test data copy uses `file(COPY)` at configure time, not build time
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/test/CMakeLists.txt`, lines 33–34
+**Confidence: 85**
+
+```cmake
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/
+     DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/data/)
+```
+
+`file(COPY ...)` runs at CMake configure time. If test data files are added or modified after the initial configure, they won't be re-copied unless CMake is re-run. The correct approach is to use `add_custom_command` or `configure_file` to ensure copying happens at build time when source files change. More importantly, `test_config.cpp` writes files into the current working directory (CWD), which defaults to the test binary's directory — but `test_config.yaml` references `data/test_anthro.nc` relative to CWD. This will work only if ctest runs from `build/test/`, which `gtest_discover_tests` does not guarantee.
+
+---
+
+### 18. Build: `FindnetCDF.cmake` does not handle multi-arch `lib64` in the `nc-config` path
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/cmake/FindnetCDF.cmake`, lines 58–61
+**Confidence: 80**
+
+```cmake
+find_library(netCDF_LIBRARY
+  NAMES netcdf
+  HINTS ${NETCDF_LIB_DIR} ${NETCDF_PREFIX}/lib
+)
+```
+
+The `nc-config --libdir` path is queried into `NETCDF_LIB_DIR`. If that path is empty (nc-config bugs or non-standard installs), only `${NETCDF_PREFIX}/lib` is searched — missing `${NETCDF_PREFIX}/lib64` which is standard on RHEL/Rocky Linux HPC systems. The fallback branch (lines 73–77) correctly includes `lib64`, but the `nc-config` branch does not. Add `${NETCDF_PREFIX}/lib64` to the `HINTS` for the nc-config branch.
+
+---
+
+## LOW Issues
+
+### 19. C API: `MIEMQuerySpeciesNames` hardcodes species name buffer size to 63 without matching declaration
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/c_interface/miem_c_interface.cpp`, line 43
+**Confidence: 80**
+
+```cpp
+std::strncpy(names[i], species[i].c_str(), 63);
+names[i][63] = '\0';
+```
+
+The buffer size of 63 is a magic number not documented in the header. The caller has no way to know this limit. A named constant (`MIEM_MAX_SPECIES_NAME_LEN`) should be defined in a public C header and used consistently. Species names in atmospheric chemistry can be longer than 63 characters (some MOSAIC/CB mechanisms use long descriptive names).
+
+---
+
+### 20. Testing: `test_emissions_module.cpp` only tests error paths — no integration test
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/test/unit/test_emissions_module.cpp`
+**Confidence: 85**
+
+The `EmissionsModule` is the central orchestrator of the library, but its test file contains only two tests, both testing exception throws on missing files. There is no test of `ResolveHostIndices`, `Run`, `NumSpecies`, or the aggregation logic. The `scripts/generate_test_data.py` script exists but the `test/data/` directory contains only `.gitkeep`. The `test_config.yaml` references `data/test_anthro.nc` which doesn't exist. This means the most important code path — the full emissions pipeline — is untested.
+
+---
+
+### 21. Testing: `test_ces_reader.cpp` has no tests that exercise actual NetCDF I/O
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/test/unit/test_ces_reader.cpp`
+**Confidence: 85**
+
+Only three tests exist and none open a real file. `QuerySpecies`, `GetTimeValues`, `ReadFlux`, `DetectFormat`, and `DiscoverSpecies` — the bulk of the class — are never exercised. The comment at line 8 acknowledges this but the test data generation script has not been integrated into the build.
+
+---
+
+### 22. Header: `include/miem/miem.hpp` is a "kitchen sink" umbrella header with no forward-declare alternatives
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/include/miem/miem.hpp`
+**Confidence: 80**
+
+The umbrella header pulls in all of `yaml-cpp` (transitively through `config.hpp` if that had the include) and all other headers. While `config.hpp` doesn't expose yaml-cpp types in its API, including everything in `miem.hpp` will force all consumers to have yaml-cpp headers available even if they only use `EmisState`. Consider either removing `miem.hpp` in favor of per-feature headers or ensuring it doesn't pull implementation-detail headers.
+
+---
+
+### 23. Code quality: `EmissionsModule::Run` does not use the `dt` parameter
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/src/emissions_module.cpp`, line 64
+**Confidence: 85**
+
+`EmissionsModule::Run` accepts `double dt` but never uses it. The method signature in `emissions_module.hpp` includes `dt` as a documented parameter. This is a dead parameter that may mislead callers into thinking the timestep is used in flux calculations. Either document why it's not used (reserved for future rate limiting) or add a `[[maybe_unused]]` attribute.
+
+---
+
+### 24. Fortran: `miem_resolve_host_indices` allocates `c_names` array of `c_ptr` but species name buffer is fixed at 64 chars
+
+**File:** `/Users/vweeks/NCAR/ACOM/CheMPAS/MIEM/fortran/miem.F90`, line 137
+**Confidence: 80**
+
+```fortran
+character(len=64, kind=c_char), allocatable, target :: c_strings(:)
+```
+
+This silently truncates species names longer than 63 characters (one char reserved for null). This matches the C-side 63-char limit noted in issue #19 but should use the same named constant for consistency.
+
+---
+
+## Summary Table
+
+| # | Severity | Area | Issue |
+|---|----------|------|-------|
+| 1 | CRITICAL | Build | `miem` target not in `MIEMTargets` export set; install broken |
+| 2 | CRITICAL | Build | Fortran not declared in `project()` LANGUAGES |
+| 3 | CRITICAL | Build | `netCDF::netcdf` vs `netCDF::netCDF` target name mismatch with config-mode NetCDF |
+| 4 | CRITICAL | C API | `MIEMRun` copies `double*` into `vector<float>` silently when not double precision |
+| 5 | CRITICAL | C API | `MIEMGetSurfaceFlux`/`MIEMGetTendency` return `double*` but data may be `float*` |
+| 6 | CRITICAL | C API | `MIEMError` C struct name collides with `miem::MIEMError` C++ class |
+| 7 | HIGH | Build | `yaml-cpp` and `netCDF` linked `PUBLIC` instead of `PRIVATE` |
+| 8 | HIGH | Logic | `OfflineEmissionSource::Update` silently clips data when cell counts mismatch |
+| 9 | HIGH | Safety | `nc_get_att_text` can overflow 64-byte stack buffer |
+| 10 | HIGH | Resource | `CESReader` has no destructor; `ncid_` leaks on exception |
+| 11 | HIGH | Fortran | `error_t` char array members uninitialized in Fortran |
+| 12 | MEDIUM | Precision | Interpolation narrowing in float build mode |
+| 13 | MEDIUM | Perf | `SpeciesMap::Apply` rebuilds species index every call |
+| 14 | MEDIUM | Quality | `std::cerr` in library code |
+| 15 | MEDIUM | Conv | `n_cells`/`n_vert_levels` should be private in Fortran `miem_t` |
+| 16 | MEDIUM | Build | Test data copied at configure time, not build time |
+| 17 | MEDIUM | Build | `FindnetCDF.cmake` misses `lib64` in nc-config branch |
+| 18 | LOW | C API | Magic number 63 for species name buffer size |
+| 19 | LOW | Testing | `EmissionsModule` has no positive-path tests |
+| 20 | LOW | Testing | `CESReader` has no real I/O tests |
+| 21 | LOW | Header | Umbrella `miem.hpp` pulls in all implementation detail headers |
+| 22 | LOW | Quality | `dt` parameter in `Run` is unused |
+| 23 | LOW | Fortran | Species name buffer hardcoded to 64 chars in Fortran bindings |
+
+The most urgent items for getting the build to work reliably are issues 1, 3, and 7. Issues 4 and 5 will produce silent data corruption any time a user builds without `MIEM_USE_DOUBLE`.</result>
+<usage><total_tokens>55483</total_tokens><tool_uses>49</tool_uses><duration_ms>206756</duration_ms></usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-44897/-Users-vweeks-NCAR-ACOM-CheMPAS-MIEM/694831ca-f66c-40b0-9a19-7b972691b060/tasks/a8bf66bf1e1f21a20.output
+
+---
+
+For the "Integrated Regridding", we want this to be module independent, so UPTEMPO is not ideal (since that is MPAS specific). How does the ecosystem for MUSICA handle regridding? Should it be integrated into MIEM, or into MICM, or somewhere else?
+
+---
+
+My understanding is that CCPP integration is not relevant to MPAS. Other than that, it sounds like MIEM should expect and return a standardized grided data?
+
+---
+
+That chain looks correct, although I am not entirely sure. Investigate the CES format, is it unique to MIEM, or did it come from somewhere else? How sound is that responsibility chain? How would it feed back into the ecosystem (e.g. MICM, MUSICA, MPAS), and does it need to be a formatted output at all? Any preprocessing tool should be in a separate repo in the MUSICA ecosystem, since it will have to handle a variety of different source formats.
+
+---
+
+Yes save these decisions to memory. For the CES, we want to avoid creating yet another format just for MIEM. The "well-documented input convention" is a good description of that the preprocessing tool will need to make, and what MIEM will expect. We should evaluate what the preprocessing tool will be doing to the raw inventories, before we try to name the format/convention/schema accurately.
+
+---
+
+yes. For now, we should implement those phases of fixes.
+
+---
+
+"""-- Configuring done
+CMake Error: install(EXPORT "MIEMTargets" ...) includes target "miem" which requires target "yaml-cpp" that is not in any export set.
+-- Generating done
+CMake Generate step failed.  Build files cannot be regenerated correctly."""
+
+---
+
+"""[ 68%] Building CXX object src/CMakeFiles/miem.dir/util/error.cpp.o                                                                                   [ 69%] Building CXX object src/CMakeFiles/miem.dir/c_interface/miem_c_interface.cpp.o                                                                 
+In file included from /home/ec2-user/MIEM/src/c_interface/miem_c_interface.cpp:1:                                                                     
+/home/ec2-user/MIEM/src/c_interface/error_handling.hpp: In function ‘void miem::c_api::SetError(miem::MIEMError*, int, const char*, const char*)’:
+/home/ec2-user/MIEM/src/c_interface/error_handling.hpp:33:12: error: ‘class miem::MIEMError’ has no member named ‘code’                               
+   33 |     error->code = code;                                                                                                                       
+      |            ^~~~                                                                                                                               
+/home/ec2-user/MIEM/src/c_interface/error_handling.hpp:34:25: error: ‘class miem::MIEMError’ has no member named ‘category’; did you mean ‘Category’? 
+   34 |     std::strncpy(error->category, category, sizeof(error->category) - 1);                                                                     
+      |                         ^~~~~~~~                                                                                                              
+      |                         Category                                                                                                              
+/home/ec2-user/MIEM/src/c_interface/error_handling.hpp:34:59: error: ‘class miem::MIEMError’ has no member named ‘category’; did you mean ‘Category’? 
+   34 |     std::strncpy(error->category, category, sizeof(error->category) - 1);                                                                     
+      |                                                           ^~~~~~~~                                                                            
+      |                                                           Category                                                                            
+/home/ec2-user/MIEM/src/c_interface/error_handling.hpp:35:12: error: ‘class miem::MIEMError’ has no member named ‘category’; did you mean ‘Category’?    35 |     error->category[sizeof(error->category) - 1] = '\0';                                                                                      
+      |            ^~~~~~~~                                                                                                                           
+      |            Category                                                                                                                           
+/home/ec2-user/MIEM/src/c_interface/error_handling.hpp:35:35: error: ‘class miem::MIEMError’ has no member named ‘category’; did you mean ‘Category’? 
+   35 |     error->category[sizeof(error->category) - 1] = '\0';                                                                                      
+      |                                   ^~~~~~~~                                                                                                    
+      |                                   Category                                                                                                    
+/home/ec2-user/MIEM/src/c_interface/error_handling.hpp:36:25: error: ‘class miem::MIEMError’ has no member named ‘message’                            
+   36 |     std::strncpy(error->message, message, sizeof(error->message) - 1);                                                                        
+      |                         ^~~~~~~                                                                                        """
+
+---
+
+Have we addressed all of the agent concerns for fixes? It seems that the engineer should have addressed this.
+
+---
+
+implement the 5 code fixes, and then show me the outstanding items again

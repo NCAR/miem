@@ -1,0 +1,57 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "736d227734e8",
+  "strategy": "manual-commit",
+  "branch": "feature/scaffolding",
+  "checkpoints_count": 14,
+  "files_touched": [
+    "CLAUDE.md",
+    "CMakeLists.txt",
+    "README.md",
+    "cmake/FindnetCDF.cmake",
+    "cmake/MIEMConfig.cmake.in",
+    "cmake/dependencies.cmake",
+    "fortran/emis_state.F90",
+    "fortran/miem.F90",
+    "fortran/util.F90",
+    "include/miem/ces_reader.hpp",
+    "include/miem/emissions_module.hpp",
+    "include/miem/flux_converter.hpp",
+    "include/miem/miem.hpp",
+    "include/miem/miem_c.h",
+    "include/miem/source.hpp",
+    "include/miem/source_factory.hpp",
+    "include/miem/source_offline.hpp",
+    "include/miem/species_map.hpp",
+    "src/CMakeLists.txt",
+    "src/c_interface/emis_state_c_interface.cpp",
+    "src/c_interface/error_handling.hpp",
+    "src/c_interface/miem_c_interface.cpp",
+    "src/ces_reader.cpp",
+    "src/emissions_module.cpp",
+    "src/flux_converter.cpp",
+    "src/source_factory.cpp",
+    "src/source_offline.cpp",
+    "src/species_map.cpp",
+    "test/unit/test_ces_reader.cpp",
+    "test/unit/test_config.cpp",
+    "test/unit/test_emissions_module.cpp",
+    "test/unit/test_flux_converter.cpp",
+    "test/unit/test_temporal_interpolator.cpp"
+  ],
+  "sessions": [
+    {
+      "metadata": "/73/6d227734e8/0/metadata.json",
+      "transcript": "/73/6d227734e8/0/full.jsonl",
+      "content_hash": "/73/6d227734e8/0/content_hash.txt",
+      "prompt": "/73/6d227734e8/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 4737,
+    "cache_creation_tokens": 189984,
+    "cache_read_tokens": 12768163,
+    "output_tokens": 56270,
+    "api_call_count": 111
+  }
+}
