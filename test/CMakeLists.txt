@@ -21,12 +21,12 @@ add_executable(test_config unit/test_config.cpp)
 target_link_libraries(test_config PRIVATE miem GTest::gtest_main)
 gtest_discover_tests(test_config)
 
-add_executable(test_ces_reader unit/test_ces_reader.cpp)
-target_link_libraries(test_ces_reader PRIVATE miem GTest::gtest_main)
-gtest_discover_tests(test_ces_reader)
+add_executable(test_ses_reader unit/test_ses_reader.cpp)
+target_link_libraries(test_ses_reader PRIVATE miem netCDF::netcdf GTest::gtest_main)
+gtest_discover_tests(test_ses_reader)
 
 add_executable(test_emissions_module unit/test_emissions_module.cpp)
-target_link_libraries(test_emissions_module PRIVATE miem GTest::gtest_main)
+target_link_libraries(test_emissions_module PRIVATE miem netCDF::netcdf GTest::gtest_main)
 gtest_discover_tests(test_emissions_module)
 
 add_executable(test_emissions_integration unit/test_emissions_integration.cpp)

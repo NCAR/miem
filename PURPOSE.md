@@ -14,7 +14,7 @@ MIEM decouples emissions processing from the host model. Any host model that can
 
 3. **Pre-regridded input.** MIEM assumes input data is already on the host model's grid (via UPTEMPO or equivalent preprocessing). Spatial regridding is explicitly out of scope for v1.
 
-4. **Transformation layer.** The core architectural piece is a pipeline: raw NetCDF → CES validation/descriptor adaptation → unit normalization → species mapping → temporal interpolation → sector aggregation → flux-to-tendency conversion → EmisState output.
+4. **Transformation layer.** The core architectural piece is a pipeline: raw NetCDF → SES validation/descriptor adaptation → unit normalization → species mapping → temporal interpolation → category/hierarchy aggregation → flux-to-tendency conversion → EmisState output.
 
 5. **Three-layer API.** Following the MICM pattern: C++ core for logic, C API for interoperability, Fortran bindings for host models. Each layer is independently testable.
 

@@ -1,4 +1,4 @@
-#include "miem/ces_reader.hpp"
+#include "miem/ses_reader.hpp"
 
 #include <netcdf.h>
 
@@ -20,24 +20,26 @@
 
 namespace miem {
 
-CESReader::CESReader(CESReader&& other) noexcept
+SESReader::SESReader(SESReader&& other) noexcept
     : ncid_(other.ncid_),
       file_path_(std::move(other.file_path_)),
       descriptor_(std::move(other.descriptor_)),
-      is_ces_compliant_(other.is_ces_compliant_),
+      is_ses_compliant_(other.is_ses_compliant_),
+      ses_version_(std::move(other.ses_version_)),
       n_time_steps_(other.n_time_steps_),
       n_cells_(other.n_cells_),
       available_species_(std::move(other.available_species_)) {
   other.ncid_ = -1;
 }
 
-CESReader& CESReader::operator=(CESReader&& other) noexcept {
+SESReader& SESReader::operator=(SESReader&& other) noexcept {
   if (this != &other) {
     Close();
     ncid_ = other.ncid_;
     file_path_ = std::move(other.file_path_);
     descriptor_ = std::move(other.descriptor_);
-    is_ces_compliant_ = other.is_ces_compliant_;
+    is_ses_compliant_ = other.is_ses_compliant_;
+    ses_version_ = std::move(other.ses_version_);
     n_time_steps_ = other.n_time_steps_;
     n_cells_ = other.n_cells_;
     available_species_ = std::move(other.available_species_);
@@ -46,7 +48,7 @@ CESReader& CESReader::operator=(CESReader&& other) noexcept {
   return *this;
 }
 
-void CESReader::Open(const std::string& file_path,
+void SESReader::Open(const std::string& file_path,
                      const DatasetDescriptor& descriptor) {
   if (ncid_ >= 0) {
     Close();
@@ -65,7 +67,7 @@ void CESReader::Open(const std::string& file_path,
   DiscoverSpecies();
 }
 
-void CESReader::Close() {
+void SESReader::Close() {
   if (ncid_ >= 0) {
     nc_close(ncid_);
     ncid_ = -1;
@@ -75,22 +77,51 @@ void CESReader::Close() {
   n_cells_ = 0;
 }
 
-void CESReader::DetectFormat() {
-  // Check for CES compliance via global attribute
-  size_t att_len = 0;
-  int status = nc_inq_attlen(ncid_, NC_GLOBAL, "miem_version", &att_len);
-  is_ces_compliant_ = false;
-  if (status == NC_NOERR && att_len < 256) {
-    std::vector<char> version_buf(att_len + 1, '\0');
-    status = nc_get_att_text(ncid_, NC_GLOBAL, "miem_version", version_buf.data());
-    is_ces_compliant_ = (status == NC_NOERR);
+void SESReader::DetectFormat() {
+  // Check for SES compliance first (ses_version), then fall back to
+  // legacy miem_version for backward compatibility.
+  is_ses_compliant_ = false;
+  ses_version_.clear();
+
+  auto try_read_attr = [&](const char* attr_name) -> bool {
+    size_t att_len = 0;
+    int status = nc_inq_attlen(ncid_, NC_GLOBAL, attr_name, &att_len);
+    if (status == NC_NOERR && att_len < 256) {
+      std::vector<char> buf(att_len + 1, '\0');
+      status = nc_get_att_text(ncid_, NC_GLOBAL, attr_name, buf.data());
+      if (status == NC_NOERR) {
+        ses_version_ = std::string(buf.data(), att_len);
+        is_ses_compliant_ = true;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Prefer ses_version, fall back to miem_version
+  if (!try_read_attr("ses_version")) {
+    try_read_attr("miem_version");
   }
 
-  // Get time dimension
+  // Resolve time dimension: try SES names first, then legacy names
   int time_dim_id;
-  const std::string& time_dim_name =
-      is_ces_compliant_ ? "Time" : descriptor_.time_dimension;
-  status = nc_inq_dimid(ncid_, time_dim_name.c_str(), &time_dim_id);
+  int status;
+  std::string time_dim_name;
+
+  if (is_ses_compliant_) {
+    // SES 1.0 uses "time"; legacy CES used "Time"
+    status = nc_inq_dimid(ncid_, "time", &time_dim_id);
+    if (status == NC_NOERR) {
+      time_dim_name = "time";
+    } else {
+      status = nc_inq_dimid(ncid_, "Time", &time_dim_id);
+      time_dim_name = "Time";
+    }
+  } else {
+    time_dim_name = descriptor_.time_dimension;
+    status = nc_inq_dimid(ncid_, time_dim_name.c_str(), &time_dim_id);
+  }
+
   if (status == NC_NOERR) {
     size_t time_len;
     NC_CHECK(nc_inq_dimlen(ncid_, time_dim_id, &time_len));
@@ -99,11 +130,24 @@ void CESReader::DetectFormat() {
     n_time_steps_ = 1;  // No time dimension; treat as single snapshot
   }
 
-  // Get cell dimension
+  // Resolve cell dimension: try SES names first, then legacy names
   int cell_dim_id;
-  const std::string& cell_dim_name =
-      is_ces_compliant_ ? "nCells" : descriptor_.cell_dimension;
-  status = nc_inq_dimid(ncid_, cell_dim_name.c_str(), &cell_dim_id);
+  std::string cell_dim_name;
+
+  if (is_ses_compliant_) {
+    // SES 1.0 uses "n_cells"; legacy CES used "nCells"
+    status = nc_inq_dimid(ncid_, "n_cells", &cell_dim_id);
+    if (status == NC_NOERR) {
+      cell_dim_name = "n_cells";
+    } else {
+      status = nc_inq_dimid(ncid_, "nCells", &cell_dim_id);
+      cell_dim_name = "nCells";
+    }
+  } else {
+    cell_dim_name = descriptor_.cell_dimension;
+    status = nc_inq_dimid(ncid_, cell_dim_name.c_str(), &cell_dim_id);
+  }
+
   if (status != NC_NOERR) {
     throw IOError("Cannot find cell dimension '" + cell_dim_name +
                   "' in file: " + file_path_);
@@ -113,14 +157,14 @@ void CESReader::DetectFormat() {
   n_cells_ = static_cast<int>(cell_len);
 }
 
-void CESReader::DiscoverSpecies() {
+void SESReader::DiscoverSpecies() {
   available_species_.clear();
 
   int n_vars;
   NC_CHECK(nc_inq_nvars(ncid_, &n_vars));
 
   const std::string& prefix =
-      is_ces_compliant_ ? "emi_" : descriptor_.variable_prefix;
+      is_ses_compliant_ ? "emi_" : descriptor_.variable_prefix;
 
   for (int varid = 0; varid < n_vars; ++varid) {
     char var_name[NC_MAX_NAME + 1];
@@ -134,7 +178,7 @@ void CESReader::DiscoverSpecies() {
   }
 }
 
-std::string CESReader::CanonicalName(const std::string& var_name) const {
+std::string SESReader::CanonicalName(const std::string& var_name) const {
   // Check descriptor rename map first
   auto it = descriptor_.species_rename.find(var_name);
   if (it != descriptor_.species_rename.end()) {
@@ -148,14 +192,14 @@ std::string CESReader::CanonicalName(const std::string& var_name) const {
 
   // Strip the variable prefix to get species name
   const std::string& prefix =
-      is_ces_compliant_ ? "emi_" : descriptor_.variable_prefix;
+      is_ses_compliant_ ? "emi_" : descriptor_.variable_prefix;
   if (var_name.substr(0, prefix.size()) == prefix) {
     return var_name.substr(prefix.size());
   }
   return var_name;
 }
 
-std::vector<std::string> CESReader::QuerySpecies() const {
+std::vector<std::string> SESReader::QuerySpecies() const {
   return available_species_;
 }
 
@@ -210,13 +254,18 @@ bool ParseCFTimeUnits(const std::string& units_str,
 
 }  // anonymous namespace
 
-std::vector<double> CESReader::GetTimeValues() const {
+std::vector<double> SESReader::GetTimeValues() const {
   std::vector<double> times(n_time_steps_, 0.0);
 
+  // Try SES/legacy time variable names
   int time_varid;
-  const std::string& time_dim_name =
-      is_ces_compliant_ ? "Time" : descriptor_.time_dimension;
-  int status = nc_inq_varid(ncid_, time_dim_name.c_str(), &time_varid);
+  int status = nc_inq_varid(ncid_, "time", &time_varid);
+  if (status != NC_NOERR) {
+    status = nc_inq_varid(ncid_, "Time", &time_varid);
+  }
+  if (!is_ses_compliant_ && status != NC_NOERR) {
+    status = nc_inq_varid(ncid_, descriptor_.time_dimension.c_str(), &time_varid);
+  }
   if (status != NC_NOERR) {
     return times;
   }
@@ -243,12 +292,12 @@ std::vector<double> CESReader::GetTimeValues() const {
   return times;
 }
 
-void CESReader::ReadFlux(int time_index,
+void SESReader::ReadFlux(int time_index,
                          const std::vector<std::string>& species_names,
                          std::vector<Real>& flux_out,
                          int& n_cells_out) const {
   if (ncid_ < 0) {
-    throw IOError("CESReader: file not open");
+    throw IOError("SESReader: file not open");
   }
 
   n_cells_out = n_cells_;
@@ -256,7 +305,7 @@ void CESReader::ReadFlux(int time_index,
   flux_out.resize(static_cast<size_t>(n_species) * n_cells_, 0.0);
 
   const std::string& prefix =
-      is_ces_compliant_ ? "emi_" : descriptor_.variable_prefix;
+      is_ses_compliant_ ? "emi_" : descriptor_.variable_prefix;
 
   for (int isp = 0; isp < n_species; ++isp) {
     // Build variable name from species name
@@ -264,7 +313,7 @@ void CESReader::ReadFlux(int time_index,
 
     // Check if descriptor has a reverse rename
     // (we need to map canonical name back to file variable name)
-    if (!is_ces_compliant_) {
+    if (!is_ses_compliant_) {
       for (const auto& [file_var, canonical] : descriptor_.species_rename) {
         std::string canon_species =
             (canonical.substr(0, 4) == "emi_") ? canonical.substr(4) : canonical;

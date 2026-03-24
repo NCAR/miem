@@ -1,6 +1,7 @@
 #include "miem/emis_state.hpp"
 
 #include <algorithm>
+#include <stdexcept>
 
 namespace miem {
 
@@ -25,6 +26,18 @@ void EmisState::Resize(int n_sp, int n_c, int n_vl) {
 void EmisState::Zero() {
   std::fill(surface_flux.begin(), surface_flux.end(), 0.0);
   std::fill(tendency.begin(), tendency.end(), 0.0);
+  for (auto& [name, flux] : sector_fluxes) {
+    std::fill(flux.begin(), flux.end(), 0.0);
+  }
+}
+
+const std::vector<Real>& EmisState::GetSectorFlux(
+    const std::string& sector) const {
+  auto it = sector_fluxes.find(sector);
+  if (it == sector_fluxes.end()) {
+    throw std::out_of_range("No sector flux for: " + sector);
+  }
+  return it->second;
 }
 
 }  // namespace miem

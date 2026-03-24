@@ -7,3 +7,6 @@ miem:
       species_map: "data/test_species_map.yaml"
       temporal_interpolation: "linear"
       vertical_injection: "surface"
+      category: 1
+      hierarchy: 1
+      sector: "anthropogenic"

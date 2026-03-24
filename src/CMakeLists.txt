@@ -8,7 +8,7 @@ set(MIEM_CORE_SOURCES
   flux_converter.cpp
   config.cpp
   dataset_descriptor.cpp
-  ces_reader.cpp
+  ses_reader.cpp
   util/error.cpp
 )
 

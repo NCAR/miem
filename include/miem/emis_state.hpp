@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -29,11 +30,20 @@ struct EmisState {
   // Species names for this emission state
   std::vector<std::string> species_names;
 
+  // Per-sector surface fluxes: sector_name -> (n_species * n_cells) array
+  std::map<std::string, std::vector<Real>> sector_fluxes;
+
+  // Sector names in insertion order
+  std::vector<std::string> sector_names;
+
   EmisState() = default;
   EmisState(int n_species, int n_cells, int n_vert_levels);
 
   void Resize(int n_species, int n_cells, int n_vert_levels);
   void Zero();
+
+  bool HasSectors() const { return !sector_fluxes.empty(); }
+  const std::vector<Real>& GetSectorFlux(const std::string& sector) const;
 
   Real* SurfaceFluxData() { return surface_flux.data(); }
   const Real* SurfaceFluxData() const { return surface_flux.data(); }

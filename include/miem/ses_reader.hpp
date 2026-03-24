@@ -8,21 +8,23 @@
 
 namespace miem {
 
-// Reads CES (Canonical Emission Standard) compliant NetCDF files,
+// Reads SES (Standardized Emissions Schema) compliant NetCDF files,
 // or non-standard files adapted through a DatasetDescriptor.
-class CESReader {
+// Also accepts legacy CES files (miem_version, nCells, Time) for
+// backward compatibility.
+class SESReader {
  public:
-  CESReader() = default;
-  ~CESReader() { Close(); }
+  SESReader() = default;
+  ~SESReader() { Close(); }
 
   // Non-copyable (owns a NetCDF file handle)
-  CESReader(const CESReader&) = delete;
-  CESReader& operator=(const CESReader&) = delete;
-  CESReader(CESReader&& other) noexcept;
-  CESReader& operator=(CESReader&& other) noexcept;
+  SESReader(const SESReader&) = delete;
+  SESReader& operator=(const SESReader&) = delete;
+  SESReader(SESReader&& other) noexcept;
+  SESReader& operator=(SESReader&& other) noexcept;
 
-  // Open a NetCDF file. If descriptor is provided, use it for non-CES files.
-  // If the file is CES-compliant, descriptor overrides are ignored.
+  // Open a NetCDF file. If descriptor is provided, use it for non-SES files.
+  // If the file is SES-compliant, descriptor overrides are ignored.
   void Open(const std::string& file_path,
             const DatasetDescriptor& descriptor = DatasetDescriptor::Default());
 
@@ -52,7 +54,8 @@ class CESReader {
   int ncid_ = -1;
   std::string file_path_;
   DatasetDescriptor descriptor_;
-  bool is_ces_compliant_ = false;
+  bool is_ses_compliant_ = false;
+  std::string ses_version_;   // Detected SES/MIEM version string
   int n_time_steps_ = 0;
   int n_cells_ = 0;
   std::vector<std::string> available_species_;

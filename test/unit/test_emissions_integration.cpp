@@ -41,42 +41,44 @@ class TempDir {
   std::string path_;
 };
 
-// Create a minimal CES-compliant NetCDF file with known emission data.
+// Create a minimal SES-compliant NetCDF file with known emission data.
 //
-// Layout:
-//   dimensions: Time=2, nCells=4
-//   variables:
-//     Time(Time) — seconds since epoch, two monthly snapshots
-//     emi_NOx(Time, nCells) — flux values
-//     emi_SO2(Time, nCells) — flux values
-//   global attributes:
-//     miem_version = "1.0"
+// Uses SES 1.0 conventions: ses_version, time, n_cells.
+// Also supports legacy CES format when use_legacy=true.
 void CreateTestNetCDF(const std::string& path,
                       int n_times, int n_cells,
                       const std::vector<double>& time_values,
                       const std::vector<std::string>& species,
-                      const std::vector<std::vector<double>>& flux_data) {
+                      const std::vector<std::vector<double>>& flux_data,
+                      bool use_legacy = false) {
   int ncid;
   int status = nc_create(path.c_str(), NC_CLOBBER | NC_NETCDF4, &ncid);
   if (status != NC_NOERR)
     throw std::runtime_error("nc_create failed: " + std::string(nc_strerror(status)));
 
-  // Global attribute for CES compliance
-  nc_put_att_text(ncid, NC_GLOBAL, "miem_version", 3, "1.0");
+  // Global attribute for compliance
+  if (use_legacy) {
+    nc_put_att_text(ncid, NC_GLOBAL, "miem_version", 3, "1.0");
+  } else {
+    nc_put_att_text(ncid, NC_GLOBAL, "ses_version", 3, "1.0");
+    nc_put_att_text(ncid, NC_GLOBAL, "Conventions", 4, "CF-1.8");
+  }
 
   // Dimensions
   int time_dim, cell_dim;
-  nc_def_dim(ncid, "Time", static_cast<size_t>(n_times), &time_dim);
-  nc_def_dim(ncid, "nCells", static_cast<size_t>(n_cells), &cell_dim);
+  const char* time_dim_name = use_legacy ? "Time" : "time";
+  const char* cell_dim_name = use_legacy ? "nCells" : "n_cells";
+  nc_def_dim(ncid, time_dim_name, static_cast<size_t>(n_times), &time_dim);
+  nc_def_dim(ncid, cell_dim_name, static_cast<size_t>(n_cells), &cell_dim);
 
   // Time variable
   int time_varid;
-  nc_def_var(ncid, "Time", NC_DOUBLE, 1, &time_dim, &time_varid);
+  nc_def_var(ncid, time_dim_name, NC_DOUBLE, 1, &time_dim, &time_varid);
   const char* time_units = "seconds since 1970-01-01";
   nc_put_att_text(ncid, time_varid, "units",
                   std::strlen(time_units), time_units);
 
-  // Species flux variables: (Time, nCells)
+  // Species flux variables: (time, n_cells)
   std::vector<int> flux_varids(species.size());
   int dims2d[2] = {time_dim, cell_dim};
   for (size_t i = 0; i < species.size(); ++i) {
@@ -125,6 +127,30 @@ void WriteMIEMConfigYAML(const std::string& path,
       << "      species_map: \"" << species_map_path << "\"\n"
       << "      temporal_interpolation: linear\n"
       << "      vertical_injection: surface\n";
+}
+
+void WriteMultiSourceConfig(const std::string& path,
+                            const std::string& nc_path1,
+                            const std::string& nc_path2,
+                            const std::string& species_map_path) {
+  std::ofstream ofs(path);
+  ofs << "miem:\n"
+      << "  version: \"1.0\"\n"
+      << "  sources:\n"
+      << "    - name: anthro_global\n"
+      << "      type: anthropogenic\n"
+      << "      file_pattern: \"" << nc_path1 << "\"\n"
+      << "      species_map: \"" << species_map_path << "\"\n"
+      << "      category: 1\n"
+      << "      hierarchy: 1\n"
+      << "      sector: anthropogenic\n"
+      << "    - name: fire_global\n"
+      << "      type: fire\n"
+      << "      file_pattern: \"" << nc_path2 << "\"\n"
+      << "      species_map: \"" << species_map_path << "\"\n"
+      << "      category: 2\n"
+      << "      hierarchy: 1\n"
+      << "      sector: fire\n";
 }
 
 }  // namespace
@@ -294,4 +320,60 @@ TEST_F(EmissionsIntegrationTest, ResolveHostIndices) {
     if (species_name == "NO2") EXPECT_EQ(indices[i], 4);
     if (species_name == "SO2") EXPECT_EQ(indices[i], 1);
   }
+}
+
+TEST_F(EmissionsIntegrationTest, MultiSourceCategorySummation) {
+  // Create a second source file (fire) with SO2 only
+  auto fire_nc = tmp_->File("test_fire.nc");
+  auto multi_config = tmp_->File("multi_config.yaml");
+
+  // Fire SO2: 1e-6 at both time steps
+  std::vector<double> fire_so2(n_times_ * n_cells_);
+  for (int i = 0; i < n_times_ * n_cells_; ++i) {
+    fire_so2[i] = 1e-6;
+  }
+
+  // Fire NOx: 0.5e-6 at both time steps
+  std::vector<double> fire_nox(n_times_ * n_cells_);
+  for (int i = 0; i < n_times_ * n_cells_; ++i) {
+    fire_nox[i] = 0.5e-6;
+  }
+
+  CreateTestNetCDF(fire_nc, n_times_, n_cells_,
+                   time_values_, {"NOx", "SO2"},
+                   {fire_nox, fire_so2});
+
+  WriteMultiSourceConfig(multi_config, nc_path_, fire_nc,
+                         species_map_path_);
+
+  EmissionsModule module(multi_config, n_cells_, n_vert_levels_);
+  std::vector<Real> rho(n_vert_levels_ * n_cells_, 1.225);
+  std::vector<Real> dz(n_vert_levels_ * n_cells_, 100.0);
+
+  auto state = module.Run(0.0, rho.data(), dz.data(),
+                           static_cast<int>(rho.size()));
+
+  // Anthro (cat=1): NOx=1e-6 → NO=0.9e-6, NO2=0.1e-6; SO2=3e-6
+  // Fire   (cat=2): NOx=0.5e-6 → NO=0.45e-6, NO2=0.05e-6; SO2=1e-6
+  // Sum across categories:
+  //   NO  = 0.9e-6 + 0.45e-6 = 1.35e-6
+  //   NO2 = 0.1e-6 + 0.05e-6 = 0.15e-6
+  //   SO2 = 3e-6 + 1e-6 = 4e-6
+
+  int no_idx = -1, no2_idx = -1, so2_idx = -1;
+  for (int i = 0; i < static_cast<int>(state.species_names.size()); ++i) {
+    if (state.species_names[i] == "NO") no_idx = i;
+    if (state.species_names[i] == "NO2") no2_idx = i;
+    if (state.species_names[i] == "SO2") so2_idx = i;
+  }
+
+  for (int ic = 0; ic < n_cells_; ++ic) {
+    EXPECT_NEAR(state.surface_flux[no_idx * n_cells_ + ic], 1.35e-6, 1e-12);
+    EXPECT_NEAR(state.surface_flux[no2_idx * n_cells_ + ic], 0.15e-6, 1e-12);
+    EXPECT_NEAR(state.surface_flux[so2_idx * n_cells_ + ic], 4.0e-6, 1e-12);
+  }
+
+  // Verify sector fluxes populated
+  EXPECT_TRUE(state.HasSectors());
+  EXPECT_EQ(state.sector_names.size(), 2u);
 }

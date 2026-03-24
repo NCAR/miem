@@ -42,3 +42,13 @@ installs: `cmake -B build -DCMAKE_PREFIX_PATH=/path/to/netcdf`
 - `EmisState` provides `.data()` pointers for C/Fortran interop
 - Species discovery via `QuerySpecies()` static method before construction
 - Host index resolution via `ResolveHostIndices()` after construction
+
+## SES (Standardized Emissions Schema)
+
+- Input file convention defined in `docs/ses-1.0.md`
+- SES 1.0 dimensions: `n_cells`, `time` (legacy: `nCells`, `Time`)
+- SES 1.0 version attribute: `ses_version` (legacy: `miem_version`)
+- SESReader auto-detects SES vs legacy CES format with backward compat
+- Category/hierarchy aggregation (HEMCO-style): categories sum, higher hierarchy wins within same category
+- Per-source `scaling_factor` for runtime scenario perturbation
+- Sector labels enable per-sector diagnostics via `EmisState::sector_fluxes`

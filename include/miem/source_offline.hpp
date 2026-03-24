@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "miem/ces_reader.hpp"
+#include "miem/ses_reader.hpp"
 #include "miem/config.hpp"
 #include "miem/dataset_descriptor.hpp"
 #include "miem/source.hpp"
@@ -28,7 +28,7 @@ class OfflineEmissionSource : public EmissionSource {
  private:
   std::string name_;
   SourceConfig config_;
-  CESReader reader_;
+  SESReader reader_;
   SpeciesMap species_map_;
   TemporalInterpolator interpolator_;
   DatasetDescriptor descriptor_;

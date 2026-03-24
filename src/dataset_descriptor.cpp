@@ -41,6 +41,9 @@ DatasetDescriptor DatasetDescriptor::FromYAML(const std::string& yaml_path) {
   if (desc_node["cell_dimension"]) {
     desc.cell_dimension = desc_node["cell_dimension"].as<std::string>();
   }
+  if (desc_node["grid_description"]) {
+    desc.grid_description = desc_node["grid_description"].as<std::string>();
+  }
 
   if (desc_node["species_rename"]) {
     for (const auto& pair : desc_node["species_rename"]) {

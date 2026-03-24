@@ -43,7 +43,15 @@ class EmissionsModule {
   const std::vector<std::string>& SpeciesNames() const { return aggregated_species_; }
 
  private:
-  std::vector<std::unique_ptr<EmissionSource>> sources_;
+  struct SourceEntry {
+    std::unique_ptr<EmissionSource> source;
+    int category;
+    int hierarchy;
+    std::string sector;
+    Real scaling_factor;
+  };
+
+  std::vector<SourceEntry> sources_;
   std::vector<std::string> aggregated_species_;
   int n_cells_;
   int n_vert_levels_;

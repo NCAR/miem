@@ -82,6 +82,21 @@ int MIEMGetNumSpecies(void* miem);
 /* Free an EmisState returned by MIEMRun. */
 void DeleteMIEMState(void* state, MIEM_Error* error);
 
+/* --- Sector accessors ---------------------------------------------------- */
+
+/* Get the number of sectors in the emission state. */
+int MIEMGetSectorCount(void* state);
+
+/* Get sector names. Caller allocates names[max_names], each pointing to a
+ * buffer of at least MIEM_MAX_SPECIES_NAME_LEN bytes. */
+void MIEMGetSectorNames(void* state, char** names, int max_names,
+                         MIEM_Error* error);
+
+/* Get pointer to the flux array for a given sector name.
+ * Returns (n_species * n_cells) in kg/m^2/s, or NULL if not found. */
+double* MIEMGetSectorFlux(void* state, const char* sector_name,
+                           MIEM_Error* error);
+
 #ifdef __cplusplus
 }
 #endif

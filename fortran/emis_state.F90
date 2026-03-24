@@ -20,6 +20,8 @@ module miem_emis_state_mod
     procedure :: get_n_species => emis_state_get_n_species
     procedure :: get_n_cells => emis_state_get_n_cells
     procedure :: get_n_vert_levels => emis_state_get_n_vert_levels
+    procedure :: get_sector_count => emis_state_get_sector_count
+    procedure :: get_sector_flux => emis_state_get_sector_flux
     final :: emis_state_finalize
   end type emis_state_t
 
@@ -66,6 +68,21 @@ module miem_emis_state_mod
       type(c_ptr), value :: state
       type(c_ptr), value :: error
     end subroutine
+
+    function MIEMGetSectorCount_c(state) bind(C, name="MIEMGetSectorCount")
+      import :: c_ptr, c_int
+      type(c_ptr), value :: state
+      integer(c_int) :: MIEMGetSectorCount_c
+    end function
+
+    function MIEMGetSectorFlux_c(state, sector_name, error) &
+        bind(C, name="MIEMGetSectorFlux")
+      import :: c_ptr, c_char
+      type(c_ptr), value :: state
+      character(kind=c_char), intent(in) :: sector_name(*)
+      type(c_ptr), value :: error
+      type(c_ptr) :: MIEMGetSectorFlux_c
+    end function
   end interface
 
 contains
@@ -147,6 +164,34 @@ contains
     integer :: n
     n = this%n_vert_levels
   end function
+
+  function emis_state_get_sector_count(this) result(n)
+    class(emis_state_t), intent(in) :: this
+    integer :: n
+    if (c_associated(this%ptr)) then
+      n = MIEMGetSectorCount_c(this%ptr)
+    else
+      n = 0
+    end if
+  end function
+
+  subroutine emis_state_get_sector_flux(this, sector_name, flux_ptr, error)
+    class(emis_state_t), intent(in) :: this
+    character(len=*), intent(in) :: sector_name
+    real(c_double), pointer, intent(out) :: flux_ptr(:,:)
+    type(error_t), intent(inout), target :: error
+    type(c_ptr) :: data_ptr
+    character(len=len_trim(sector_name)+1, kind=c_char) :: c_name
+
+    nullify(flux_ptr)
+    if (.not. c_associated(this%ptr)) return
+
+    c_name = f_to_c_string(sector_name)
+    data_ptr = MIEMGetSectorFlux_c(this%ptr, c_name, c_loc(error))
+    if (c_associated(data_ptr) .and. this%n_species > 0 .and. this%n_cells > 0) then
+      call c_f_pointer(data_ptr, flux_ptr, [this%n_cells, this%n_species])
+    end if
+  end subroutine
 
   ! FINAL procedure — automatically frees C++ heap allocation when
   ! the Fortran object goes out of scope

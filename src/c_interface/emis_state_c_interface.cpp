@@ -1,6 +1,8 @@
 #include "error_handling.hpp"
 #include "miem/emis_state.hpp"
 
+#include <algorithm>
+#include <cstring>
 #include <type_traits>
 
 using namespace miem;
@@ -47,6 +49,39 @@ void DeleteMIEMState(void* state, MIEM_Error* error) {
   HandleErrors(error, [&]() {
     delete static_cast<EmisState*>(state);
   });
+}
+
+int MIEMGetSectorCount(void* state) {
+  if (!state) return 0;
+  return static_cast<int>(
+      static_cast<EmisState*>(state)->sector_names.size());
+}
+
+void MIEMGetSectorNames(void* state, char** names, int max_names,
+                         MIEM_Error* error) {
+  HandleErrors(error, [&]() {
+    auto* s = static_cast<EmisState*>(state);
+    int n = std::min(static_cast<int>(s->sector_names.size()), max_names);
+    for (int i = 0; i < n; ++i) {
+      std::strncpy(names[i], s->sector_names[i].c_str(),
+                    MIEM_MAX_SPECIES_NAME_LEN - 1);
+      names[i][MIEM_MAX_SPECIES_NAME_LEN - 1] = '\0';
+    }
+  });
+}
+
+double* MIEMGetSectorFlux(void* state, const char* sector_name,
+                           MIEM_Error* error) {
+  double* result = nullptr;
+  HandleErrors(error, [&]() {
+    auto* s = static_cast<EmisState*>(state);
+    auto it = s->sector_fluxes.find(sector_name);
+    if (it == s->sector_fluxes.end()) {
+      throw IOError(std::string("No sector flux for: ") + sector_name);
+    }
+    result = it->second.data();
+  });
+  return result;
 }
 
 }  // extern "C"

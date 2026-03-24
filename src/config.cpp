@@ -50,6 +50,19 @@ MIEMConfig MIEMConfig::FromYAML(const std::string& yaml_path) {
       sc.descriptor_path = src["descriptor"].as<std::string>();
     }
 
+    if (src["category"]) {
+      sc.category = src["category"].as<int>();
+    }
+    if (src["hierarchy"]) {
+      sc.hierarchy = src["hierarchy"].as<int>();
+    }
+    if (src["sector"]) {
+      sc.sector = src["sector"].as<std::string>();
+    }
+    if (src["scaling_factor"]) {
+      sc.scaling_factor = src["scaling_factor"].as<Real>();
+    }
+
     config.sources.push_back(std::move(sc));
   }
 
