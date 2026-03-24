@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Validate that a NetCDF file conforms to SES (Standardized Emissions Schema).
-
-Supports SES 1.0 and legacy CES (miem_version) files with backward compatibility.
-"""
+"""Validate that a NetCDF file conforms to SES (Standardized Emissions Schema) 1.0."""
 
 import sys
 
@@ -14,7 +11,7 @@ except ImportError:
 
 
 def validate_ses(filepath):
-    """Check SES compliance and report issues."""
+    """Check SES 1.0 compliance and report issues."""
     issues = []
     warnings = []
 
@@ -26,58 +23,34 @@ def validate_ses(filepath):
 
     attrs = ds.ncattrs()
 
-    # Detect version attribute
+    # Check ses_version attribute
     ses_version = None
     if "ses_version" in attrs:
         ses_version = ds.ses_version
-    elif "miem_version" in attrs:
-        ses_version = ds.miem_version
-        warnings.append(
-            "Using legacy 'miem_version' attribute — "
-            "consider migrating to 'ses_version'"
-        )
     else:
-        issues.append(
-            "Missing version attribute: expected 'ses_version' "
-            "(or legacy 'miem_version')"
-        )
+        issues.append("Missing required global attribute: 'ses_version'")
 
     # Check Conventions attribute
     if "Conventions" not in attrs:
         warnings.append("Missing recommended attribute: Conventions (e.g., 'CF-1.8')")
 
-    # Check dimensions — accept SES or legacy names
-    has_time = "time" in ds.dimensions or "Time" in ds.dimensions
-    has_cells = "n_cells" in ds.dimensions or "nCells" in ds.dimensions
+    # Check dimensions
+    if "time" not in ds.dimensions:
+        issues.append("Missing required dimension: 'time'")
 
-    if not has_time:
-        issues.append("Missing dimension: 'time' (or legacy 'Time')")
-    elif "Time" in ds.dimensions and "time" not in ds.dimensions:
-        warnings.append(
-            "Using legacy dimension 'Time' — consider migrating to 'time'"
-        )
-
-    if not has_cells:
-        issues.append("Missing dimension: 'n_cells' (or legacy 'nCells')")
-    elif "nCells" in ds.dimensions and "n_cells" not in ds.dimensions:
-        warnings.append(
-            "Using legacy dimension 'nCells' — consider migrating to 'n_cells'"
-        )
+    if "n_cells" not in ds.dimensions:
+        issues.append("Missing required dimension: 'n_cells'")
 
     # Check emission variables
     emi_vars = [v for v in ds.variables if v.startswith("emi_")]
     if not emi_vars:
         issues.append("No emission variables found (expected emi_* prefix)")
 
-    # Determine expected dimension names
-    time_dim = "time" if "time" in ds.dimensions else "Time"
-    cell_dim = "n_cells" if "n_cells" in ds.dimensions else "nCells"
-
     for var_name in emi_vars:
         var = ds.variables[var_name]
         dims = var.dimensions
 
-        expected_dims = (time_dim, cell_dim)
+        expected_dims = ("time", "n_cells")
         if dims != expected_dims:
             issues.append(
                 f"Variable {var_name}: expected dimensions {expected_dims}, "
@@ -95,9 +68,8 @@ def validate_ses(filepath):
     ds.close()
 
     # Report
-    compliance = "SES 1.0" if ses_version else "unknown"
     print(f"\nSES Validation: {filepath}")
-    print(f"  Detected version: {ses_version or 'none'} ({compliance})")
+    print(f"  Detected version: {ses_version or 'none'}")
     print(f"  Emission variables found: {len(emi_vars)}")
     for v in emi_vars:
         print(f"    - {v}")
@@ -113,7 +85,7 @@ def validate_ses(filepath):
             print(f"    X {issue}")
         return False
     else:
-        print("\n  PASS — File is SES-compliant")
+        print("\n  PASS — File is SES 1.0 compliant")
         return True
 
 

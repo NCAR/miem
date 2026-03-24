@@ -46,9 +46,9 @@ installs: `cmake -B build -DCMAKE_PREFIX_PATH=/path/to/netcdf`
 ## SES (Standardized Emissions Schema)
 
 - Input file convention defined in `docs/ses-1.0.md`
-- SES 1.0 dimensions: `n_cells`, `time` (legacy: `nCells`, `Time`)
-- SES 1.0 version attribute: `ses_version` (legacy: `miem_version`)
-- SESReader auto-detects SES vs legacy CES format with backward compat
+- SES 1.0 dimensions: `n_cells`, `time`
+- SES 1.0 version attribute: `ses_version`
+- SESReader detects SES compliance; non-SES files use DatasetDescriptor
 - Category/hierarchy aggregation (HEMCO-style): categories sum, higher hierarchy wins within same category
 - Per-source `scaling_factor` for runtime scenario perturbation
 - Sector labels enable per-sector diagnostics via `EmisState::sector_fluxes`

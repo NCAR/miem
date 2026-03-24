@@ -41,39 +41,29 @@ class TempDir {
   std::string path_;
 };
 
-// Create a minimal SES-compliant NetCDF file with known emission data.
-//
-// Uses SES 1.0 conventions: ses_version, time, n_cells.
-// Also supports legacy CES format when use_legacy=true.
+// Create a minimal SES 1.0 compliant NetCDF file with known emission data.
 void CreateTestNetCDF(const std::string& path,
                       int n_times, int n_cells,
                       const std::vector<double>& time_values,
                       const std::vector<std::string>& species,
-                      const std::vector<std::vector<double>>& flux_data,
-                      bool use_legacy = false) {
+                      const std::vector<std::vector<double>>& flux_data) {
   int ncid;
   int status = nc_create(path.c_str(), NC_CLOBBER | NC_NETCDF4, &ncid);
   if (status != NC_NOERR)
     throw std::runtime_error("nc_create failed: " + std::string(nc_strerror(status)));
 
-  // Global attribute for compliance
-  if (use_legacy) {
-    nc_put_att_text(ncid, NC_GLOBAL, "miem_version", 3, "1.0");
-  } else {
-    nc_put_att_text(ncid, NC_GLOBAL, "ses_version", 3, "1.0");
-    nc_put_att_text(ncid, NC_GLOBAL, "Conventions", 4, "CF-1.8");
-  }
+  // Global attributes
+  nc_put_att_text(ncid, NC_GLOBAL, "ses_version", 3, "1.0");
+  nc_put_att_text(ncid, NC_GLOBAL, "Conventions", 4, "CF-1.8");
 
   // Dimensions
   int time_dim, cell_dim;
-  const char* time_dim_name = use_legacy ? "Time" : "time";
-  const char* cell_dim_name = use_legacy ? "nCells" : "n_cells";
-  nc_def_dim(ncid, time_dim_name, static_cast<size_t>(n_times), &time_dim);
-  nc_def_dim(ncid, cell_dim_name, static_cast<size_t>(n_cells), &cell_dim);
+  nc_def_dim(ncid, "time", static_cast<size_t>(n_times), &time_dim);
+  nc_def_dim(ncid, "n_cells", static_cast<size_t>(n_cells), &cell_dim);
 
   // Time variable
   int time_varid;
-  nc_def_var(ncid, time_dim_name, NC_DOUBLE, 1, &time_dim, &time_varid);
+  nc_def_var(ncid, "time", NC_DOUBLE, 1, &time_dim, &time_varid);
   const char* time_units = "seconds since 1970-01-01";
   nc_put_att_text(ncid, time_varid, "units",
                   std::strlen(time_units), time_units);

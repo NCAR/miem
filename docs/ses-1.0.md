@@ -13,8 +13,6 @@ non-conforming files require a descriptor to map their layout to SES conventions
 | `n_cells` | Spatial cells (host-grid-aligned, 1D) | Required |
 | `time` | Time steps | Required, unlimited |
 
-Legacy files using `nCells` and `Time` are accepted for backward compatibility.
-
 ## Global Attributes
 
 | Attribute | Type | Required | Example |
@@ -24,8 +22,6 @@ Legacy files using `nCells` and `Time` are accepted for backward compatibility.
 | `grid_description` | string | Recommended | `"CAM-SE ne30np4"` |
 | `source_inventory` | string | Recommended | `"CEDSv2024-04"` |
 | `preprocessing_tool_version` | string | Recommended | `"UPTEMPO 0.1.0"` |
-
-Legacy files using `miem_version` instead of `ses_version` are accepted.
 
 ## Time Coordinate
 
@@ -64,12 +60,3 @@ variables:
 }
 ```
 
-## Backward Compatibility
-
-MIEM accepts legacy files that use:
-- `miem_version` instead of `ses_version`
-- `nCells` instead of `n_cells`
-- `Time` instead of `time`
-
-These files are detected as CES-compliant and processed identically to SES 1.0
-files. New files should use SES 1.0 conventions.

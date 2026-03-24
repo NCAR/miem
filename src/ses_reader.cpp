@@ -78,50 +78,26 @@ void SESReader::Close() {
 }
 
 void SESReader::DetectFormat() {
-  // Check for SES compliance first (ses_version), then fall back to
-  // legacy miem_version for backward compatibility.
+  // Check for SES compliance via ses_version global attribute
   is_ses_compliant_ = false;
   ses_version_.clear();
 
-  auto try_read_attr = [&](const char* attr_name) -> bool {
-    size_t att_len = 0;
-    int status = nc_inq_attlen(ncid_, NC_GLOBAL, attr_name, &att_len);
-    if (status == NC_NOERR && att_len < 256) {
-      std::vector<char> buf(att_len + 1, '\0');
-      status = nc_get_att_text(ncid_, NC_GLOBAL, attr_name, buf.data());
-      if (status == NC_NOERR) {
-        ses_version_ = std::string(buf.data(), att_len);
-        is_ses_compliant_ = true;
-        return true;
-      }
-    }
-    return false;
-  };
-
-  // Prefer ses_version, fall back to miem_version
-  if (!try_read_attr("ses_version")) {
-    try_read_attr("miem_version");
-  }
-
-  // Resolve time dimension: try SES names first, then legacy names
-  int time_dim_id;
-  int status;
-  std::string time_dim_name;
-
-  if (is_ses_compliant_) {
-    // SES 1.0 uses "time"; legacy CES used "Time"
-    status = nc_inq_dimid(ncid_, "time", &time_dim_id);
+  size_t att_len = 0;
+  int status = nc_inq_attlen(ncid_, NC_GLOBAL, "ses_version", &att_len);
+  if (status == NC_NOERR && att_len < 256) {
+    std::vector<char> buf(att_len + 1, '\0');
+    status = nc_get_att_text(ncid_, NC_GLOBAL, "ses_version", buf.data());
     if (status == NC_NOERR) {
-      time_dim_name = "time";
-    } else {
-      status = nc_inq_dimid(ncid_, "Time", &time_dim_id);
-      time_dim_name = "Time";
+      ses_version_ = std::string(buf.data(), att_len);
+      is_ses_compliant_ = true;
     }
-  } else {
-    time_dim_name = descriptor_.time_dimension;
-    status = nc_inq_dimid(ncid_, time_dim_name.c_str(), &time_dim_id);
   }
 
+  // Get time dimension
+  int time_dim_id;
+  const std::string& time_dim_name =
+      is_ses_compliant_ ? "time" : descriptor_.time_dimension;
+  status = nc_inq_dimid(ncid_, time_dim_name.c_str(), &time_dim_id);
   if (status == NC_NOERR) {
     size_t time_len;
     NC_CHECK(nc_inq_dimlen(ncid_, time_dim_id, &time_len));
@@ -130,24 +106,11 @@ void SESReader::DetectFormat() {
     n_time_steps_ = 1;  // No time dimension; treat as single snapshot
   }
 
-  // Resolve cell dimension: try SES names first, then legacy names
+  // Get cell dimension
   int cell_dim_id;
-  std::string cell_dim_name;
-
-  if (is_ses_compliant_) {
-    // SES 1.0 uses "n_cells"; legacy CES used "nCells"
-    status = nc_inq_dimid(ncid_, "n_cells", &cell_dim_id);
-    if (status == NC_NOERR) {
-      cell_dim_name = "n_cells";
-    } else {
-      status = nc_inq_dimid(ncid_, "nCells", &cell_dim_id);
-      cell_dim_name = "nCells";
-    }
-  } else {
-    cell_dim_name = descriptor_.cell_dimension;
-    status = nc_inq_dimid(ncid_, cell_dim_name.c_str(), &cell_dim_id);
-  }
-
+  const std::string& cell_dim_name =
+      is_ses_compliant_ ? "n_cells" : descriptor_.cell_dimension;
+  status = nc_inq_dimid(ncid_, cell_dim_name.c_str(), &cell_dim_id);
   if (status != NC_NOERR) {
     throw IOError("Cannot find cell dimension '" + cell_dim_name +
                   "' in file: " + file_path_);
@@ -257,15 +220,10 @@ bool ParseCFTimeUnits(const std::string& units_str,
 std::vector<double> SESReader::GetTimeValues() const {
   std::vector<double> times(n_time_steps_, 0.0);
 
-  // Try SES/legacy time variable names
   int time_varid;
-  int status = nc_inq_varid(ncid_, "time", &time_varid);
-  if (status != NC_NOERR) {
-    status = nc_inq_varid(ncid_, "Time", &time_varid);
-  }
-  if (!is_ses_compliant_ && status != NC_NOERR) {
-    status = nc_inq_varid(ncid_, descriptor_.time_dimension.c_str(), &time_varid);
-  }
+  const std::string& time_var_name =
+      is_ses_compliant_ ? "time" : descriptor_.time_dimension;
+  int status = nc_inq_varid(ncid_, time_var_name.c_str(), &time_varid);
   if (status != NC_NOERR) {
     return times;
   }
@@ -337,7 +295,7 @@ void SESReader::ReadFlux(int time_index,
     std::vector<Real> raw(n_cells_);
 
     if (ndims == 2) {
-      // (Time, nCells)
+      // (time, n_cells)
       size_t start[2] = {static_cast<size_t>(time_index), 0};
       size_t count[2] = {1, static_cast<size_t>(n_cells_)};
 #ifdef MIEM_USE_DOUBLE
@@ -346,7 +304,7 @@ void SESReader::ReadFlux(int time_index,
       NC_CHECK(nc_get_vara_float(ncid_, varid, start, count, raw.data()));
 #endif
     } else if (ndims == 1) {
-      // (nCells) — single time step
+      // (n_cells) — single time step
 #ifdef MIEM_USE_DOUBLE
       NC_CHECK(nc_get_var_double(ncid_, varid, raw.data()));
 #else

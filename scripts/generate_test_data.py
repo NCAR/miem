@@ -52,7 +52,7 @@ def create_non_ces_file(filepath, n_cells=10, n_times=2):
     """Create a non-SES file (requires descriptor)."""
     ds = Dataset(filepath, "w", format="NETCDF4")
 
-    # No ses_version or miem_version — not SES-compliant
+    # No ses_version — not SES-compliant
     ds.source = "FINN v2.5"
 
     # Dimensions (non-standard names)

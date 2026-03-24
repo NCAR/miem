@@ -10,8 +10,6 @@ namespace miem {
 
 // Reads SES (Standardized Emissions Schema) compliant NetCDF files,
 // or non-standard files adapted through a DatasetDescriptor.
-// Also accepts legacy CES files (miem_version, nCells, Time) for
-// backward compatibility.
 class SESReader {
  public:
   SESReader() = default;
