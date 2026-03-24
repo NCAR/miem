@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "3df2a9deebdf",
+  "session_id": "694831ca-f66c-40b0-9a19-7b972691b060",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-24T22:39:16.702486Z",
+  "branch": "feature/scaffolding",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "fortran/emis_state.F90",
+    "include/miem/ces_reader.hpp",
+    "include/miem/emissions_module.hpp",
+    "include/miem/miem.hpp",
+    "include/miem/miem_c.h",
+    "include/miem/source_offline.hpp",
+    "src/CMakeLists.txt",
+    "src/c_interface/emis_state_c_interface.cpp",
+    "src/ces_reader.cpp",
+    "src/emissions_module.cpp",
+    "test/CMakeLists.txt",
+    "test/unit/test_emissions_integration.cpp"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-6",
+  "turn_id": "51963b7e244b",
+  "checkpoint_transcript_start": 1106,
+  "transcript_lines_at_start": 1106,
+  "token_usage": {
+    "input_tokens": 3940,
+    "cache_creation_tokens": 68916,
+    "cache_read_tokens": 4321914,
+    "output_tokens": 23968,
+    "api_call_count": 38
+  },
+  "session_metrics": {
+    "turn_count": 26
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-24T22:39:15.689411Z",
+    "agent_lines": 0,
+    "human_added": 698,
+    "human_modified": 459,
+    "human_removed": 0,
+    "total_committed": 1057,
+    "agent_percentage": 0
+  }
+}

@@ -13,9 +13,12 @@
     "include/miem/dataset_descriptor.hpp",
     "include/miem/emis_state.hpp",
     "include/miem/emissions_module.hpp",
+    "include/miem/miem.hpp",
     "include/miem/miem_c.h",
+    "include/miem/source_offline.hpp",
     "scripts/generate_test_data.py",
     "scripts/validate_ses.py",
+    "src/CMakeLists.txt",
     "src/c_interface/emis_state_c_interface.cpp",
     "src/ces_reader.cpp",
     "src/config.cpp",
@@ -34,13 +37,19 @@
       "transcript": "/3d/f2a9deebdf/0/full.jsonl",
       "content_hash": "/3d/f2a9deebdf/0/content_hash.txt",
       "prompt": "/3d/f2a9deebdf/0/prompt.txt"
+    },
+    {
+      "metadata": "/3d/f2a9deebdf/1/metadata.json",
+      "transcript": "/3d/f2a9deebdf/1/full.jsonl",
+      "content_hash": "/3d/f2a9deebdf/1/content_hash.txt",
+      "prompt": "/3d/f2a9deebdf/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 78,
-    "cache_creation_tokens": 146889,
-    "cache_read_tokens": 6562804,
-    "output_tokens": 41533,
-    "api_call_count": 72
+    "input_tokens": 4018,
+    "cache_creation_tokens": 215805,
+    "cache_read_tokens": 10884718,
+    "output_tokens": 65501,
+    "api_call_count": 110
   }
 }

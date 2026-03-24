@@ -1,0 +1,80 @@
+Previously we identified that the CES data format was not fully defined -- what are the generate_test_data.py and validate_ces.py scripts doing then?
+
+---
+
+I would like to work toward formalizing the convention, but first we need to identify what type of preprocessing we expect to have to do for common emissions data sources in order to get it into this format. Identify the common data sources, identify what differs between their formats, consider what MIEM actually needs from the sources, and consider potential names (including "Compact Emissions Schema", if any compacting is actually being done).
+
+---
+
+I am seeing an issue already -- the Regridding transformation indicated that the "unstructured nCells" that MIEM expects is actually an MPAS grid. Since MIEM is supposed to be model independent, why is it depending on a grid that a specific model utilizes? It seems to me that the grid type utilized by all the sources should be kept instead? Would there be another reason to remap to an unstructured grid? 
+
+That assumption alone may have a reasonable impact on the resulting format, but I also want to consider:
+- if MIEM would benefit from having a concept of sectors? 
+- Have we considered using Parquet or something vs netcdf?
+
+---
+
+Hypothetically, if we were to use MIEM with a different model (e.g. CAM-SIMA), what does the nCells regridding do for us, will it still work? What benefit is there to 1D nCells?
+
+---
+
+"""f951: Warning: Nonexistent include directory ‘./physics_mmm’ [-Wmissing-include-dirs]
+(cd physics_mmm; make -f Makefile.mpas all)
+/bin/sh: line 1: cd: physics_mmm: No such file or directory
+make[6]: Entering directory '/opt/mpas/MPAS-Model/src/core_atmosphere/physics'
+make[6]: Makefile.mpas: No such file or directory
+make[6]: *** No rule to make target 'Makefile.mpas'.  Stop.
+make[6]: Leaving directory '/opt/mpas/MPAS-Model/src/core_atmosphere/physics'
+make[5]: *** [Makefile:65: core_physics_mmm] Error 2
+make[5]: *** Waiting for unfinished jobs....
+Note: switching to 'v8.2'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at c57dbc7 Merge branch 'mp_thompson_aerosols' into develop (PR #5)
+*** Found v8.2 tag ***
+*** Successfully obtained compatible versions of WRF physics tables ***
+make[5]: Leaving directory '/opt/mpas/MPAS-Model/src/core_atmosphere/physics'
+make[4]: *** [Makefile:9: all] Error 2
+make[4]: Leaving directory '/opt/mpas/MPAS-Model/src/core_atmosphere/physics'
+make[3]: *** [Makefile:44: physcore] Error 2
+make[3]: Leaving directory '/opt/mpas/MPAS-Model/src/core_atmosphere'
+make[2]: *** [Makefile:35: dycore] Error 2
+make[2]: Leaving directory '/opt/mpas/MPAS-Model/src'
+make[1]: *** [Makefile:1587: mpas_main] Error 2
+make[1]: Leaving directory '/opt/mpas/MPAS-Model'
+make: *** [Makefile:11: gnu] Error 2
+[ERROR] atmosphere compilation failed"""
+
+---
+
+Hypothetically, if we were to use MIEM with a different model (e.g. CAM-SIMA), what does the nCells regridding do for us, will it still work? What benefit is there to 1D nCells?
+
+---
+
+Does TUV-X have to consider regridding?
+
+---
+
+If the host model regrids already, then why does UPTEMPO exist at all? I think it is important for me to better understand how MIEM fits in to the ecosystem. For instance, what part of the GOCART-2G logic is it replacing, does it need to interface with MICM, etc.
+
+---
+
+Where does MUSICA come into all of this? Also, won't we eventually need to handle online emissions? We want to represent all of the gocart3g emissions logic here.
+
+---
+
+Does MICM have any knowledge of the grid?
