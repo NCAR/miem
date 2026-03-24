@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "73cebc73b670",
+  "session_id": "694831ca-f66c-40b0-9a19-7b972691b060",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-24T19:37:52.438124Z",
+  "branch": "feature/scaffolding",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".github/workflows/ci.yml",
+    "CMakeLists.txt",
+    "src/CMakeLists.txt",
+    "src/c_interface/error_handling.hpp",
+    "test/CMakeLists.txt",
+    "test/unit/test_emissions_integration.cpp"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-6",
+  "turn_id": "9af9bd6d766d",
+  "checkpoint_transcript_start": 927,
+  "transcript_lines_at_start": 927,
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 38712,
+    "cache_read_tokens": 1919214,
+    "output_tokens": 13084,
+    "api_call_count": 30
+  },
+  "session_metrics": {
+    "turn_count": 16
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-24T19:37:51.867827Z",
+    "agent_lines": 357,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 357,
+    "agent_percentage": 100
+  }
+}

@@ -1,0 +1,14 @@
+"""[ 66%] Building CXX object src/CMakeFiles/miem.dir/ces_reader.cpp.o
+[ 68%] Building CXX object src/CMakeFiles/miem.dir/util/error.cpp.o
+[ 69%] Building CXX object src/CMakeFiles/miem.dir/c_interface/miem_c_interface.cpp.o
+In file included from /home/ec2-user/MIEM/src/c_interface/miem_c_interface.cpp:3:
+/home/ec2-user/MIEM/include/miem/miem_c.h:23:3: error: conflicting declaration ‘typedef struct MIEM_Error MIEM_Error’
+   23 | } MIEM_Error;
+      |   ^~~~~~~~~~
+In file included from /home/ec2-user/MIEM/src/c_interface/miem_c_interface.cpp:1:
+/home/ec2-user/MIEM/src/c_interface/error_handling.hpp:13:8: note: previous declaration as ‘struct MIEM_Error’
+   13 | struct MIEM_Error {
+      |        ^~~~~~~~~~
+gmake[2]: *** [src/CMakeFiles/miem.dir/build.make:230: src/CMakeFiles/miem.dir/c_interface/miem_c_interface.cpp.o] Error 1
+gmake[1]: *** [CMakeFiles/Makefile2:1134: src/CMakeFiles/miem.dir/all] Error 2
+gmake: *** [Makefile:146: all] Error 2"""

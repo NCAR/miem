@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "73cebc73b670",
+  "strategy": "manual-commit",
+  "branch": "feature/scaffolding",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".github/workflows/ci.yml",
+    "CMakeLists.txt",
+    "src/CMakeLists.txt",
+    "src/c_interface/error_handling.hpp",
+    "test/CMakeLists.txt",
+    "test/unit/test_emissions_integration.cpp"
+  ],
+  "sessions": [
+    {
+      "metadata": "/73/cebc73b670/0/metadata.json",
+      "transcript": "/73/cebc73b670/0/full.jsonl",
+      "content_hash": "/73/cebc73b670/0/content_hash.txt",
+      "prompt": "/73/cebc73b670/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 38712,
+    "cache_read_tokens": 1919214,
+    "output_tokens": 13084,
+    "api_call_count": 30
+  }
+}
