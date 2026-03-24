@@ -1,5 +1,15 @@
 @PACKAGE_INIT@
 
+include(CMakeFindDependencyMacro)
+
+# FindnetCDF.cmake is installed alongside this config file
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
+find_dependency(netCDF)
+
+if(@MIEM_BUILD_FORTRAN@)
+  enable_language(Fortran)
+endif()
+
 include("${CMAKE_CURRENT_LIST_DIR}/MIEMTargets.cmake")
 
 check_required_components(MIEM)

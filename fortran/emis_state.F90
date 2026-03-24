@@ -6,15 +6,21 @@ module miem_emis_state_mod
 
   type, public :: emis_state_t
     type(c_ptr), private :: ptr = c_null_ptr
-    integer :: n_species = 0
-    integer :: n_cells = 0
-    integer :: n_vert_levels = 0
+    integer, private :: n_species = 0
+    integer, private :: n_cells = 0
+    integer, private :: n_vert_levels = 0
     real(c_double), pointer :: surface_flux(:,:) => null()
     real(c_double), pointer :: tendency(:,:,:) => null()
     integer(c_int), pointer :: emis_to_chem_idx(:) => null()
   contains
     procedure :: update_references => emis_state_update_references
     procedure :: delete => emis_state_delete
+    procedure :: set_ptr => emis_state_set_ptr
+    procedure :: is_associated => emis_state_is_associated
+    procedure :: get_n_species => emis_state_get_n_species
+    procedure :: get_n_cells => emis_state_get_n_cells
+    procedure :: get_n_vert_levels => emis_state_get_n_vert_levels
+    final :: emis_state_finalize
   end type emis_state_t
 
   ! C function interfaces
@@ -97,7 +103,7 @@ contains
 
   subroutine emis_state_delete(this, error)
     class(emis_state_t), intent(inout) :: this
-    type(error_t), intent(inout) :: error
+    type(error_t), intent(inout), target :: error
 
     if (c_associated(this%ptr)) then
       call DeleteMIEMState_c(this%ptr, c_loc(error))
@@ -110,6 +116,50 @@ contains
     this%n_species = 0
     this%n_cells = 0
     this%n_vert_levels = 0
+  end subroutine
+
+  subroutine emis_state_set_ptr(this, new_ptr)
+    class(emis_state_t), intent(inout) :: this
+    type(c_ptr), intent(in) :: new_ptr
+    this%ptr = new_ptr
+  end subroutine
+
+  function emis_state_is_associated(this) result(assoc)
+    class(emis_state_t), intent(in) :: this
+    logical :: assoc
+    assoc = c_associated(this%ptr)
+  end function
+
+  function emis_state_get_n_species(this) result(n)
+    class(emis_state_t), intent(in) :: this
+    integer :: n
+    n = this%n_species
+  end function
+
+  function emis_state_get_n_cells(this) result(n)
+    class(emis_state_t), intent(in) :: this
+    integer :: n
+    n = this%n_cells
+  end function
+
+  function emis_state_get_n_vert_levels(this) result(n)
+    class(emis_state_t), intent(in) :: this
+    integer :: n
+    n = this%n_vert_levels
+  end function
+
+  ! FINAL procedure — automatically frees C++ heap allocation when
+  ! the Fortran object goes out of scope
+  subroutine emis_state_finalize(this)
+    type(emis_state_t), intent(inout) :: this
+
+    if (c_associated(this%ptr)) then
+      call DeleteMIEMState_c(this%ptr, c_null_ptr)
+      this%ptr = c_null_ptr
+    end if
+    this%surface_flux => null()
+    this%tendency => null()
+    this%emis_to_chem_idx => null()
   end subroutine
 
 end module miem_emis_state_mod

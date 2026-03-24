@@ -7,11 +7,13 @@ MIEM (Model Independent Emissions Module) is a C++ MUSICA science module for atm
 ## Build
 
 ```bash
-mkdir build && cd build
-cmake .. -DMIEM_BUILD_TESTS=ON
-make -j$(nproc)
-ctest --output-on-failure
+cmake -B build -DMIEM_BUILD_TESTS=ON
+cmake --build build -j$(nproc)
+cd build && ctest --output-on-failure
 ```
+
+NetCDF-C is auto-detected via `nc-config` or `netCDFConfig.cmake`. For non-standard
+installs: `cmake -B build -DCMAKE_PREFIX_PATH=/path/to/netcdf`
 
 ## Code Conventions
 

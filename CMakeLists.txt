@@ -33,14 +33,16 @@ if(MIEM_BUILD_TESTS)
   add_subdirectory(test)
 endif()
 
-include(CMakePackageConfigHelpers)
-configure_package_config_file(
-  cmake/MIEMConfig.cmake.in
-  "${CMAKE_CURRENT_BINARY_DIR}/MIEMConfig.cmake"
-  INSTALL_DESTINATION lib/cmake/MIEM
-)
+# Install rules
+set(MIEM_INSTALL_TARGETS miem)
 
-install(TARGETS miem
+# If we fetched yaml-cpp via FetchContent, it must be in the export set
+# because CMake traces static library PRIVATE deps during install(EXPORT).
+if(MIEM_FETCHED_YAML_CPP)
+  list(APPEND MIEM_INSTALL_TARGETS yaml-cpp)
+endif()
+
+install(TARGETS ${MIEM_INSTALL_TARGETS}
   EXPORT MIEMTargets
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
@@ -49,12 +51,33 @@ install(TARGETS miem
 
 install(DIRECTORY include/miem/ DESTINATION include/miem)
 
+# Generate and install CMake package config
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/MIEMConfigVersion.cmake"
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
 install(EXPORT MIEMTargets
-  FILE MIEMTargets.cmake
   NAMESPACE musica::
   DESTINATION lib/cmake/MIEM
 )
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/MIEMConfig.cmake"
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/MIEMConfig.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/MIEMConfig.cmake"
+  @ONLY
+)
+
+install(FILES
+  "${CMAKE_CURRENT_BINARY_DIR}/MIEMConfig.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/MIEMConfigVersion.cmake"
+  DESTINATION lib/cmake/MIEM
+)
+
+# Install FindnetCDF.cmake so downstream consumers can re-find netCDF
+install(FILES
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindnetCDF.cmake"
   DESTINATION lib/cmake/MIEM
 )

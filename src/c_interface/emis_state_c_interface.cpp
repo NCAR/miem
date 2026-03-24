@@ -1,8 +1,15 @@
 #include "error_handling.hpp"
 #include "miem/emis_state.hpp"
 
+#include <type_traits>
+
 using namespace miem;
 using namespace miem::c_api;
+
+// The C API always uses double. If Real != double, the pointer casts below
+// would silently corrupt data. Fail at compile time instead.
+static_assert(std::is_same_v<Real, double>,
+    "MIEM C API requires double precision. Build with MIEM_DOUBLE_PRECISION=ON.");
 
 extern "C" {
 
@@ -36,7 +43,7 @@ int MIEMGetStateNumVertLevels(void* state) {
   return static_cast<EmisState*>(state)->n_vert_levels;
 }
 
-void DeleteMIEMState(void* state, MIEMError* error) {
+void DeleteMIEMState(void* state, MIEM_Error* error) {
   HandleErrors(error, [&]() {
     delete static_cast<EmisState*>(state);
   });

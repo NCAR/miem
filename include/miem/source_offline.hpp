@@ -19,7 +19,6 @@ class OfflineEmissionSource : public EmissionSource {
   OfflineEmissionSource() = default;
   explicit OfflineEmissionSource(const SourceConfig& config);
 
-  void Init(const std::string& config_path) override;
   std::vector<std::string> QuerySpecies() const override;
   void Update(double time_current, int n_cells,
               std::vector<Real>& flux_out,

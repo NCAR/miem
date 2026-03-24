@@ -14,9 +14,6 @@ class EmissionSource {
  public:
   virtual ~EmissionSource() = default;
 
-  // Initialize the source from configuration
-  virtual void Init(const std::string& config_path) = 0;
-
   // Return the list of mechanism species this source provides
   virtual std::vector<std::string> QuerySpecies() const = 0;
 

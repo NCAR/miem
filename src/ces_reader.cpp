@@ -4,6 +4,9 @@
 
 #include <algorithm>
 #include <cstring>
+#include <ctime>
+#include <regex>
+#include <sstream>
 
 #include "miem/util/error.hpp"
 
@@ -16,6 +19,32 @@
   } while (0)
 
 namespace miem {
+
+CESReader::CESReader(CESReader&& other) noexcept
+    : ncid_(other.ncid_),
+      file_path_(std::move(other.file_path_)),
+      descriptor_(std::move(other.descriptor_)),
+      is_ces_compliant_(other.is_ces_compliant_),
+      n_time_steps_(other.n_time_steps_),
+      n_cells_(other.n_cells_),
+      available_species_(std::move(other.available_species_)) {
+  other.ncid_ = -1;
+}
+
+CESReader& CESReader::operator=(CESReader&& other) noexcept {
+  if (this != &other) {
+    Close();
+    ncid_ = other.ncid_;
+    file_path_ = std::move(other.file_path_);
+    descriptor_ = std::move(other.descriptor_);
+    is_ces_compliant_ = other.is_ces_compliant_;
+    n_time_steps_ = other.n_time_steps_;
+    n_cells_ = other.n_cells_;
+    available_species_ = std::move(other.available_species_);
+    other.ncid_ = -1;
+  }
+  return *this;
+}
 
 void CESReader::Open(const std::string& file_path,
                      const DatasetDescriptor& descriptor) {
@@ -48,9 +77,14 @@ void CESReader::Close() {
 
 void CESReader::DetectFormat() {
   // Check for CES compliance via global attribute
-  char version_buf[64] = {0};
-  int status = nc_get_att_text(ncid_, NC_GLOBAL, "miem_version", version_buf);
-  is_ces_compliant_ = (status == NC_NOERR);
+  size_t att_len = 0;
+  int status = nc_inq_attlen(ncid_, NC_GLOBAL, "miem_version", &att_len);
+  is_ces_compliant_ = false;
+  if (status == NC_NOERR && att_len < 256) {
+    std::vector<char> version_buf(att_len + 1, '\0');
+    status = nc_get_att_text(ncid_, NC_GLOBAL, "miem_version", version_buf.data());
+    is_ces_compliant_ = (status == NC_NOERR);
+  }
 
   // Get time dimension
   int time_dim_id;
@@ -125,6 +159,57 @@ std::vector<std::string> CESReader::QuerySpecies() const {
   return available_species_;
 }
 
+namespace {
+
+// Parse CF time units string like "days since 2000-01-01" or
+// "seconds since 1970-01-01 00:00:00" into a multiplier (to seconds)
+// and a reference epoch (in seconds since Unix epoch).
+bool ParseCFTimeUnits(const std::string& units_str,
+                      double& multiplier, double& ref_epoch) {
+  // Pattern: "<unit> since <date> [<time>]"
+  std::regex cf_pattern(
+      R"((\w+)\s+since\s+(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?)");
+  std::smatch match;
+  if (!std::regex_search(units_str, match, cf_pattern)) {
+    return false;
+  }
+
+  std::string unit = match[1].str();
+  int year = std::stoi(match[2].str());
+  int month = std::stoi(match[3].str());
+  int day = std::stoi(match[4].str());
+  int hour = match[5].matched ? std::stoi(match[5].str()) : 0;
+  int minute = match[6].matched ? std::stoi(match[6].str()) : 0;
+  int second = match[7].matched ? std::stoi(match[7].str()) : 0;
+
+  // Unit to seconds multiplier
+  if (unit == "seconds" || unit == "second" || unit == "s") {
+    multiplier = 1.0;
+  } else if (unit == "minutes" || unit == "minute") {
+    multiplier = 60.0;
+  } else if (unit == "hours" || unit == "hour" || unit == "h") {
+    multiplier = 3600.0;
+  } else if (unit == "days" || unit == "day" || unit == "d") {
+    multiplier = 86400.0;
+  } else {
+    return false;
+  }
+
+  // Convert reference date to seconds since Unix epoch
+  std::tm ref_tm{};
+  ref_tm.tm_year = year - 1900;
+  ref_tm.tm_mon = month - 1;
+  ref_tm.tm_mday = day;
+  ref_tm.tm_hour = hour;
+  ref_tm.tm_min = minute;
+  ref_tm.tm_sec = second;
+  ref_epoch = static_cast<double>(timegm(&ref_tm));
+
+  return true;
+}
+
+}  // anonymous namespace
+
 std::vector<double> CESReader::GetTimeValues() const {
   std::vector<double> times(n_time_steps_, 0.0);
 
@@ -132,8 +217,27 @@ std::vector<double> CESReader::GetTimeValues() const {
   const std::string& time_dim_name =
       is_ces_compliant_ ? "Time" : descriptor_.time_dimension;
   int status = nc_inq_varid(ncid_, time_dim_name.c_str(), &time_varid);
-  if (status == NC_NOERR) {
-    NC_CHECK(nc_get_var_double(ncid_, time_varid, times.data()));
+  if (status != NC_NOERR) {
+    return times;
+  }
+
+  NC_CHECK(nc_get_var_double(ncid_, time_varid, times.data()));
+
+  // Read CF units attribute and convert to seconds since Unix epoch
+  size_t units_len = 0;
+  status = nc_inq_attlen(ncid_, time_varid, "units", &units_len);
+  if (status == NC_NOERR && units_len > 0 && units_len < 1024) {
+    std::vector<char> units_buf(units_len + 1, '\0');
+    nc_get_att_text(ncid_, time_varid, "units", units_buf.data());
+    std::string units_str(units_buf.data(), units_len);
+
+    double multiplier = 1.0;
+    double ref_epoch = 0.0;
+    if (ParseCFTimeUnits(units_str, multiplier, ref_epoch)) {
+      for (auto& t : times) {
+        t = t * multiplier + ref_epoch;
+      }
+    }
   }
 
   return times;
@@ -201,10 +305,31 @@ void CESReader::ReadFlux(int time_index,
 #endif
     }
 
-    // Apply unit conversion
+    // Check for fill value / missing value and mask to zero
+    Real fill_value;
+    bool has_fill = false;
+#ifdef MIEM_USE_DOUBLE
+    double fv;
+    if (nc_get_att_double(ncid_, varid, "_FillValue", &fv) == NC_NOERR) {
+      fill_value = fv;
+      has_fill = true;
+    }
+#else
+    float fv;
+    if (nc_get_att_float(ncid_, varid, "_FillValue", &fv) == NC_NOERR) {
+      fill_value = fv;
+      has_fill = true;
+    }
+#endif
+
+    // Apply unit conversion and fill value masking
     Real conv = descriptor_.unit_conversion_factor;
     for (int ic = 0; ic < n_cells_; ++ic) {
-      flux_out[isp * n_cells_ + ic] = raw[ic] * conv;
+      Real val = raw[ic];
+      if (has_fill && val == fill_value) {
+        val = 0.0;
+      }
+      flux_out[isp * n_cells_ + ic] = val * conv;
     }
   }
 }

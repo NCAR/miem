@@ -13,6 +13,13 @@ namespace miem {
 class CESReader {
  public:
   CESReader() = default;
+  ~CESReader() { Close(); }
+
+  // Non-copyable (owns a NetCDF file handle)
+  CESReader(const CESReader&) = delete;
+  CESReader& operator=(const CESReader&) = delete;
+  CESReader(CESReader&& other) noexcept;
+  CESReader& operator=(CESReader&& other) noexcept;
 
   // Open a NetCDF file. If descriptor is provided, use it for non-CES files.
   // If the file is CES-compliant, descriptor overrides are ignored.

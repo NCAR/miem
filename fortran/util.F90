@@ -2,16 +2,14 @@ module miem_util_mod
   use iso_c_binding
   implicit none
 
-  ! Error type matching C MIEMError struct
+  integer, parameter, public :: MIEM_MAX_NAME_LEN = 64
+
+  ! Error type matching C MIEM_Error struct
   type, bind(C) :: error_t
     integer(c_int) :: code = 0
-    character(kind=c_char) :: category(64)
-    character(kind=c_char) :: message(256)
+    character(kind=c_char) :: category(64) = c_null_char
+    character(kind=c_char) :: message(256) = c_null_char
   end type error_t
-
-  interface
-    ! String helper: convert C char array to Fortran string
-  end interface
 
 contains
 

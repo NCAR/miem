@@ -53,7 +53,8 @@ TEST(FluxConverter, ConvertEmisState) {
     }
   }
 
-  FluxConverter::Convert(state, air_density, layer_thickness);
+  FluxConverter::Convert(state, air_density.data(), layer_thickness.data(),
+                         static_cast<int>(air_density.size()));
 
   // Check tendency at surface layer (layer 0) for species 0
   for (int ic = 0; ic < n_cells; ++ic) {
@@ -85,7 +86,8 @@ TEST(FluxConverter, ElevatedInjection) {
   std::vector<Real> rho(n_vert_levels * n_cells, 1.0);
   std::vector<Real> dz(n_vert_levels * n_cells, 100.0);
 
-  FluxConverter::Convert(state, rho, dz);
+  FluxConverter::Convert(state, rho.data(), dz.data(),
+                         static_cast<int>(rho.size()));
 
   // Layer 0 should be zero
   EXPECT_DOUBLE_EQ(state.tendency[0 * n_cells + 0], 0.0);

@@ -4,9 +4,13 @@
 #include <exception>
 #include <functional>
 
+#include "miem/util/error.hpp"
+
+// C-visible error struct. Uses MIEM_Error to avoid name collision with
+// the C++ miem::MIEMError exception class.
 extern "C" {
 
-struct MIEMError {
+struct MIEM_Error {
   int code;
   char category[64];
   char message[256];
@@ -17,15 +21,13 @@ struct MIEMError {
 namespace miem {
 namespace c_api {
 
-inline void ClearError(MIEMError* error) {
+inline void ClearError(MIEM_Error* error) {
   if (error) {
-    error->code = 0;
-    error->category[0] = '\0';
-    error->message[0] = '\0';
+    std::memset(error, 0, sizeof(MIEM_Error));
   }
 }
 
-inline void SetError(MIEMError* error, int code,
+inline void SetError(MIEM_Error* error, int code,
                      const char* category, const char* message) {
   if (error) {
     error->code = code;
@@ -37,13 +39,14 @@ inline void SetError(MIEMError* error, int code,
 }
 
 template <typename F>
-void HandleErrors(MIEMError* error, F&& func) {
+void HandleErrors(MIEM_Error* error, F&& func) {
   ClearError(error);
   try {
     func();
-  } catch (const MIEMError& e) {
-    // Already a C error struct — shouldn't happen but handle gracefully
-    if (error) *error = e;
+  } catch (const miem::MIEMError& e) {
+    // Catch MIEM's typed exceptions (ConfigError, IOError, etc.)
+    // and preserve their category string
+    SetError(error, 1, e.Category().c_str(), e.what());
   } catch (const std::exception& e) {
     SetError(error, 1, "Exception", e.what());
   } catch (...) {

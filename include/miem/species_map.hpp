@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -48,6 +49,12 @@ class SpeciesMap {
  private:
   std::string mechanism_name_;
   std::vector<SpeciesMapping> mappings_;
+
+  // Cached index maps, rebuilt when mappings change
+  std::vector<std::string> cached_mechanism_species_;
+  std::map<std::string, int> cached_mech_idx_;
+
+  void RebuildCache();
 };
 
 }  // namespace miem

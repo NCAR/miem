@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "miem/ces_reader.hpp"
+#include "miem/util/error.hpp"
 
 using namespace miem;
 

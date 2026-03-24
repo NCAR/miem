@@ -10,10 +10,14 @@
 
 namespace miem {
 
+class MIEMConfig;  // forward declaration
+
 class EmissionsModule {
  public:
-  // Phase 1: Discovery — query available species before constructing
+  // Phase 1: Discovery — query available species before constructing.
+  // Accepts either a file path or a pre-parsed config to avoid double-parsing.
   static std::vector<std::string> QuerySpecies(const std::string& config_path);
+  static std::vector<std::string> QuerySpecies(const MIEMConfig& config);
 
   // Phase 2: Construction
   EmissionsModule(const std::string& config_path, int n_cells, int n_vert_levels);
@@ -25,11 +29,13 @@ class EmissionsModule {
                           std::vector<int>& indices) const;
 
   // Run emissions for a time step, returning an EmisState.
+  // time_current: seconds since epoch
   // air_density: (n_vert_levels * n_cells) in kg/m^3
   // layer_thickness: (n_vert_levels * n_cells) in meters
-  EmisState Run(double time_current, double dt,
-                const std::vector<Real>& air_density,
-                const std::vector<Real>& layer_thickness);
+  // n_atm_elements: size of air_density and layer_thickness arrays
+  EmisState Run(double time_current,
+                const Real* air_density, const Real* layer_thickness,
+                int n_atm_elements);
 
   int NumSpecies() const { return static_cast<int>(aggregated_species_.size()); }
   int NumCells() const { return n_cells_; }

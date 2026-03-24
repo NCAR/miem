@@ -6,19 +6,22 @@
 
 #include "miem/config.hpp"
 #include "miem/flux_converter.hpp"
-#include "miem/source_offline.hpp"
+#include "miem/source_factory.hpp"
 #include "miem/util/error.hpp"
 
 namespace miem {
 
 std::vector<std::string> EmissionsModule::QuerySpecies(
     const std::string& config_path) {
-  auto config = MIEMConfig::FromYAML(config_path);
+  return QuerySpecies(MIEMConfig::FromYAML(config_path));
+}
 
+std::vector<std::string> EmissionsModule::QuerySpecies(
+    const MIEMConfig& config) {
   std::set<std::string> all_species;
   for (const auto& src_config : config.sources) {
-    OfflineEmissionSource source(src_config);
-    auto sp = source.QuerySpecies();
+    auto source = SourceFactory::Create(src_config);
+    auto sp = source->QuerySpecies();
     all_species.insert(sp.begin(), sp.end());
   }
 
@@ -30,10 +33,10 @@ EmissionsModule::EmissionsModule(const std::string& config_path,
     : n_cells_(n_cells), n_vert_levels_(n_vert_levels) {
   auto config = MIEMConfig::FromYAML(config_path);
 
-  // Create sources and collect species
+  // Create sources via factory and collect species
   std::set<std::string> species_set;
   for (const auto& src_config : config.sources) {
-    auto source = std::make_unique<OfflineEmissionSource>(src_config);
+    auto source = SourceFactory::Create(src_config);
     auto sp = source->QuerySpecies();
     species_set.insert(sp.begin(), sp.end());
     sources_.push_back(std::move(source));
@@ -61,9 +64,10 @@ void EmissionsModule::ResolveHostIndices(
   }
 }
 
-EmisState EmissionsModule::Run(double time_current, double dt,
-                               const std::vector<Real>& air_density,
-                               const std::vector<Real>& layer_thickness) {
+EmisState EmissionsModule::Run(double time_current,
+                               const Real* air_density,
+                               const Real* layer_thickness,
+                               int n_atm_elements) {
   int n_agg = static_cast<int>(aggregated_species_.size());
   EmisState state(n_agg, n_cells_, n_vert_levels_);
   state.species_names = aggregated_species_;
@@ -94,7 +98,7 @@ EmisState EmissionsModule::Run(double time_current, double dt,
   }
 
   // Convert surface fluxes to tendencies
-  FluxConverter::Convert(state, air_density, layer_thickness);
+  FluxConverter::Convert(state, air_density, layer_thickness, n_atm_elements);
 
   return state;
 }

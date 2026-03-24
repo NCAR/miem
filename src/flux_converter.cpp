@@ -16,14 +16,14 @@ Real FluxConverter::FluxToTendency(Real flux_kg_m2_s,
 }
 
 void FluxConverter::Convert(EmisState& state,
-                            const std::vector<Real>& air_density,
-                            const std::vector<Real>& layer_thickness) {
+                            const Real* air_density,
+                            const Real* layer_thickness,
+                            int n_atm_elements) {
   const int n_sp = state.n_species;
   const int n_cells = state.n_cells;
   const int n_vl = state.n_vert_levels;
 
-  if (static_cast<int>(air_density.size()) < n_vl * n_cells ||
-      static_cast<int>(layer_thickness.size()) < n_vl * n_cells) {
+  if (n_atm_elements < n_vl * n_cells) {
     throw ValidationError(
         "FluxConverter: air_density and layer_thickness must have at least "
         "n_vert_levels * n_cells elements");

@@ -5,6 +5,7 @@
 #include "miem/config.hpp"
 #include "miem/source.hpp"
 #include "miem/source_offline.hpp"
+#include "miem/source_factory.hpp"
 #include "miem/species_map.hpp"
 #include "miem/temporal_interpolator.hpp"
 #include "miem/flux_converter.hpp"

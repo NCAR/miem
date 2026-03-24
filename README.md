@@ -13,10 +13,29 @@ MIEM follows the three-layer MUSICA pattern:
 ## Building
 
 ```bash
-mkdir build && cd build
-cmake .. -DMIEM_BUILD_FORTRAN=ON -DMIEM_BUILD_TESTS=ON
-make -j$(nproc)
-ctest --output-on-failure
+cmake -B build -DMIEM_BUILD_FORTRAN=ON -DMIEM_BUILD_TESTS=ON
+cmake --build build -j$(nproc)
+cd build && ctest --output-on-failure
+```
+
+### NetCDF Discovery
+
+CMake will auto-detect NetCDF-C in two ways:
+
+1. **Standard installs** — via `netCDFConfig.cmake` (e.g., `apt install libnetcdf-dev`)
+2. **Custom/HPC installs** — via `nc-config` on your `PATH` (e.g., `/opt/mpas/netcdf`)
+
+If NetCDF is installed in a non-standard location and `nc-config` is not on your PATH, point CMake to it:
+
+```bash
+cmake -B build -DCMAKE_PREFIX_PATH=/path/to/netcdf
+```
+
+Or set the `NETCDF_DIR` environment variable:
+
+```bash
+export NETCDF_DIR=/opt/mpas/netcdf
+cmake -B build
 ```
 
 ### CMake Options
@@ -31,9 +50,9 @@ ctest --output-on-failure
 
 - CMake >= 3.14
 - C++17 compiler
-- NetCDF-C
-- yaml-cpp (fetched automatically)
-- GoogleTest (fetched automatically)
+- NetCDF-C (detected via `netCDFConfig.cmake` or `nc-config`)
+- yaml-cpp (fetched automatically via CMake FetchContent)
+- GoogleTest (fetched automatically via CMake FetchContent)
 - Fortran compiler (if `MIEM_BUILD_FORTRAN=ON`)
 
 ## Configuration

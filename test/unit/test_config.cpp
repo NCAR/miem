@@ -4,6 +4,7 @@
 
 #include "miem/config.hpp"
 #include "miem/dataset_descriptor.hpp"
+#include "miem/util/error.hpp"
 
 using namespace miem;
 

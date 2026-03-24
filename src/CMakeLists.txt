@@ -2,6 +2,7 @@ add_library(miem
   emissions_module.cpp
   emis_state.cpp
   source_offline.cpp
+  source_factory.cpp
   species_map.cpp
   temporal_interpolator.cpp
   flux_converter.cpp
@@ -22,7 +23,7 @@ target_include_directories(miem
 )
 
 target_link_libraries(miem
-  PUBLIC
+  PRIVATE
     yaml-cpp::yaml-cpp
     netCDF::netcdf
 )
