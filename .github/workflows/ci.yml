@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [gcc]
+        build_type: [Debug, Release]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            g++ \
+            gfortran \
+            libnetcdf-dev \
+            libnetcdff-dev
+
+      - name: Configure
+        env:
+          BUILD_TYPE: ${{ matrix.build_type }}
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+            -DMIEM_BUILD_FORTRAN=ON \
+            -DMIEM_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Test
+        run: cd build && ctest --output-on-failure

@@ -1,0 +1,16 @@
+miem:
+  version: "1.0"
+  sources:
+    - name: "CAMS_anthro"
+      type: "anthropogenic"
+      file_pattern: "/data/emissions/cams_anthro_mpas120km.nc"
+      species_map: "configs/example_species_map.yaml"
+      temporal_interpolation: "linear"
+      vertical_injection: "surface"
+
+    - name: "FINN_fire"
+      type: "fire"
+      file_pattern: "/data/emissions/finn_v25_mpas120km.nc"
+      species_map: "configs/example_species_map.yaml"
+      temporal_interpolation: "nearest"
+      descriptor: "configs/example_descriptor.yaml"

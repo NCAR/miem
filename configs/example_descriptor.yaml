@@ -1,0 +1,12 @@
+descriptor:
+  variable_prefix: "fire_"
+  flux_units: "molecules/cm2/s"
+  unit_conversion_factor: 1.66054e-21
+  time_dimension: "time"
+  cell_dimension: "ncol"
+  species_rename:
+    fire_NOx: "emi_NOx"
+    fire_CO: "emi_CO"
+    fire_SO2: "emi_SO2"
+    fire_OC: "emi_OC"
+    fire_BC: "emi_BC"

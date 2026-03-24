@@ -1,0 +1,42 @@
+# MIEM — Claude Code Project Config
+
+## Project Overview
+
+MIEM (Model Independent Emissions Module) is a C++ MUSICA science module for atmospheric emissions processing. Three-layer architecture: C++ core → C API → Fortran iso_c_binding.
+
+## Build
+
+```bash
+mkdir build && cd build
+cmake .. -DMIEM_BUILD_TESTS=ON
+make -j$(nproc)
+ctest --output-on-failure
+```
+
+## Code Conventions
+
+- C++17 standard
+- PascalCase for class names and public methods (e.g., `EmissionsModule`, `QuerySpecies`)
+- snake_case for local variables and private members
+- Trailing underscore for private member variables (e.g., `n_cells_`)
+- Header files in `include/miem/`, implementations in `src/`
+- C API functions prefixed with `MIEM` (e.g., `CreateMIEM`, `MIEMRun`)
+- Fortran types use `_t` suffix (e.g., `miem_t`, `emis_state_t`)
+- Error handling: C++ exceptions in core, converted to error structs at C boundary
+- All public headers use `#pragma once`
+- Use `std::vector` for dynamic arrays, raw pointers only at C API boundary
+- Configuration via yaml-cpp (`YAML::Node`)
+- NetCDF I/O via NetCDF-C API
+
+## Testing
+
+- GoogleTest for C++ unit tests in `test/unit/`
+- Fortran tests in `test/fortran/`
+- Test data fixtures in `test/data/`
+
+## Key Patterns
+
+- Follow MICM's `HandleErrors` template for C API error handling
+- `EmisState` provides `.data()` pointers for C/Fortran interop
+- Species discovery via `QuerySpecies()` static method before construction
+- Host index resolution via `ResolveHostIndices()` after construction

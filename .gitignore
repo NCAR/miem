@@ -1,0 +1,54 @@
+# Build directories
+build/
+build*/
+cmake-build-*/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Compiled objects
+*.o
+*.obj
+*.mod
+*.smod
+
+# Libraries
+*.a
+*.so
+*.dylib
+*.dll
+
+# Executables
+*.exe
+*.out
+
+# CMake generated
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+!cmake/*.cmake
+!cmake/*.cmake.in
+!CMakeLists.txt
+
+# Testing
+Testing/
+CTestTestfile.cmake
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Generated test data
+test/data/*.nc
+!test/data/.gitkeep

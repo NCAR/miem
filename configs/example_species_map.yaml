@@ -1,0 +1,26 @@
+species_map:
+  mechanism: "MOZART-T1"
+  mappings:
+    - inventory: "NOx"
+      mechanism: "NO"
+      scaling: 0.9
+    - inventory: "NOx"
+      mechanism: "NO2"
+      scaling: 0.1
+    - inventory: "SO2"
+      mechanism: "SO2"
+      scaling: 0.975
+    - inventory: "SO2"
+      mechanism: "SULF"
+      scaling: 0.025
+    - inventory: "CO"
+      mechanism: "CO"
+    - inventory: "NMVOC"
+      mechanism: "BIGALK"
+      scaling: 0.3
+    - inventory: "NMVOC"
+      mechanism: "BIGENE"
+      scaling: 0.2
+    - inventory: "NMVOC"
+      mechanism: "TOLUENE"
+      scaling: 0.15

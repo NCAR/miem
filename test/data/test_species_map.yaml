@@ -1,0 +1,13 @@
+species_map:
+  mechanism: "TEST"
+  mappings:
+    - inventory: "NOx"
+      mechanism: "NO"
+      scaling: 0.9
+    - inventory: "NOx"
+      mechanism: "NO2"
+      scaling: 0.1
+    - inventory: "SO2"
+      mechanism: "SO2"
+    - inventory: "CO"
+      mechanism: "CO"

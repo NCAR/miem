@@ -1,0 +1,9 @@
+miem:
+  version: "1.0"
+  sources:
+    - name: "test_anthro"
+      type: "anthropogenic"
+      file_pattern: "data/test_anthro.nc"
+      species_map: "data/test_species_map.yaml"
+      temporal_interpolation: "linear"
+      vertical_injection: "surface"
