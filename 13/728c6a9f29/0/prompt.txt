@@ -1,0 +1,5 @@
+Consider the pipeline for data input, preprocessing, and how MIEM can interact with the data. Even if the current implementation breaks, consider an altertative to netcdf for MIEM that utilizes any combination of Apache Arrow, Parquet, and HDF5 VDS
+
+---
+
+Let's just document this for now. What about DuckDB?
