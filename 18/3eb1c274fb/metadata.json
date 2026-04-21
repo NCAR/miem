@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "183eb1c274fb",
+  "strategy": "manual-commit",
+  "branch": "feature/scaffolding",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "CLAUDE.md",
+    "docs/eccad.md",
+    "docs/ses-1.0.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/18/3eb1c274fb/0/metadata.json",
+      "transcript": "/18/3eb1c274fb/0/full.jsonl",
+      "content_hash": "/18/3eb1c274fb/0/content_hash.txt",
+      "prompt": "/18/3eb1c274fb/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 289,
+    "cache_creation_tokens": 700972,
+    "cache_read_tokens": 24246597,
+    "output_tokens": 187224,
+    "api_call_count": 180
+  }
+}

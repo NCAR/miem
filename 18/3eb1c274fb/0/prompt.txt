@@ -1,0 +1,477 @@
+We are working on a yaml config file structure for our in development "Model Independent Emissions Module" (MIEM) within the MUSICA ecosystem.  The primary constraint is that it fits any existing mechanism/config for MICM (e.g. matching the style, etc.). Part of this task is determining what is already in the MICM config, since MIEM will need to reference that to determine the species that are being emitted. I will include the raw notes (which have things that can be ignored, such as specific peoples names, etc). Parse these, identify only the information that is relevant to our task here, and generate a preliminary yaml config file design for MIEM that meets the stated section priorities. : """Draft MIEM Config file structure
+
+Anthropogenic emissions section
+
+
+
+
+
+Input data directory
+
+
+
+Filename structure
+
+
+
+Species list
+
+
+
+Process different sectors (True/False)
+
+
+
+Do VOC speciation (True/False)
+
+
+
+
+
+If VOC speciation is True, define how to do it? Maybe, ask Claire/Louisa how it is done in CAMS and replicate the same method in MIEM. We will need the sector information for VOC speciation. 
+
+
+
+Apply climatological diurnal variation to global emissions (True/False)
+
+
+
+
+
+Use Olivier et al., (2003) (This is likely used in CAMS-TEMPO) as a starting point for different sectors. Control profiles through config file. 
+
+
+
+Have two options
+
+
+
+
+
+One profile per sector for entire globe
+
+
+
+Regionally varying sector-wise diurnal profile (wishlist, not a priority right now)
+
+
+
+Vertical distribution of point sources (True/False)
+
+
+
+
+
+Need to look into how to constrain this. We have information about the US from NEI but not sure about the rest of the world.
+
+
+
+Someone could run SMOKE over any part of the world and get this information but running SMOKE would be a heavy lift. 
+
+
+
+Provide an example format for vertically distributing the emissions. Look at EPA_ANTHRO_EMIS to see how it is done for NEI -> WRF-Chem mapping. 
+
+
+
+Combine emission inventories (True/False, e.g., CAMS + NEI)
+
+
+
+
+
+Define locations of emission inventories to be combined 
+
+
+
+Do different datasets have the same species? If not, then do the mapping. 
+
+
+
+Bring Haipeng Lin into one of our meetings to see what is being done with HEMCO.  
+
+Biomass Burning Section
+
+
+
+
+
+Input data directory
+
+
+
+Filename structure 
+
+
+
+Species list
+
+
+
+Do VOC speciation (True/False)
+
+
+
+
+
+If VOC speciation is True, define how to do it? Maybe, use the speciation FINN uses for different mechanisms. 
+
+
+
+Discuss with Louisa and maybe Kelly Barsanti if we can bring NEIVA for this purpose? Louisa has done it for FINN 2.6 but using NEIVA is not straightforward. 
+
+
+
+Can potentially use standard emissions ratios from FINN and apply those to different emission inventories (Need to think about it). 
+
+
+
+Identify emitted species from MICM config yaml file. 
+
+
+
+Apply climatological diurnal variation to emissions (True/False)
+
+
+
+
+
+Replicate UPTEMPO. Define hourly factors in the config file itself so that end users can change those here itself.
+
+
+
+Build an option to allow end users to override climatological diurnal variation with local data (e.g. Thailand specific diurnal variation)
+
+
+
+Vertical distribution of fire emissions
+
+
+
+
+
+We probably don’t need this as a config file option and can always read in parameters required for plumerise calculation.
+
+
+
+Provide options to read-in 3D biomass burning files if someone runs the plumerise offline. 
+
+
+
+QUACS can enable users to implement their own plumerise parametrization. 
+
+Biogenic emissions - offline or online
+
+
+
+
+
+If they are offline, they can be read similar to anthropogenic emissions. 
+
+
+
+Online emissions 
+
+
+
+
+
+MEGAN code will sit outside MIEM. MIEM will only get emission fluxes from MEGAN and other online emission modules and pass those to the solvers.  
+
+
+
+Should MIEM handle necessary input datasets for MEGAN? 
+
+
+
+Can we leverage land use information from the static geographical fields rather than reading those separately from MODIS?
+
+Dust emissions - online
+
+
+
+
+
+Interface with QUACS to allow users to use their own parameterization. This code will sit outside MIEM and MIEM will only get emission fluxes from dust emission schemes and pass those to the solvers. 
+
+Sea-salt emissions - online 
+
+
+
+
+
+Interface with QUACS to allow users to use their own parameterization. This code will sit outside MIEM and MIEM will only get emission fluxes from sea-salt emission schemes and pass those to the solvers. 
+
+
+
+
+
+Lightning NOx emissions - online
+
+
+
+
+
+Interface with QUACS to allow users to use their own parameterization. This code will sit outside MIEM and MIEM will only get emission fluxes from lightning NOx emission schemes and pass those to the solvers. """
+
+
+
+I also have the following personal notes I took from a recent meeting: """HEMCO
+
+https://github.com/ESCOMP/HEMCO_CESM
+
+TODO:
+
+
+
+
+
+Make an initial YAML config structure
+
+
+
+Goal make sure Kyle approves it and it is model independent
+
+
+
+
+
+Questions
+
+
+
+
+
+Do we want this all in the MICM file, or just have the MICM config point to the controlling configuration file for MIEM?
+
+
+
+
+
+Does MICM use these values also?
+
+
+
+Would this tool benefit from a WASM or other straightforward GUI to allow for selection/addition of sources, species, sectors, etc.
+
+
+
+
+
+This might be what QUACS will be
+
+
+
+Perhaps we add a feature that reads the MICM file to determine the species to generate the MIEM configuration file
+
+
+
+
+
+Or it could be a GUI tool (preferred)
+
+
+
+Look at musicbox website: https://musicbox.acom.ucar.edu/
+
+
+
+How would QUACS integrate?
+
+Notes
+
+
+
+
+
+In a miem config file
+
+
+
+
+
+Different sections for:
+
+
+
+
+
+Anthropogenic
+
+
+
+Biomass Burning 
+
+
+
+Biogenic (offline / online)
+
+
+
+Dust (online)
+
+
+
+Sea-salt (online)
+
+
+
+Lightning NOx emissions (online)
+
+
+
+Try to dig into what the requirements might be to get info from e.g. CAMS-TEMPO
+
+
+
+Wrf-chem preprocessing tools may be useful to look at
+
+
+
+1. MIEM should read the MICM config and determine the species that are being emitted
+
+
+
+2. MIEM needs to figure out the mapping to the MICM species
+
+Anthropogenic:
+
+
+
+
+
+Some inventories of VOC (volatile organic compound)
+
+
+
+
+
+Need species list
+
+
+
+Need sectors list
+
+
+
+FINN has a tool (for biomass burning and VOCs) that might be applied to Anthropogenic emissions as well
+
+Biogenic:
+
+
+
+
+
+Offline would be similar to anthro
+
+
+
+Online – MEGAN code will set outside MIEM and only moderate emissions rate
+
+
+
+
+
+Eventually bring it in through QUACS
+
+
+
+Only one way (most common way) to calculate Biogenic
+
+
+
+
+
+Online Modules
+
+
+
+
+
+Code will sit outside MIEM
+
+
+
+MIEM will only get emission fluxes from {type} emission schemes and pass those to the solvers
+
+Most helpful from user perspective
+
+
+
+
+
+User provides their KPP file, it recognized the species, has a mapping (or informs that none exists and requires user input)"""
+
+---
+
+MICM is not local, retrieve it from the github repo
+
+---
+
+Do we have a sample miem.yaml per this design?
+
+---
+
+yes
+
+---
+
+commit and push
+
+---
+
+could you make an interactive html artifact to explore what we've added here?
+
+---
+
+could you make an interactive html artifact to explore what we've added here? it can be local for a discussion, rather than something we push and expect to work for other reviewers for now.
+
+---
+
+The files don't look like yaml: """"key">miem:
+  "key">version: "1.0"
+ 
+  # MIEM reads the MICM/CAMP config to (a) learn the mechanism species list and
+  # (b) validate that every SPECIES_MAP target exists in the mechanism.
+  "key">micm_config: "./mechanism/config.yaml"
+  "key">mechanism_name: "MOZART-T1"
+ 
+  # CAMP-style include manifest. Each file contributes `miem-data` entries.
+  "key">miem-files:
+    "dash">- sources/anthropogenic.yaml→ file
+    "dash">- sources/biomass_burning.yaml→ file
+    "dash">- sources/biogenic.yaml→ file
+    "dash">- sources/online_interfaces.yaml→ file
+    "dash">- species_maps/cams_to_mozart.yaml→ file
+    "dash">- species_maps/nei_to_mozart.yaml→ file
+    "dash">- species_maps/finn_to_mozart.yaml→ file
+    "dash">- species_maps/megan_to_mozart.yaml→ file
+    "dash">- species_maps/quacs_to_mozart.yaml→ file
+    "dash">- profiles/diurnal.yaml→ file
+    "dash">- profiles/voc_speciation.yaml→ file
+    "dash">- profiles/vertical.yaml→ file"""
+
+---
+
+Can we explore an alternative approach to the species map files? -- Instead of yaml per source, make it yaml per chemical mechanism, with the source nested in it (e.g. cams, Finn, Megan, etc)
+
+---
+
+For option number 2, if we were to add a different anthro like SEDS, what would it look like?
+
+---
+
+re-run that question
+
+---
+
+For the same heiratrchy and category:  Config-load error — refuse to load, force the user to disambiguate with different hierarchy numbers. Safest; catches unintended overlap at
+    configure time.
+
+---
+
+stage, commit, push
+
+---
+
+We want to condense the 'input_directory' and 'file_pattern' settings out of the individual sources yaml files and into a top .level file. Also the convention is no longer SES-1.0 -- this should be ECCAD instead. The goal is to make it so the user doesn't have to do many edits themselves, with a focus on dynamic configuration
