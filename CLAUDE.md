@@ -43,12 +43,14 @@ installs: `cmake -B build -DCMAKE_PREFIX_PATH=/path/to/netcdf`
 - Species discovery via `QuerySpecies()` static method before construction
 - Host index resolution via `ResolveHostIndices()` after construction
 
-## SES (Standardized Emissions Schema)
+## ECCAD (Input File Convention)
 
-- Input file convention defined in `docs/ses-1.0.md`
-- SES 1.0 dimensions: `n_cells`, `time`
-- SES 1.0 version attribute: `ses_version`
-- SESReader detects SES compliance; non-SES files use DatasetDescriptor
-- Category/hierarchy aggregation (HEMCO-style): categories sum, higher hierarchy wins within same category
+- Input file convention defined in `docs/eccad.md` (replaces the earlier SES 1.0 draft)
+- ECCAD dimensions: `n_cells`, `time`
+- ECCAD version attribute: `eccad_version`
+- Reader class (currently `SESReader`, to be renamed `ECCADReader` when the convention rename lands in code) detects ECCAD compliance; non-ECCAD files use `DatasetDescriptor`
+- I/O metadata (directory, file_pattern, convention) lives in `miem.yaml`'s inventory registry; offline sources reference it by name via `inventory: <name>`
+- `data_root` in `miem.yaml` supports POSIX-style `${VAR}` / `${VAR:-default}` expansion; paths resolve as `data_root / directory / file_pattern`
+- Category/hierarchy aggregation (HEMCO-style): categories sum, higher hierarchy wins within same category; duplicate `(category, hierarchy)` → config-load error
 - Per-source `scaling_factor` for runtime scenario perturbation
 - Sector labels enable per-sector diagnostics via `EmisState::sector_fluxes`
