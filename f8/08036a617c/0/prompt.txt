@@ -1,0 +1,9 @@
+/deep-planning using the docs/config-architecture.md as a guideline, and the existing Readme example contained in https://github.com/NCAR/MechanismConfiguration as a sort of template, create a similar working example. It should demonstrate all planned functionality of miem, even if it isn't implemented yet (e.g. regridding). This example will help us determine what MIEM actually needs to know in order to fulfil its role, helping us to finalize the config as it will be in MechanismConfiguration. \ note that the mentions of ECCAD format is not an in-house format -- rather it refers to this: https://eccad.aeris-data.fr/recommendation/
+
+---
+
+You are skipping fortran, correct? We want to avoid having to do any fortran at all if necessary
+
+---
+
+commit and push
