@@ -12,10 +12,9 @@
 // the public API shape. See examples/README.md for a prose walkthrough
 // and the open-design-questions list this example surfaces.
 //
-// NOTE: This file references public headers that do not yet exist on
-// this branch. It is a blueprint for MIEM's first public release
-// (Migration Step 3 in the architecture doc), not a file that compiles
-// today. See the README for details.
+// NOTE: The miem/ headers included below are stubs that define the API
+// surface and compile cleanly but contain no real implementation.
+// Output values are placeholders. See the README for details.
 
 #include <miem/config.hpp>            // MIEMConfig, SourceConfig, SpeciesMap,
                                       // DatasetDescriptor + enums
