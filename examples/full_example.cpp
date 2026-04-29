@@ -18,7 +18,7 @@
 // today. See the README for details.
 
 #include <miem/config.hpp>            // MIEMConfig, SourceConfig, SpeciesMap,
-                                      // DatasetDescriptor, Regridding + enums
+                                      // DatasetDescriptor + enums
 #include <miem/emissions_module.hpp>  // EmissionsModule
 #include <miem/emis_state.hpp>        // EmisState
 
@@ -295,44 +295,23 @@ int main()
 #endif
 
   // --------------------------------------------------------------
-  // 5. Regridding.
-  //
-  //    v1 accepts only `None` — input files must already be on the
-  //    target grid. v1.x adds SCRIP: MIEM reads a pre-generated
-  //    weight file (S, row, col, frac_b) and applies a conservative
-  //    SpMV at read time. Weight generation stays external
-  //    (ESMF_RegridWeightGen, TempestRemap, ncremap, …).
-  // --------------------------------------------------------------
-  Regridding regridding{ .type_ = RegriddingType::None };
-#if 0  // v1: EmissionsModule throws UnsupportedRegriddingType
-  regridding = Regridding{
-    .type_         = RegriddingType::SCRIP,
-    .weights_file_ = "/glade/campaign/acom/emissions/weights/"
-                     "cams_0p1x0p1_to_mpas120km.nc",
-  };
-#endif
-
-  // --------------------------------------------------------------
-  // 6. Assemble the MIEMConfig.
+  // 5. Assemble the MIEMConfig.
   //
   //    Plain struct. No yaml-cpp. No mechanism_configuration types.
   //    No musica types. The order of `sources_` does not imply
   //    precedence — (category, hierarchy) does.
   // --------------------------------------------------------------
   MIEMConfig cfg{
-    .version_    = "1.0.0",
-    .regridding_ = regridding,
-    .sources_    = { cams_anthro, nei_us_anthro, finn_fires,
-                     ceds_us_override, megan_offline_climo },
+    .version_ = "1.0.0",
+    .sources_ = { cams_anthro, nei_us_anthro, finn_fires,
+                  ceds_us_override, megan_offline_climo },
   };
 
   // --------------------------------------------------------------
-  // 7. Create the module.
+  // 6. Create the module.
   //
   //    Dimensions come from the host mesh. MPAS-A 120 km global
-  //    shown here; any unstructured or structured grid works —
-  //    regridding weights (if configured) remap source-grid fluxes
-  //    onto these cells.
+  //    shown here; any unstructured or structured grid works.
   //
   //    Construction is lazy: no file I/O or NetCDF opens happen
   //    here. Files are opened on the first Run() call that needs
@@ -344,7 +323,7 @@ int main()
   EmissionsModule module(cfg, n_cells, n_vert_levels);
 
   // --------------------------------------------------------------
-  // 8. Run one timestep.
+  // 7. Run one timestep.
   //
   //    `sim_time_sec` is absolute seconds since the model epoch —
   //    MIEM uses this to interpolate the input NetCDF time axis,
@@ -356,13 +335,12 @@ int main()
   EmisState state = module.Run(sim_time_sec, dt_sec);
 
   // --------------------------------------------------------------
-  // 9. Consume outputs.
+  // 8. Consume outputs.
   //
   //    surface_flux_ :  [n_cells × n_mechanism_species]
   //        Host pushes these to MICM as EMIS.<species> rate params.
   //    tendency_     :  [n_cells × n_vert_levels × n_mechanism_species]
-  //        Populated when regridding introduced vertical structure
-  //        or when any source uses VerticalInjection::Plume
+  //        Populated when any source uses VerticalInjection::Plume
   //        (aspirational). Zero-filled for the pure-surface v1
   //        example here.
   //    sector_fluxes_:  map<sector_label, [n_cells × n_species]>
