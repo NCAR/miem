@@ -68,10 +68,9 @@ SourceConfig cams_anthro{
 
 ```c++
 MIEMConfig cfg{
-  .version_    = "1.0.0",
-  .regridding_ = Regridding{ .type_ = RegriddingType::None },
-  .sources_    = { cams_anthro, nei_us_anthro, finn_fires,
-                   ceds_us_override, megan_offline_climo },
+  .version_ = "1.0.0",
+  .sources_ = { cams_anthro, nei_us_anthro, finn_fires,
+                ceds_us_override, megan_offline_climo },
 };
 
 const int n_cells       = 163842;
@@ -138,17 +137,15 @@ and to an architecture-doc section:
 |                                         | Shared sector label across sources (diagnostic sum)                                      | §7 (open question below)   |
 |                                         | `TemporalInterpolation::Linear` and `::Nearest` both exercised                           | §6                         |
 | 4. Aspirational v2/v3 (`#if 0`)         | `VerticalInjection::Plume` (plume rise); `SourceMode::Online` + `provider_` (dust, sea-salt, lightning NOx, MEGAN) | §6 ("aspirational"), §9    |
-| 5. Regridding                           | `RegriddingType::None` live; `::SCRIP` + `weights_file_` in `#if 0`                       | §6, §7                     |
-| 6. `MIEMConfig` assembly                | Plain struct; no yaml-cpp, no MC types; source order does not imply precedence           | §3                         |
-| 7. `EmissionsModule` construction       | Struct-taking ctor `(cfg, n_cells, n_vert_levels)`                                       | §5                         |
-| 8. `Run(sim_time, dt)`                  | Timestep entry point (signature is an open question — see below)                          | §5                         |
-| 9. `EmisState` consumption              | `surface_flux_`, `tendency_` (zero-filled here), `sector_fluxes_` by label                | §4 (pipeline), open Qs     |
+| 5. `MIEMConfig` assembly                | Plain struct; no yaml-cpp, no MC types; source order does not imply precedence           | §3                         |
+| 6. `EmissionsModule` construction       | Struct-taking ctor `(cfg, n_cells, n_vert_levels)`                                       | §5                         |
+| 7. `Run(sim_time, dt)`                  | Timestep entry point (signature is an open question — see below)                          | §5                         |
+| 8. `EmisState` consumption              | `surface_flux_`, `tendency_` (zero-filled here), `sector_fluxes_` by label                | §4 (pipeline), open Qs     |
 
 Every v1-loadable field from architecture doc §7 is exercised in the
 live (non-`#if 0`) path. Every v1-hard-error construct from §9
-(`UnsupportedRegriddingType`, `OnlineSourcesNotSupported`,
-`UnsupportedVerticalInjection`) has a matching `#if 0` block tied
-to a concrete line in the example.
+(`OnlineSourcesNotSupported`, `UnsupportedVerticalInjection`) has a
+matching `#if 0` block tied to a concrete line in the example.
 
 ## Aspirational Constructs
 
@@ -158,46 +155,11 @@ no silent accept-and-ignore.
 
 | Construct in the example                               | v1 runtime error                     | Runtime component that unblocks it |
 | ------------------------------------------------------ | ------------------------------------ | ---------------------------------- |
-| `regridding.type_ = RegriddingType::SCRIP`             | `UnsupportedRegriddingType`          | `SCRIPRegridder` (v1.x)            |
 | `.vertical_injection_ = VerticalInjection::Plume`      | `UnsupportedVerticalInjection`       | `PlumeRise` (v2)                   |
 | `.mode_ = SourceMode::Online` (dust)                   | `OnlineSourcesNotSupported`          | `OnlineDustSource` (v2, via QUACS) |
 | `.mode_ = SourceMode::Online` (sea-salt)               | `OnlineSourcesNotSupported`          | `OnlineSeaSaltSource` (v2, via QUACS) |
 | `.mode_ = SourceMode::Online` (lightning NOx)          | `OnlineSourcesNotSupported`          | `OnlineLightningSource` (v3, via QUACS) |
 | `.mode_ = SourceMode::Online` (MEGAN)                  | `OnlineSourcesNotSupported`          | `OnlineBiogenicSource` (v3, via QUACS) |
-
-## C API
-
-The same config can be built through MIEM's C API for callers that
-don't use C++ directly (C host integrations, Python `ctypes` bindings,
-etc.). This is a surface-parity snippet, not a full program — omitted
-setters are mechanical:
-
-```c
-#include <miem/miem_c.h>
-
-miem_config_t* cfg = miem_config_new();
-miem_config_set_version(cfg, "1.0.0");
-miem_config_set_regridding_type(cfg, MIEM_REGRIDDING_NONE);
-
-miem_source_spec_t src;
-miem_source_spec_init(&src);
-miem_source_spec_set_name(&src, "cams anthro");
-miem_source_spec_set_mode(&src, MIEM_SOURCE_MODE_OFFLINE);
-miem_source_spec_set_type(&src, MIEM_SOURCE_TYPE_ANTHROPOGENIC);
-miem_source_spec_set_file_pattern(&src,
-    "/glade/.../CAMS-GLOB-ANT_v6.2_{YYYY}-{MM}.nc");
-miem_source_spec_set_convention(&src, MIEM_INVENTORY_CONVENTION_ECCAD);
-miem_source_spec_set_category(&src, 0);
-miem_source_spec_set_hierarchy(&src, 1);
-miem_source_spec_set_sector(&src, "anthropogenic");
-/* species map and temporal/vertical settings added similarly */
-miem_config_add_source(cfg, &src);
-
-miem_t* handle = NULL;
-int rc = CreateMIEM(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60, &handle);
-/* ... run, read EmisState via C accessors, destroy ... */
-miem_config_free(cfg);
-```
 
 ## Open Design Questions
 
