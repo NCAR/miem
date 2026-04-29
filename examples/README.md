@@ -13,12 +13,10 @@ the reasoning behind that split — MIEM deliberately does not know
 about YAML; parsing lives in `NCAR/MechanismConfiguration::emissions::v1::`
 and reference resolution lives in `NCAR/musica::emissions::Translate()`.
 
-> **Note.** MIEM's public headers and library do not exist on this
-> branch yet. The example is a **blueprint** that will build against
-> MIEM's first public release (Migration Step 3 of the architecture
-> doc). Every type it uses is pinned either by §3 and §5 of the
-> architecture doc or by the open-questions list at the bottom of
-> this README.
+> **Note.** The headers in `include/miem/` are stubs — they define the
+> API surface and compile cleanly, but contain no real file I/O or flux
+> computation. Output values are placeholders. Real implementations will
+> replace these stubs as MIEM is built out.
 
 ## Using the MIEM API
 
@@ -96,14 +94,10 @@ std::cout << "sector 'anthropogenic', cell 0, NO: "
           << " kg m-2 s-1\n";
 ```
 
-**To build and run the example** (assuming MIEM is installed under
-`/usr/local/miem-0.1.0/`):
+**To build and run the example** (from this directory):
 
 ```
-g++ -o full_example full_example.cpp \
-    -I/usr/local/miem-0.1.0/include \
-    -L/usr/local/miem-0.1.0/lib -lmiem \
-    -std=c++20
+g++ -o full_example full_example.cpp -I./include -std=c++20
 ./full_example
 ```
 
