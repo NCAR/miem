@@ -96,7 +96,7 @@ std::cout << "sector 'anthropogenic', cell 0, NO: "
 **To build and run the example** (from this directory):
 
 ```
-g++ -o full_example full_example.cpp -I./include -std=c++20
+g++ -o full_example full_example.cpp -I../include -std=c++20
 ./full_example
 ```
 
