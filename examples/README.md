@@ -23,14 +23,15 @@ and reference resolution lives in `NCAR/musica::emissions::Translate()`.
 The following example exercises a fictitious emissions scenario on an
 MPAS-A 120 km global mesh driving MOZART-T1 chemistry:
 
-- **`cams anthro`** — global CAMS v6.2 anthropogenic (ECCAD), baseline
-  everywhere.
-- **`nei us anthro`** — NEI 2020 US overlay (ECCAD), wins over CAMS in
-  US cells via higher hierarchy.
-- **`ceds us override`** — CEDS 2021 regional override (legacy, non-ECCAD
-  file adapted via a `DatasetDescriptor`), wins over both.
-- **`finn fires`** — FINN 2.6 biomass burning (ECCAD, daily files).
-- **`megan offline climo`** — monthly biogenic climatology (ECCAD).
+- **`cams anthro`** — global CAMS v6.2 anthropogenic, baseline everywhere.
+- **`nei us anthro`** — NEI 2020 US overlay, wins over CAMS in US cells via higher hierarchy.
+- **`ceds us override`** — CEDS 2021 regional override, wins over both.
+- **`finn fires`** — FINN 2.6 biomass burning, daily files.
+- **`megan offline climo`** — monthly biogenic climatology.
+
+Species mapping and inventory translation are handled upstream by
+MechanismConfiguration and `musica::Translate()` before this config
+reaches MIEM.
 
 Plus aspirational v2/v3 source shapes — plume-rise fires, online
 dust/sea-salt/lightning/MEGAN — shown under `#if 0` so the API surface
@@ -42,7 +43,7 @@ excerpts show the three most essential pieces. For the full code
 including species maps, the CEDS descriptor, all five live sources,
 and the aspirational `#if 0` blocks, read the file directly.
 
-**Setting up one source** (from [`full_example.cpp:130-145`](./full_example.cpp)):
+**Setting up one source** (from [`full_example.cpp`](./full_example.cpp)):
 
 ```c++
 SourceConfig cams_anthro{
@@ -51,8 +52,6 @@ SourceConfig cams_anthro{
   .type_                   = SourceType::Anthropogenic,
   .file_pattern_           = "/glade/campaign/acom/emissions/cams-v6.2/"
                              "CAMS-GLOB-ANT_v6.2_{YYYY}-{MM}.nc",
-  .convention_             = InventoryConvention::ECCAD,
-  .species_map_            = mozart_t1_from_cams,
   .temporal_interpolation_ = TemporalInterpolation::Linear,
   .vertical_injection_     = VerticalInjection::Surface,
   .category_               = 0,
@@ -124,17 +123,15 @@ and to an architecture-doc section:
 
 | `.cpp` section                          | MIEM capability demonstrated                                                             | Architecture-doc reference |
 | --------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------- |
-| 1. Shared species maps                  | Per-mechanism mapping; 1→N split; lumped NMVOC split with under-unity sum                | §3, §6, §7                 |
-| 2. Dataset descriptor                   | Non-ECCAD legacy-file adapter (variable prefix, rename, units, dimensions)               | §6 (descriptors), §7       |
-| 3. Sources (live)                       | `Offline` mode; `Anthropogenic` / `Fire` / `Biogenic` types; file-pattern tokens         | §3, §6                     |
+| 1. Sources (live)                       | `Offline` mode; `Anthropogenic` / `Fire` / `Biogenic` types; file-pattern tokens         | §3, §6                     |
 |                                         | Category/hierarchy layering (three anthro sources at `c=0, h=1/2/3`)                     | §7 (load-time invariants)  |
 |                                         | Shared sector label across sources (diagnostic sum)                                      | §7 (open question below)   |
 |                                         | `TemporalInterpolation::Linear` and `::Nearest` both exercised                           | §6                         |
-| 4. Aspirational v2/v3 (`#if 0`)         | `VerticalInjection::Plume` (plume rise); `SourceMode::Online` + `provider_` (dust, sea-salt, lightning NOx, MEGAN) | §6 ("aspirational"), §9    |
-| 5. `MIEMConfig` assembly                | Plain struct; no yaml-cpp, no MC types; source order does not imply precedence           | §3                         |
-| 6. `EmissionsModule` construction       | Struct-taking ctor `(cfg, n_cells, n_vert_levels)`                                       | §5                         |
-| 7. `Run(sim_time, dt)`                  | Timestep entry point (signature is an open question — see below)                          | §5                         |
-| 8. `EmisState` consumption              | `surface_flux_`, `tendency_` (zero-filled here), `sector_fluxes_` by label                | §4 (pipeline), open Qs     |
+| 2. Aspirational v2/v3 (`#if 0`)         | `VerticalInjection::Plume` (plume rise); `SourceMode::Online` + `provider_` (dust, sea-salt, lightning NOx, MEGAN) | §6 ("aspirational"), §9    |
+| 3. `MIEMConfig` assembly                | Plain struct; no yaml-cpp, no MC types; source order does not imply precedence           | §3                         |
+| 4. `EmissionsModule` construction       | Struct-taking ctor `(cfg, n_cells, n_vert_levels)`                                       | §5                         |
+| 5. `Run(sim_time, dt)`                  | Timestep entry point (signature is an open question — see below)                          | §5                         |
+| 6. `EmisState` consumption              | `surface_flux_`, `tendency_` (zero-filled here), `sector_fluxes_` by label                | §4 (pipeline), open Qs     |
 
 Every v1-loadable field from architecture doc §7 is exercised in the
 live (non-`#if 0`) path. Every v1-hard-error construct from §9
