@@ -6,7 +6,9 @@
 // timestep. Mirrors how a non-musica caller (ad-hoc host integration,
 // test harness, standalone tool) feeds MIEM. Musica's YAML-to-MIEMConfig
 // path is shown in musica's examples, not here — by design MIEM never
-// sees YAML.
+// sees YAML. Species mapping and inventory translation live upstream in
+// MechanismConfiguration and musica::Translate(); by the time MIEMConfig
+// reaches MIEM, species are already resolved.
 //
 // See docs/config-architecture.md §3 for struct ownership and §5 for
 // the public API shape. See examples/README.md for a prose walkthrough
@@ -16,8 +18,7 @@
 // surface and compile cleanly but contain no real implementation.
 // Output values are placeholders. See the README for details.
 
-#include <miem/config.hpp>            // MIEMConfig, SourceConfig, SpeciesMap,
-                                      // DatasetDescriptor + enums
+#include <miem/config.hpp>            // MIEMConfig, SourceConfig + enums
 #include <miem/emissions_module.hpp>  // EmissionsModule
 #include <miem/emis_state.hpp>        // EmisState
 
@@ -30,91 +31,17 @@ using namespace miem;
 int main()
 {
   // --------------------------------------------------------------
-  // 1. Shared species maps.
-  //
-  //    Each SpeciesMap belongs to a mechanism. A mapping can split
-  //    one inventory species across multiple mechanism species with
-  //    scaling factors; mass-conservation rule says the per-inventory-
-  //    species sum must be ≤ 1.0 (see architecture doc §7). Sums < 1.0
-  //    mean mass is routed to species the mechanism does not track
-  //    and silently dropped — the CAMS NMVOC split below demonstrates
-  //    this (sum = 0.65).
-  // --------------------------------------------------------------
-  SpeciesMap mozart_t1_from_cams{ .mechanism_ = "MOZART-T1" };
-  mozart_t1_from_cams.mappings_ = {
-    { .inventory_species_ = "NOx",   .mechanism_species_ = "NO",      .scaling_factor_ = 0.9 },
-    { .inventory_species_ = "NOx",   .mechanism_species_ = "NO2",     .scaling_factor_ = 0.1 },
-    { .inventory_species_ = "SO2",   .mechanism_species_ = "SO2",     .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "CO",    .mechanism_species_ = "CO",      .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "NH3",   .mechanism_species_ = "NH3",     .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "BC",    .mechanism_species_ = "BC",      .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "OC",    .mechanism_species_ = "OC",      .scaling_factor_ = 1.0 },
-    // Lumped NMVOC split. Sum = 0.65 < 1.0 — 35 % routed to species
-    // MOZART-T1 does not track (HEMCO-style silent drop).
-    { .inventory_species_ = "NMVOC", .mechanism_species_ = "BIGALK",  .scaling_factor_ = 0.30 },
-    { .inventory_species_ = "NMVOC", .mechanism_species_ = "BIGENE",  .scaling_factor_ = 0.20 },
-    { .inventory_species_ = "NMVOC", .mechanism_species_ = "TOLUENE", .scaling_factor_ = 0.15 },
-  };
-
-  SpeciesMap mozart_t1_from_nei{ .mechanism_ = "MOZART-T1" };
-  mozart_t1_from_nei.mappings_ = {
-    { .inventory_species_ = "NO",  .mechanism_species_ = "NO",  .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "NO2", .mechanism_species_ = "NO2", .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "CO",  .mechanism_species_ = "CO",  .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "SO2", .mechanism_species_ = "SO2", .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "NH3", .mechanism_species_ = "NH3", .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "PEC", .mechanism_species_ = "BC",  .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "POC", .mechanism_species_ = "OC",  .scaling_factor_ = 1.0 },
-  };
-
-  SpeciesMap mozart_t1_from_finn{ .mechanism_ = "MOZART-T1" };
-  mozart_t1_from_finn.mappings_ = {
-    { .inventory_species_ = "CO",   .mechanism_species_ = "CO",   .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "NO",   .mechanism_species_ = "NO",   .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "NO2",  .mechanism_species_ = "NO2",  .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "SO2",  .mechanism_species_ = "SO2",  .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "NH3",  .mechanism_species_ = "NH3",  .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "BC",   .mechanism_species_ = "BC",   .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "OC",   .mechanism_species_ = "OC",   .scaling_factor_ = 1.0 },
-  };
-
-  SpeciesMap mozart_t1_from_megan{ .mechanism_ = "MOZART-T1" };
-  mozart_t1_from_megan.mappings_ = {
-    { .inventory_species_ = "ISOPRENE",     .mechanism_species_ = "ISOP",    .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "MYRCENE",      .mechanism_species_ = "BIGALK",  .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "TOLUENE",      .mechanism_species_ = "TOLUENE", .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "METHANOL",     .mechanism_species_ = "CH3OH",   .scaling_factor_ = 1.0 },
-    { .inventory_species_ = "FORMALDEHYDE", .mechanism_species_ = "CH2O",    .scaling_factor_ = 1.0 },
-  };
-
-  // --------------------------------------------------------------
-  // 2. Dataset descriptor for the legacy CEDS inventory.
-  //
-  //    ECCAD-conforming files (CAMS, NEI, FINN, MEGAN climatology
-  //    below) do not need a descriptor — MIEM's reader knows the
-  //    ECCAD convention. Non-ECCAD files need the adapter.
-  // --------------------------------------------------------------
-  DatasetDescriptor ceds_legacy{
-    .variable_prefix_        = "emiss_",
-    .flux_units_             = "kg m-2 s-1",
-    .unit_conversion_factor_ = 1.0,
-    .time_dimension_         = "time",
-    .cell_dimension_         = "ncol",
-    .species_rename_ = {
-      { "emiss_no",  "NO"  },
-      { "emiss_co",  "CO"  },
-      { "emiss_so2", "SO2" },
-    },
-  };
-
-  // --------------------------------------------------------------
-  // 3. Sources.
+  // 1. Sources.
   //
   //    All five are `mode: Offline` — v1 scope (see architecture
   //    doc §6). Precedence is encoded in (category, hierarchy):
   //    within one category the highest hierarchy wins per cell;
   //    different categories always sum. Duplicate (category,
   //    hierarchy) across two sources is a load-time error (§7).
+  //
+  //    Species mapping and inventory translation are handled upstream
+  //    by MechanismConfiguration and musica::Translate() before this
+  //    config reaches MIEM.
   //
   //    Layering here:
   //      category 0 (anthropogenic bucket):
@@ -132,10 +59,7 @@ int main()
     .type_                   = SourceType::Anthropogenic,
     .file_pattern_           = "/glade/campaign/acom/emissions/cams-v6.2/"
                                "CAMS-GLOB-ANT_v6.2_{YYYY}-{MM}.nc",
-    .convention_             = InventoryConvention::ECCAD,
-    .species_map_            = mozart_t1_from_cams,
-    .temporal_interpolation_ = TemporalInterpolation::Linear,   // blend between the two file timestamps
-                                                                // bracketing the model timestep
+    .temporal_interpolation_ = TemporalInterpolation::Linear,
     .vertical_injection_     = VerticalInjection::Surface,
     .category_               = 0,
     .hierarchy_              = 1,
@@ -149,15 +73,12 @@ int main()
     .type_                   = SourceType::Anthropogenic,
     .file_pattern_           = "/glade/campaign/acom/emissions/nei-2020/"
                                "NEI_2020_{YYYY}{MM}{DD}.nc",
-    .convention_             = InventoryConvention::ECCAD,
-    .species_map_            = mozart_t1_from_nei,
     .temporal_interpolation_ = TemporalInterpolation::Linear,
     .vertical_injection_     = VerticalInjection::Surface,
     .category_               = 0,
     .hierarchy_              = 2,
     .scaling_factor_         = 1.0,
-    .sector_                 = "anthropogenic",                 // shares a sector label with cams_anthro
-                                                                // — diagnostic bucket sums both
+    .sector_                 = "anthropogenic",
   };
 
   SourceConfig finn_fires{
@@ -165,10 +86,8 @@ int main()
     .mode_                   = SourceMode::Offline,
     .type_                   = SourceType::Fire,
     .file_pattern_           = "/glade/campaign/acom/emissions/finn-2.6/"
-                               "FINN_{YYYY}{DDD}.nc",            // DOY token
-    .convention_             = InventoryConvention::ECCAD,
-    .species_map_            = mozart_t1_from_finn,
-    .temporal_interpolation_ = TemporalInterpolation::Nearest,   // daily file; nearest-in-time is fine
+                               "FINN_{YYYY}{DDD}.nc",
+    .temporal_interpolation_ = TemporalInterpolation::Nearest,
     .vertical_injection_     = VerticalInjection::Surface,
     .category_               = 1,
     .hierarchy_              = 1,
@@ -181,14 +100,11 @@ int main()
     .mode_                   = SourceMode::Offline,
     .type_                   = SourceType::Anthropogenic,
     .file_pattern_           = "/glade/campaign/acom/emissions/ceds-2021-04-21/"
-                               "CEDS_{sector}_{YYYY}.nc",        // sector-templated; one file per sector
-    .convention_             = InventoryConvention::Descriptor,
-    .descriptor_             = ceds_legacy,
-    .species_map_            = mozart_t1_from_cams,              // reuse CAMS map — same inventory species names
+                               "CEDS_{sector}_{YYYY}.nc",
     .temporal_interpolation_ = TemporalInterpolation::Linear,
     .vertical_injection_     = VerticalInjection::Surface,
     .category_               = 0,
-    .hierarchy_              = 3,                                // wins over cams_anthro AND nei_us_anthro
+    .hierarchy_              = 3,
     .scaling_factor_         = 1.0,
     .sector_                 = "anthropogenic",
   };
@@ -199,8 +115,6 @@ int main()
     .type_                   = SourceType::Biogenic,
     .file_pattern_           = "/glade/campaign/acom/emissions/megan-climo/"
                                "MEGAN_climo_{MM}.nc",
-    .convention_             = InventoryConvention::ECCAD,
-    .species_map_            = mozart_t1_from_megan,
     .temporal_interpolation_ = TemporalInterpolation::Linear,
     .vertical_injection_     = VerticalInjection::Surface,
     .category_               = 2,
@@ -210,7 +124,7 @@ int main()
   };
 
   // --------------------------------------------------------------
-  // 4. Aspirational v2/v3 source shapes.
+  // 2. Aspirational v2/v3 source shapes.
   //
   //    Shown so the API surface is visible. Commented out — each
   //    would raise the named error from EmissionsModule's ctor
@@ -225,8 +139,6 @@ int main()
     .type_                   = SourceType::Fire,
     .file_pattern_           = "/glade/campaign/acom/emissions/finn-2.6-3d/"
                                "FINN_3D_{YYYY}{DDD}.nc",
-    .convention_             = InventoryConvention::ECCAD,
-    .species_map_            = mozart_t1_from_finn,
     .temporal_interpolation_ = TemporalInterpolation::Nearest,
     .vertical_injection_     = VerticalInjection::Plume,
     .category_               = 1,
@@ -237,20 +149,12 @@ int main()
 #endif
 
   //    v2/v3 online sources — dust, sea-salt, lightning NOx, MEGAN.
-  //    All share `mode: Online` + a `provider_` string naming the
-  //    external scheme (shape TBD — see README open questions).
 #if 0  // v1: EmissionsModule throws OnlineSourcesNotSupported
   SourceConfig dust_online{
     .name_     = "dust online",
     .mode_     = SourceMode::Online,
     .type_     = SourceType::Dust,
     .provider_ = "quacs.dust",
-    .species_map_ = SpeciesMap{
-      .mechanism_ = "MOZART-T1",
-      .mappings_  = {{ .inventory_species_ = "DUST",
-                       .mechanism_species_ = "DUST_A1",
-                       .scaling_factor_ = 1.0 }},
-    },
     .category_ = 30, .hierarchy_ = 1, .scaling_factor_ = 1.0,
     .sector_   = "dust",
   };
@@ -259,12 +163,6 @@ int main()
     .mode_     = SourceMode::Online,
     .type_     = SourceType::SeaSalt,
     .provider_ = "quacs.seasalt",
-    .species_map_ = SpeciesMap{
-      .mechanism_ = "MOZART-T1",
-      .mappings_  = {{ .inventory_species_ = "SEASALT",
-                       .mechanism_species_ = "SSLT_A1",
-                       .scaling_factor_ = 1.0 }},
-    },
     .category_ = 31, .hierarchy_ = 1, .scaling_factor_ = 1.0,
     .sector_   = "seasalt",
   };
@@ -273,12 +171,6 @@ int main()
     .mode_     = SourceMode::Online,
     .type_     = SourceType::Lightning,
     .provider_ = "quacs.lightning",
-    .species_map_ = SpeciesMap{
-      .mechanism_ = "MOZART-T1",
-      .mappings_  = {{ .inventory_species_ = "NO_lightning",
-                       .mechanism_species_ = "NO",
-                       .scaling_factor_ = 1.0 }},
-    },
     .category_ = 32, .hierarchy_ = 1, .scaling_factor_ = 1.0,
     .sector_   = "lightning",
   };
@@ -287,14 +179,13 @@ int main()
     .mode_        = SourceMode::Online,
     .type_        = SourceType::Biogenic,
     .provider_    = "quacs.megan",
-    .species_map_ = mozart_t1_from_megan,
     .category_    = 2, .hierarchy_ = 2, .scaling_factor_ = 1.0,
     .sector_      = "biogenic",
   };
 #endif
 
   // --------------------------------------------------------------
-  // 5. Assemble the MIEMConfig.
+  // 3. Assemble the MIEMConfig.
   //
   //    Plain struct. No yaml-cpp. No mechanism_configuration types.
   //    No musica types. The order of `sources_` does not imply
@@ -307,7 +198,7 @@ int main()
   };
 
   // --------------------------------------------------------------
-  // 6. Create the module.
+  // 4. Create the module.
   //
   //    Dimensions come from the host mesh. MPAS-A 120 km global
   //    shown here; any unstructured or structured grid works.
@@ -322,7 +213,7 @@ int main()
   EmissionsModule module(cfg, n_cells, n_vert_levels);
 
   // --------------------------------------------------------------
-  // 7. Run one timestep.
+  // 5. Run one timestep.
   //
   //    `sim_time_sec` is absolute seconds since the model epoch —
   //    MIEM uses this to interpolate the input NetCDF time axis,
@@ -334,7 +225,7 @@ int main()
   EmisState state = module.Run(sim_time_sec, dt_sec);
 
   // --------------------------------------------------------------
-  // 8. Consume outputs.
+  // 6. Consume outputs.
   //
   //    surface_flux_ :  [n_cells × n_mechanism_species]
   //        Host pushes these to MICM as EMIS.<species> rate params.
