@@ -1,0 +1,22 @@
+# Read the Docs configuration file
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
+---
+version: 2
+
+conda:
+  environment: environment.yaml
+
+build:
+  os: ubuntu-24.04
+  tools:
+    python: "mambaforge-22.9"
+  jobs:
+    pre_build:
+      - >
+        cmake -S . -B build
+        -D MIEM_BUILD_DOCS=ON
+        -D MIEM_ENABLE_TESTS=OFF
+      - cmake --build build --target Doxygen
+
+sphinx:
+  configuration: docs/src/conf.py
