@@ -1,0 +1,53 @@
+name: Docker
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  docker-build-and-test:
+    name: Build and Test - ${{ matrix.dockerfile }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile:
+          - Dockerfile
+          - Dockerfile.coverage
+          - Dockerfile.memcheck
+          - Dockerfile.intel
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: rm -rf /opt/hostedtoolcache
+
+      - name: Build Docker image
+        run: docker build -t miem -f docker/${{ matrix.dockerfile }} .
+
+      - name: Run tests in container
+        if: matrix.dockerfile != 'Dockerfile.coverage'
+        run: docker run --name test-container -t miem bash -c 'make test ARGS="--rerun-failed --output-on-failure -j8"'
+
+      - name: Run coverage tests in container
+        if: matrix.dockerfile == 'Dockerfile.coverage'
+        run: docker run --name test-container -t miem bash -c 'make coverage'
+
+      - name: Copy coverage from container
+        if: matrix.dockerfile == 'Dockerfile.coverage'
+        run: docker cp test-container:miem/build/coverage.info .
+
+      - name: Upload coverage report
+        if: matrix.dockerfile == 'Dockerfile.coverage'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.info
