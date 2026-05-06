@@ -6,10 +6,6 @@ project(miem VERSION 0.1.0
         DESCRIPTION "Model Independent Emissions Module"
         HOMEPAGE_URL "https://github.com/NCAR/miem")
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH};${PROJECT_SOURCE_DIR}/cmake)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
@@ -17,10 +13,6 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING
       "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel."
       FORCE)
-endif()
-
-if(MIEM_ENABLE_COVERAGE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-  set(CMAKE_BUILD_TYPE Debug CACHE STRING "" FORCE)
 endif()
 
 include(GNUInstallDirs)
@@ -32,8 +24,6 @@ option(MIEM_ENABLE_TESTS    "Build the test suite"              ON)
 option(MIEM_ENABLE_MEMCHECK "Enable memory checking in tests"   OFF)
 option(MIEM_ENABLE_COVERAGE "Enable code coverage output"       OFF)
 option(MIEM_BUILD_DOCS      "Build the documentation"           OFF)
-
-set(MIEM_INSTALL_INCLUDE_DIR ${CMAKE_INSTALL_INCLUDEDIR})
 
 ################################################################################
 # Dependencies
@@ -53,7 +43,7 @@ target_compile_features(miem INTERFACE cxx_std_20)
 target_include_directories(miem
   INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${MIEM_INSTALL_INCLUDE_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 ################################################################################

@@ -1,17 +1,17 @@
-FROM docker.io/intel/oneapi-hpckit:latest
+from nvcr.io/nvidia/nvhpc:25.1-devel-cuda12.6-ubuntu24.04
 
 RUN apt update \
     && apt -y install \
-      build-essential \
-      ca-certificates \
-      cmake \
-      cmake-curses-gui \
-      git \
-      make \
+        build-essential \
+        ca-certificates \
+        cmake \
+        cmake-curses-gui \
+        git \
+        make \
     && apt clean
 
-ENV CC=icx
-ENV CXX=icpx
+ENV CC=nvc
+ENV CXX=nvc++
 
 COPY . /miem/
 

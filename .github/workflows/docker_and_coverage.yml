@@ -23,6 +23,7 @@ jobs:
           - Dockerfile.coverage
           - Dockerfile.memcheck
           - Dockerfile.intel
+          - Dockerfile.nvhpc
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
