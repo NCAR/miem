@@ -1,0 +1,39 @@
+name: Mac
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  macos_latest:
+    runs-on: macos-latest
+    continue-on-error: true
+    strategy:
+      matrix:
+        compiler:
+          - { cpp: g++-14, c: gcc-14 }
+          - { cpp: clang++, c: clang }
+        build_type: [Release]
+    env:
+      CC: ${{ matrix.compiler.c }}
+      CXX: ${{ matrix.compiler.cpp }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run CMake
+        run: cmake -S . -B build -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+      - name: Build
+        run: cmake --build build --parallel 10
+
+      - name: Run tests
+        run: |
+          cd build
+          ctest -C ${{ matrix.build_type }} --rerun-failed --output-on-failure . --verbose -j 10

@@ -1,0 +1,33 @@
+FROM fedora:latest
+
+ARG MIEM_GIT_TAG=main
+ARG BUILD_TYPE=Release
+
+RUN dnf -y update \
+    && dnf -y install \
+        cmake \
+        gcc-c++ \
+        git \
+        make \
+        doxygen \
+        python3 \
+        python3-pip \
+        tree \
+    && dnf clean all
+
+# Copy the MIEM code
+COPY . miem
+
+RUN pip3 install -r /miem/docs/requirements.txt
+
+# Build the library
+RUN cd miem \
+    && cmake -S . \
+             -B build \
+             -D CMAKE_BUILD_TYPE=${BUILD_TYPE} \
+             -D MIEM_BUILD_DOCS=ON \
+             -D MIEM_ENABLE_TESTS=OFF \
+    && cd build \
+    && make docs
+
+WORKDIR miem/build

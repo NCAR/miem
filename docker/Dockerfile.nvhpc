@@ -1,0 +1,25 @@
+from nvcr.io/nvidia/nvhpc:25.1-devel-cuda12.6-ubuntu24.04
+
+RUN apt update \
+    && apt -y install \
+        build-essential \
+        ca-certificates \
+        cmake \
+        cmake-curses-gui \
+        git \
+        make \
+    && apt clean
+
+ENV CC=nvc
+ENV CXX=nvc++
+
+COPY . /miem/
+
+RUN mkdir /build \
+    && cd /build \
+    && cmake \
+        -D CMAKE_BUILD_TYPE=Release \
+        /miem \
+    && make -j 8
+
+WORKDIR /build

@@ -1,0 +1,24 @@
+FROM fedora:latest
+
+RUN dnf -y update \
+    && dnf -y install \
+        cmake \
+        gcc-c++ \
+        gdb \
+        git \
+        lcov \
+        make \
+        tree \
+    && dnf clean all
+
+COPY . miem
+
+RUN cd miem \
+    && cmake -S . \
+             -B build \
+             -D CMAKE_BUILD_TYPE=Debug \
+             -D MIEM_ENABLE_COVERAGE=ON \
+    && cd build \
+    && make -j 8
+
+WORKDIR miem/build

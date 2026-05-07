@@ -1,0 +1,58 @@
+name: Windows
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  mingw:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        build_type: [Release]
+        architecture: [x64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MinGW
+        uses: egor-tensin/setup-mingw@v2
+        with:
+          platform: ${{ matrix.architecture }}
+          version: 12.2.0
+
+      - name: Run CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -G "MinGW Makefiles"
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }} --parallel 10
+
+      - name: Run tests
+        run: |
+          cd build
+          ctest -C ${{ matrix.build_type }} --rerun-failed --output-on-failure . --verbose
+
+  msvc2022:
+    runs-on: windows-latest
+    continue-on-error: true
+    strategy:
+      matrix:
+        build_type: [Release]
+        architecture: [Win32, x64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run CMake
+        run: cmake -S . -B build -D CMAKE_BUILD_TYPE=${{ matrix.build_type }} -A ${{ matrix.architecture }}
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }} --parallel 10
+
+      - name: Test
+        run: cd build ; ctest -j 10 -C ${{ matrix.build_type }} --output-on-failure

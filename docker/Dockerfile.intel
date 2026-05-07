@@ -1,0 +1,25 @@
+FROM docker.io/intel/oneapi-hpckit:latest
+
+RUN apt update \
+    && apt -y install \
+      build-essential \
+      ca-certificates \
+      cmake \
+      cmake-curses-gui \
+      git \
+      make \
+    && apt clean
+
+ENV CC=icx
+ENV CXX=icpx
+
+COPY . /miem/
+
+RUN mkdir /build \
+    && cd /build \
+    && cmake \
+        -D CMAKE_BUILD_TYPE=Release \
+        /miem \
+    && make -j 8
+
+WORKDIR /build
