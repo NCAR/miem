@@ -65,6 +65,12 @@ class EmissionsModule
   const std::vector<std::string>& SpeciesNames() const { return aggregated_species_; }
 
  private:
+  // Grid-only constructor used by `Create` -- leaves `sources_` empty
+  // so `BuildSources` can be invoked separately and its Result
+  // surfaced.
+  EmissionsModule(int n_cells, int n_vert_levels)
+      : n_cells_(n_cells), n_vert_levels_(n_vert_levels) {}
+
   struct SourceEntry
   {
     std::unique_ptr<EmissionSource> source_;
@@ -79,9 +85,11 @@ class EmissionsModule
   int                      n_cells_;
   int                      n_vert_levels_;
 
-  // Populate sources_ + aggregated_species_ from cfg.  Returns a
-  // populated error list when any source fails to construct.
-  std::vector<ErrorEntry> BuildSources(const MIEMConfig& cfg);
+  // Populate sources_ + aggregated_species_ from cfg.  Returns Ok on
+  // full success; otherwise returns a Result carrying the
+  // accumulated per-source errors (each tagged with the source's
+  // name) so Create() can surface them.
+  Result<void> BuildSources(const MIEMConfig& cfg);
 };
 
 }  // namespace miem

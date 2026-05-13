@@ -17,7 +17,7 @@
 
 namespace miem {
 
-std::vector<ErrorEntry> EmissionsModule::BuildSources(const MIEMConfig& cfg)
+Result<void> EmissionsModule::BuildSources(const MIEMConfig& cfg)
 {
   std::vector<ErrorEntry> errors;
 
@@ -27,9 +27,16 @@ std::vector<ErrorEntry> EmissionsModule::BuildSources(const MIEMConfig& cfg)
     auto factory = SourceFactory::Create(src_cfg);
     if (!factory)
     {
+      // Tag each underlying factory error with the source name so the
+      // caller sees "source '<name>' failed: <reason>" rather than a
+      // bare count.
       for (const auto& e : factory.errors())
       {
-        errors.push_back(e);
+        errors.push_back({
+            e.code_,
+            "source '" + src_cfg.name_ + "' failed to construct: " +
+                e.message_,
+        });
       }
       continue;
     }
@@ -46,7 +53,11 @@ std::vector<ErrorEntry> EmissionsModule::BuildSources(const MIEMConfig& cfg)
   }
 
   aggregated_species_.assign(species_set.begin(), species_set.end());
-  return errors;
+  if (!errors.empty())
+  {
+    return Result<void>::Errors(std::move(errors));
+  }
+  return Result<void>::Ok();
 }
 
 EmissionsModule::EmissionsModule(const MIEMConfig& cfg,
@@ -77,22 +88,17 @@ EmissionsModule::Create(const MIEMConfig& cfg,
     return Result<std::unique_ptr<EmissionsModule>>::Errors(v.errors());
   }
 
+  // Construct an empty shell, then invoke BuildSources directly so we
+  // get the structured per-source error list.  The legacy constructor
+  // path also calls BuildSources but silently discards the errors;
+  // here we want them.
   auto module = std::unique_ptr<EmissionsModule>(
-      new EmissionsModule(cfg, n_cells, n_vert_levels));
+      new EmissionsModule(n_cells, n_vert_levels));
 
-  // Re-run BuildSources via a fresh shell so we surface factory errors.
-  // (The constructor already populated `module->sources_`; we just need
-  // to check whether anything went wrong.  Easiest: re-validate by
-  // counting.  Validate should already have ruled out everything
-  // BuildSources would reject; if any source is missing, surface it.)
-  if (module->sources_.size() != cfg.sources_.size())
+  Result<void> built = module->BuildSources(cfg);
+  if (!built)
   {
-    Result<std::unique_ptr<EmissionsModule>> r;
-    r.AddError(ErrorCode::ConfigInvalid,
-               "EmissionsModule::Create: " +
-               std::to_string(cfg.sources_.size() - module->sources_.size()) +
-               " sources failed to construct.");
-    return r;
+    return Result<std::unique_ptr<EmissionsModule>>::Errors(built.errors());
   }
   return Result<std::unique_ptr<EmissionsModule>>::Ok(std::move(module));
 }
