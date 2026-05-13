@@ -15,15 +15,31 @@ if(NOT CMAKE_BUILD_TYPE)
       FORCE)
 endif()
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 include(GNUInstallDirs)
 
 ################################################################################
 # Options
 
-option(MIEM_ENABLE_TESTS    "Build the test suite"              ON)
-option(MIEM_ENABLE_MEMCHECK "Enable memory checking in tests"   OFF)
-option(MIEM_ENABLE_COVERAGE "Enable code coverage output"       OFF)
-option(MIEM_BUILD_DOCS      "Build the documentation"           OFF)
+option(MIEM_ENABLE_TESTS              "Build the test suite"              ON)
+option(MIEM_ENABLE_MEMCHECK           "Enable memory checking in tests"   OFF)
+option(MIEM_ENABLE_COVERAGE           "Enable code coverage output"       OFF)
+option(MIEM_BUILD_DOCS                "Build the documentation"           OFF)
+option(MIEM_USE_DOUBLE                "Use double-precision Real type"    ON)
+option(MIEM_INSTALL                   "Generate install rules"            ON)
+
+# Mass-conservation runtime check in FluxConverter: default ON in Debug,
+# OFF in Release (per plan §D for `MIEM_CHECK_MASS_CONSERVATION`).
+if(NOT DEFINED MIEM_CHECK_MASS_CONSERVATION)
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(MIEM_CHECK_MASS_CONSERVATION ON CACHE BOOL
+        "Runtime mass-conservation check in FluxConverter (debug default ON)")
+  else()
+    set(MIEM_CHECK_MASS_CONSERVATION OFF CACHE BOOL
+        "Runtime mass-conservation check in FluxConverter (release default OFF)")
+  endif()
+endif()
 
 ################################################################################
 # Dependencies
@@ -31,20 +47,14 @@ option(MIEM_BUILD_DOCS      "Build the documentation"           OFF)
 include(dependencies)
 
 ################################################################################
-# MIEM library (header-only)
-
-add_library(miem INTERFACE)
-add_library(musica::miem ALIAS miem)
+# MIEM library
+#
+# Three CMake targets per plan §D4:
+#   miem_objects (OBJECT) — all core .cpp, shared between miem and miem_c
+#   miem         (STATIC) — public C++ consumer face, alias musica::miem
+#   miem_c       (STATIC) — C API; only built when MIEM_USE_DOUBLE=ON
 
 add_subdirectory(src)
-
-target_compile_features(miem INTERFACE cxx_std_20)
-
-target_include_directories(miem
-  INTERFACE
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
 
 ################################################################################
 # Tests
@@ -74,4 +84,58 @@ endif()
 
 if(MIEM_BUILD_DOCS)
   add_subdirectory(docs)
+endif()
+
+################################################################################
+# Install / config-package
+
+if(MIEM_INSTALL AND PROJECT_IS_TOP_LEVEL)
+  include(CMakePackageConfigHelpers)
+
+  set(MIEM_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/miem")
+
+  set(MIEM_EXPORT_TARGETS miem miem_objects)
+  if(MIEM_USE_DOUBLE)
+    list(APPEND MIEM_EXPORT_TARGETS miem_c)
+  endif()
+
+  install(TARGETS ${MIEM_EXPORT_TARGETS}
+    EXPORT miemTargets
+    LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE  DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  )
+
+  install(DIRECTORY include/miem
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING
+      PATTERN "*.hpp"
+      PATTERN "*.h"
+  )
+
+  install(EXPORT miemTargets
+    NAMESPACE musica::
+    DESTINATION ${MIEM_INSTALL_CMAKEDIR}
+    FILE miemTargets.cmake
+  )
+
+  configure_package_config_file(
+    "${PROJECT_SOURCE_DIR}/cmake/miemConfig.cmake.in"
+    "${PROJECT_BINARY_DIR}/miemConfig.cmake"
+    INSTALL_DESTINATION "${MIEM_INSTALL_CMAKEDIR}"
+  )
+
+  write_basic_package_version_file(
+    "${PROJECT_BINARY_DIR}/miemConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+  )
+
+  install(FILES
+    "${PROJECT_BINARY_DIR}/miemConfig.cmake"
+    "${PROJECT_BINARY_DIR}/miemConfigVersion.cmake"
+    "${PROJECT_SOURCE_DIR}/cmake/FindnetCDF.cmake"
+    DESTINATION "${MIEM_INSTALL_CMAKEDIR}"
+  )
 endif()
