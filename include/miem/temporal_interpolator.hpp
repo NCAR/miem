@@ -1,4 +1,4 @@
-// Copyright (C) 2026 National Center for Atmospheric Research
+// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
 // Two-time-slice bracket interpolator: linear, nearest, or hold-left.
