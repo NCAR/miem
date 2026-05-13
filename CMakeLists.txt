@@ -94,7 +94,14 @@ if(MIEM_INSTALL AND PROJECT_IS_TOP_LEVEL)
 
   set(MIEM_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/miem")
 
-  set(MIEM_EXPORT_TARGETS miem miem_objects)
+  # Public targets — these are aliased into the `musica::` namespace by
+  # the `install(EXPORT)` below and become the consumer-facing entry
+  # points (`musica::miem`, optionally `musica::miem_c`).  `miem_objects`
+  # is deliberately omitted: it is a build-system implementation detail
+  # (its compiled .o files are baked into `miem` / `miem_c` via
+  # `$<TARGET_OBJECTS:miem_objects>`) and consumers must not see it
+  # surface as `musica::miem_objects`.
+  set(MIEM_EXPORT_TARGETS miem)
   if(MIEM_USE_DOUBLE)
     list(APPEND MIEM_EXPORT_TARGETS miem_c)
   endif()

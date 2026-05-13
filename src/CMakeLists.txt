@@ -48,12 +48,26 @@ endif()
 
 ################################################################################
 # miem: STATIC public C++ surface
+#
+# Embeds `miem_objects` via `$<TARGET_OBJECTS:miem_objects>` rather than
+# `target_link_libraries(... miem_objects)` -- this way the OBJECT files
+# get baked into the static archive but `miem_objects` is NOT registered
+# as a dependency on the `miem` target and therefore does NOT need to
+# appear in the install(EXPORT) set.  Public usage requirements
+# (include dirs, language level, MIEM_USE_DOUBLE) are re-declared here.
 
 add_library(miem STATIC)
-target_link_libraries(miem
-  PUBLIC  miem_objects
-  PRIVATE netCDF::netcdf_normalized
+target_sources(miem PRIVATE $<TARGET_OBJECTS:miem_objects>)
+target_link_libraries(miem PRIVATE netCDF::netcdf_normalized)
+target_include_directories(miem
+  PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+target_compile_features(miem PUBLIC cxx_std_20)
+if(MIEM_USE_DOUBLE)
+  target_compile_definitions(miem PUBLIC MIEM_USE_DOUBLE)
+endif()
 add_library(musica::miem ALIAS miem)
 
 ################################################################################
@@ -62,15 +76,14 @@ add_library(musica::miem ALIAS miem)
 
 if(MIEM_USE_DOUBLE)
   add_library(miem_c STATIC ${MIEM_C_API_SOURCES})
+  target_sources(miem_c PRIVATE $<TARGET_OBJECTS:miem_objects>)
   target_include_directories(miem_c
     PUBLIC
       $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   )
   target_compile_features(miem_c PUBLIC cxx_std_20)
-  target_link_libraries(miem_c
-    PUBLIC  miem_objects
-    PRIVATE netCDF::netcdf_normalized
-  )
+  target_compile_definitions(miem_c PUBLIC MIEM_USE_DOUBLE)
+  target_link_libraries(miem_c PRIVATE netCDF::netcdf_normalized)
   add_library(musica::miem_c ALIAS miem_c)
 endif()
