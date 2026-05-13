@@ -6,7 +6,6 @@
 #pragma once
 
 #include "miem/config.hpp"
-#include "miem/eccad_reader.hpp"
 #include "miem/emis_state.hpp"
 #include "miem/emissions_module.hpp"
 #include "miem/flux_converter.hpp"

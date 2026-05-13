@@ -34,6 +34,11 @@ target_include_directories(miem_objects
   PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  PRIVATE
+    # `internal/` headers (e.g., ECCADReader) live under src/ and must
+    # not be installed -- include them PRIVATEly so consumers cannot
+    # accidentally depend on them.
+    ${PROJECT_SOURCE_DIR}/src
 )
 target_compile_features(miem_objects PUBLIC cxx_std_20)
 target_link_libraries(miem_objects PRIVATE netCDF::netcdf_normalized)

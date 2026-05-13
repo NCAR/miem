@@ -5,6 +5,14 @@
 // from `SESReader` in this port per user decision (overrides plan's
 // "defer rename" guidance).
 //
+// INTERNAL HEADER.  Lives under `src/internal/` and is NOT installed.
+// `ECCADReader` throws `IOError` on open/IO failures, which would
+// violate the "no throwing in installed public headers" acceptance
+// criterion if the header were exposed.  Downstream consumers only
+// see `OfflineEmissionSource`, which forward-declares this type and
+// holds it via `std::unique_ptr` so the implementation can stay
+// private.
+//
 // CF-calendar policy: the `time` variable's `calendar` attribute must be
 // one of `gregorian` / `proleptic_gregorian` / `standard` / missing.
 // Anything else (notably `noleap`, `360_day`, `julian`) is rejected with

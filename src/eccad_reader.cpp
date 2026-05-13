@@ -1,7 +1,7 @@
 // Copyright (C) 2024-2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 
-#include "miem/eccad_reader.hpp"
+#include "internal/eccad_reader.hpp"
 
 #include <netcdf.h>
 

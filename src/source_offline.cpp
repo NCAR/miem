@@ -7,9 +7,11 @@
 #include <cmath>
 #include <ctime>
 #include <iomanip>
+#include <memory>
 #include <sstream>
 #include <string>
 
+#include "internal/eccad_reader.hpp"
 #include "miem/util/error.hpp"
 
 namespace miem {
@@ -29,14 +31,29 @@ InterpolationMode AsInterpolationMode(TemporalInterpolation t)
 
 }  // namespace
 
+OfflineEmissionSource::OfflineEmissionSource()
+    : reader_(std::make_unique<ECCADReader>())
+{
+}
+
 OfflineEmissionSource::OfflineEmissionSource(const SourceConfig& config)
     : name_(config.name_),
       config_(config),
+      reader_(std::make_unique<ECCADReader>()),
       species_map_(config.species_map_),
       interpolator_(AsInterpolationMode(config.temporal_interpolation_))
 {
   mechanism_species_ = species_map_.MechanismSpecies();
 }
+
+// Out-of-line special members so the public header only needs a
+// forward declaration of ECCADReader.  Defined here (where the type is
+// complete) per the standard PIMPL idiom.
+OfflineEmissionSource::~OfflineEmissionSource() = default;
+OfflineEmissionSource::OfflineEmissionSource(OfflineEmissionSource&&) noexcept
+    = default;
+OfflineEmissionSource& OfflineEmissionSource::operator=(
+    OfflineEmissionSource&&) noexcept = default;
 
 std::vector<std::string> OfflineEmissionSource::QuerySpecies() const
 {
@@ -88,12 +105,12 @@ Result<void> OfflineEmissionSource::LoadBrackets(double time_current,
 
   // ECCADReader throws IOError on open/IO failures; the boundary
   // (EmissionsModule::Run) catches and converts.
-  reader_.Open(file_path);
-  inventory_species_ = reader_.QuerySpecies();
+  reader_->Open(file_path);
+  inventory_species_ = reader_->QuerySpecies();
 
-  const auto times    = reader_.GetTimeValues();
-  const int  file_cells = reader_.NumCells();
-  const int  n_times  = reader_.NumTimeSteps();
+  const auto times    = reader_->GetTimeValues();
+  const int  file_cells = reader_->NumCells();
+  const int  n_times  = reader_->NumTimeSteps();
 
   if (n_times == 0)
   {
@@ -146,8 +163,8 @@ Result<void> OfflineEmissionSource::LoadBrackets(double time_current,
   std::vector<Real> raw_left;
   std::vector<Real> raw_right;
   int               n_cells_read = 0;
-  reader_.ReadFlux(left_idx,  inventory_species_, raw_left,  n_cells_read);
-  reader_.ReadFlux(right_idx, inventory_species_, raw_right, n_cells_read);
+  reader_->ReadFlux(left_idx,  inventory_species_, raw_left,  n_cells_read);
+  reader_->ReadFlux(right_idx, inventory_species_, raw_right, n_cells_read);
 
   // Apply species mapping: inventory → mechanism.
   std::vector<Real> mapped_left;
