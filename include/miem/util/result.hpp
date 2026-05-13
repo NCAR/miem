@@ -9,10 +9,29 @@
 // boundary and converts to `Result::Error{…}`.
 #pragma once
 
+#include <cstdio>
+#include <cstdlib>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
+
+// `MIEM_ASSERT` — release-mode-active assertion used at boundaries where
+// silently dereferencing an empty `std::optional` would be undefined
+// behavior.  Public C++ does not throw, so a hard abort with a
+// descriptive message is the right escalation when callers ignore the
+// `bool` operator and grab `.value()` on an empty `Result`.
+#ifndef MIEM_ASSERT
+#  define MIEM_ASSERT(cond, msg)                                              \
+    do {                                                                      \
+      if (!(cond)) {                                                          \
+        std::fprintf(stderr,                                                  \
+                     "MIEM_ASSERT failed at %s:%d: %s -- %s\n",               \
+                     __FILE__, __LINE__, #cond, msg);                         \
+        std::abort();                                                         \
+      }                                                                       \
+    } while (0)
+#endif
 
 namespace miem {
 
@@ -77,9 +96,27 @@ class Result
   const std::vector<ErrorEntry>& errors() const noexcept { return errors_; }
   std::vector<ErrorEntry>&       errors() noexcept       { return errors_; }
 
-  const T& value() const& { return *value_; }
-  T&       value() &      { return *value_; }
-  T        value() &&     { return std::move(*value_); }
+  const T& value() const&
+  {
+    MIEM_ASSERT(value_.has_value(),
+                "Result<T>::value() called on a Result with no value -- "
+                "check operator bool() / has_value() first.");
+    return *value_;
+  }
+  T& value() &
+  {
+    MIEM_ASSERT(value_.has_value(),
+                "Result<T>::value() called on a Result with no value -- "
+                "check operator bool() / has_value() first.");
+    return *value_;
+  }
+  T value() &&
+  {
+    MIEM_ASSERT(value_.has_value(),
+                "Result<T>::value() called on a Result with no value -- "
+                "check operator bool() / has_value() first.");
+    return std::move(*value_);
+  }
 
   bool has_value() const noexcept { return value_.has_value(); }
 
