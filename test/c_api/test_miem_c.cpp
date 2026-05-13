@@ -35,25 +35,32 @@ std::string MakeNetCDF(const TempDir& dir, int n_cells, double flux,
   return path;
 }
 
-// Build a valid miem_source_spec_t with default-ish ECCAD offline values
-// pointing at the supplied file.
-miem_source_spec_t MakeSpec(const std::string& name,
-                            const std::string& file_pattern,
+// Build a valid miem_source_spec_t with default-ish ECCAD offline values.
+//
+// IMPORTANT: the returned spec aliases the caller's strings via the
+// `const char*` fields.  Callers must keep `name`, `file_pattern`, and
+// `sector` alive until they have finished using the spec (typically
+// until after `miem_config_add_source` returns, which copies the
+// string contents internally).  We deliberately do NOT bind to
+// temporaries here — every parameter is taken by `const char*` so the
+// caller owns lifetime explicitly.
+miem_source_spec_t MakeSpec(const char* name,
+                            const char* file_pattern,
                             int category = 0, int hierarchy = 1,
-                            const std::string& sector = "")
+                            const char* sector = nullptr)
 {
   miem_source_spec_t spec{};
-  spec.name                   = name.c_str();
+  spec.name                   = name;
   spec.mode                   = 0;  // offline
   spec.type                   = MIEM_SOURCE_TYPE_ANTHROPOGENIC;
-  spec.file_pattern           = file_pattern.c_str();
+  spec.file_pattern           = file_pattern;
   spec.convention             = "eccad";
   spec.temporal_interpolation = 0;  // linear
   spec.vertical_injection     = 0;  // surface
   spec.category               = category;
   spec.hierarchy              = hierarchy;
   spec.scaling_factor         = 1.0;
-  spec.sector                 = sector.empty() ? nullptr : sector.c_str();
+  spec.sector                 = sector;
   return spec;
 }
 
@@ -75,8 +82,8 @@ TEST(MIEMCApiTest, C1_FullLifecycle)
   miem_config_set_version(cfg, "1.0.0");
   miem_config_set_regridding_none(cfg);
 
-  miem_source_spec_t spec = MakeSpec(spec_name, path);
-  spec.sector = "anthropogenic";
+  miem_source_spec_t spec =
+      MakeSpec(spec_name.c_str(), path.c_str(), 0, 1, "anthropogenic");
 
   MIEM_Error err{};
   ASSERT_EQ(miem_config_add_source(cfg, &spec, &err), 0);
@@ -143,7 +150,7 @@ TEST(MIEMCApiTest, C2_SurfaceFluxBitEqualToCppPath)
   const std::string path = MakeNetCDF(dir, n_cells, 7.0e-9);
 
   miem_config_t* cfg = miem_config_new();
-  miem_source_spec_t spec = MakeSpec("only", path);
+  miem_source_spec_t spec = MakeSpec("only", path.c_str());
   MIEM_Error err{};
   miem_config_add_source(cfg, &spec, &err);
   miem_config_add_species_mapping(cfg, "only", "NOx", "NO", 1.0, &err);
@@ -212,7 +219,7 @@ TEST(MIEMCApiTest, C4_UnknownSectorReturnsNullAndPopulatesError)
   const std::string path = MakeNetCDF(dir, n_cells, 1.0e-9);
 
   miem_config_t* cfg = miem_config_new();
-  miem_source_spec_t spec = MakeSpec("s", path, 0, 1, "anthropogenic");
+  miem_source_spec_t spec = MakeSpec("s", path.c_str(), 0, 1, "anthropogenic");
   MIEM_Error err{};
   miem_config_add_source(cfg, &spec, &err);
   miem_config_add_species_mapping(cfg, "s", "NOx", "NO", 1.0, &err);
@@ -242,7 +249,7 @@ TEST(MIEMCApiTest, RunWithAtmospherePopulatesTendency)
   const std::string path = MakeNetCDF(dir, n_cells, 1.0e-9);
 
   miem_config_t* cfg = miem_config_new();
-  miem_source_spec_t spec = MakeSpec("s", path);
+  miem_source_spec_t spec = MakeSpec("s", path.c_str());
   MIEM_Error err{};
   miem_config_add_source(cfg, &spec, &err);
   miem_config_add_species_mapping(cfg, "s", "NOx", "NO", 1.0, &err);
