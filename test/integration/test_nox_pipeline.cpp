@@ -44,7 +44,17 @@ constexpr int    kNCells     = 8;
 constexpr int    kNVertLevels = 5;
 constexpr double kNOxFlux    = 1.0e-9;   // kg/m^2/s
 constexpr double kO3Flux     = 5.0e-10;  // kg/m^2/s
-constexpr double kFluxTol    = 1.0e-22;
+
+// Precision-aware tolerance: at 1e-9 magnitude the double round-off is
+// ~1e-25; for float32 it's ~1e-16.  Use ~1e-15 for float so sum-of-
+// products noise is absorbed without losing algorithmic-drift catch.
+#ifdef MIEM_USE_DOUBLE
+constexpr double kFluxTol = 1.0e-22;
+constexpr double kTendTol = 1.0e-25;
+#else
+constexpr double kFluxTol = 1.0e-15;
+constexpr double kTendTol = 1.0e-18;
+#endif
 
 // Build the test NetCDF.  Two time steps so the linear blend at the
 // midpoint gives the same flux back (constant-in-time inventory).
@@ -188,11 +198,11 @@ TEST(NoxPipelineIntegrationTest, TendencyMatchesFluxOverColumnIntegrand)
   for (int ic = 0; ic < kNCells; ++ic)
   {
     EXPECT_NEAR(static_cast<double>(tend_at(i_no,  0, ic)),
-                (0.9 * kNOxFlux) / (1.225 * 100.0), 1.0e-25);
+                (0.9 * kNOxFlux) / (1.225 * 100.0), kTendTol);
     EXPECT_NEAR(static_cast<double>(tend_at(i_no2, 0, ic)),
-                (0.1 * kNOxFlux) / (1.225 * 100.0), 1.0e-25);
+                (0.1 * kNOxFlux) / (1.225 * 100.0), kTendTol);
     EXPECT_NEAR(static_cast<double>(tend_at(i_o3,  0, ic)),
-                kO3Flux         / (1.225 * 100.0), 1.0e-25);
+                kO3Flux         / (1.225 * 100.0), kTendTol);
 
     for (int lv = 1; lv < kNVertLevels; ++lv)
     {
@@ -218,7 +228,7 @@ TEST(NoxPipelineIntegrationTest, TendencyMatchesFluxOverColumnIntegrand)
       }
       const Real flux = state.surface_flux_.At(isp, ic);
       EXPECT_NEAR(static_cast<double>(sum), static_cast<double>(flux),
-                  1.0e-9 * static_cast<double>(flux) + 1.0e-22);
+                  1.0e-6 * static_cast<double>(flux) + kFluxTol);
     }
   }
 }

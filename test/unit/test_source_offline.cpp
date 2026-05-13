@@ -29,6 +29,13 @@ using miem_test::TempDir;
 
 namespace {
 
+// Precision-aware tolerance.
+#ifdef MIEM_USE_DOUBLE
+constexpr double kFluxTol = 1.0e-22;
+#else
+constexpr double kFluxTol = 1.0e-15;
+#endif
+
 // Two-time-step synthetic file at t=0 and t=3600, n_cells=3, single NOx
 // species; flux row-major [t, cell].
 std::string MakeTwoStepFile(const TempDir&            dir,
@@ -86,7 +93,7 @@ TEST(OfflineEmissionSourceTest, LinearMidpointBlend)
   ASSERT_EQ(out.size(), 3u);
   for (auto v : out)
   {
-    EXPECT_NEAR(static_cast<double>(v), 2.0e-9, 1.0e-22);
+    EXPECT_NEAR(static_cast<double>(v), 2.0e-9, kFluxTol);
   }
 }
 
@@ -113,7 +120,7 @@ TEST(OfflineEmissionSourceTest, NearestPicksCloserEnd)
 
   for (auto v : out)
   {
-    EXPECT_NEAR(static_cast<double>(v), 3.0e-9, 1.0e-22);
+    EXPECT_NEAR(static_cast<double>(v), 3.0e-9, kFluxTol);
   }
 }
 

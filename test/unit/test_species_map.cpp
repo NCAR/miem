@@ -22,7 +22,12 @@ using namespace miem;
 namespace {
 
 constexpr Real kFluxMagnitude = static_cast<Real>(1.0e-9);
-constexpr Real kAbsTol        = static_cast<Real>(1.0e-22);  // 1e-13 relative
+// Tight under double (round-off ~1e-25); relaxed under float (~1e-16).
+#ifdef MIEM_USE_DOUBLE
+constexpr double kAbsTol = 1.0e-22;
+#else
+constexpr double kAbsTol = 1.0e-15;
+#endif
 
 int IndexOf(const std::vector<std::string>& names, const std::string& s)
 {

@@ -20,6 +20,16 @@ using namespace miem;
 
 namespace {
 
+// Precision-aware tolerances.  Tight under double (round-off ~1e-25 at
+// the tendency magnitude 1e-11); relaxed under float (~1e-18).
+#ifdef MIEM_USE_DOUBLE
+constexpr double kTendTol = 1.0e-25;
+constexpr double kFluxTol = 1.0e-22;
+#else
+constexpr double kTendTol = 1.0e-18;
+constexpr double kFluxTol = 1.0e-15;
+#endif
+
 // Build an EmisState pre-populated with a single species + surface flux.
 EmisState MakeState(int n_cells, int n_vert_levels, Real flux_value)
 {
@@ -49,7 +59,7 @@ TEST(FluxConverterTest, ReferenceValueScalar)
   const Real tend = FluxConverter::FluxToTendency(flux, rho, dz);
   EXPECT_NEAR(static_cast<double>(tend),
               8.163265306122449e-12,
-              1.0e-25);
+              kTendTol);
 }
 
 // ---------------------------------------------------------------------
@@ -105,7 +115,7 @@ TEST(FluxConverterTest, SurfaceInjectionOnlyAtLayerZero)
                                 static_cast<Real>(100.0));
     const std::size_t idx0 = 0u * n_cells + ic;
     EXPECT_NEAR(static_cast<double>(s.tendency_[idx0]),
-                static_cast<double>(expect), 1.0e-25);
+                static_cast<double>(expect), kTendTol);
 
     // All other layers -> exactly zero
     for (int lv = 1; lv < n_vl; ++lv)
@@ -143,10 +153,16 @@ TEST(FluxConverterTest, ColumnIntegralMatchesSurfaceFlux)
       sum += s.tendency_[idx] * rho[lv * n_cells + ic] *
              dz [lv * n_cells + ic];
     }
-    // 1e-9 relative tolerance — the post-S1 effective tolerance.
+    // Post-S1 effective tolerance: 1e-9 relative under double,
+    // ~1e-6 under float to absorb float32 sum-of-products noise.
+#ifdef MIEM_USE_DOUBLE
+    const double rel = 1.0e-9;
+#else
+    const double rel = 1.0e-6;
+#endif
     EXPECT_NEAR(static_cast<double>(sum),
                 static_cast<double>(flux),
-                1.0e-9 * static_cast<double>(flux) + 1.0e-22);
+                rel * static_cast<double>(flux) + kFluxTol);
   }
 }
 

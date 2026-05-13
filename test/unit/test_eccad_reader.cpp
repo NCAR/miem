@@ -26,6 +26,13 @@ using miem_test::TempDir;
 
 namespace {
 
+// Precision-aware tolerance: tight under double, relaxed under float.
+#ifdef MIEM_USE_DOUBLE
+constexpr double kFluxTol = 1.0e-22;
+#else
+constexpr double kFluxTol = 1.0e-15;
+#endif
+
 // Helper: build a single-species file with one flux value per cell.
 void WriteSimpleFile(const std::string&                       path,
                      int                                      n_times,
@@ -269,7 +276,7 @@ TEST(ECCADReaderTest, ReadFluxRoundTrip)
   r.ReadFlux(1, { "NOx" }, out, n_cells_out);
   ASSERT_EQ(n_cells_out, 3);
   ASSERT_EQ(out.size(), 3u);
-  EXPECT_NEAR(static_cast<double>(out[0]), 4.0e-9, 1.0e-22);
-  EXPECT_NEAR(static_cast<double>(out[1]), 5.0e-9, 1.0e-22);
-  EXPECT_NEAR(static_cast<double>(out[2]), 6.0e-9, 1.0e-22);
+  EXPECT_NEAR(static_cast<double>(out[0]), 4.0e-9, kFluxTol);
+  EXPECT_NEAR(static_cast<double>(out[1]), 5.0e-9, kFluxTol);
+  EXPECT_NEAR(static_cast<double>(out[2]), 6.0e-9, kFluxTol);
 }

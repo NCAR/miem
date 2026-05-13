@@ -26,6 +26,13 @@ using miem_test::TempDir;
 
 namespace {
 
+// Precision-aware tolerance.
+#ifdef MIEM_USE_DOUBLE
+constexpr double kFluxTol = 1.0e-22;
+#else
+constexpr double kFluxTol = 1.0e-15;
+#endif
+
 // Helper: write a single-species single-time-step file.
 std::string MakeFile(const TempDir& dir, const std::string& name,
                      int n_cells, double flux_value,
@@ -85,7 +92,7 @@ TEST(EmissionsModuleTest, DifferentCategoriesSum)
   for (int ic = 0; ic < n_cells; ++ic)
   {
     EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")),
-                3.0e-9, 1.0e-22);
+                3.0e-9, kFluxTol);
   }
 }
 
@@ -114,7 +121,7 @@ TEST(EmissionsModuleTest, SameCategoryHigherHierarchyShadows)
   for (int ic = 0; ic < n_cells; ++ic)
   {
     EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")),
-                9.0e-9, 1.0e-22);  // high wins; low does NOT add
+                9.0e-9, kFluxTol);  // high wins; low does NOT add
   }
 }
 
@@ -145,7 +152,7 @@ TEST(EmissionsModuleTest, FallThroughWhenHigherHierarchyIsBitExactZero)
   for (int ic = 0; ic < n_cells; ++ic)
   {
     EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")),
-                5.0e-9, 1.0e-22);
+                5.0e-9, kFluxTol);
   }
 }
 
@@ -174,7 +181,7 @@ TEST(EmissionsModuleTest, PerSourceScalingAppliedBeforeHierarchy)
   for (int ic = 0; ic < n_cells; ++ic)
   {
     EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")),
-                1.0e-9, 1.0e-22);
+                1.0e-9, kFluxTol);
   }
 }
 
@@ -208,7 +215,7 @@ TEST(EmissionsModuleTest, SectorFluxesPreHierarchy)
   for (int ic = 0; ic < n_cells; ++ic)
   {
     EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")),
-                7.0e-9, 1.0e-22);
+                7.0e-9, kFluxTol);
   }
 
   // sector_fluxes_ aggregates both sources (1e-9 + 7e-9 = 8e-9).
@@ -217,7 +224,7 @@ TEST(EmissionsModuleTest, SectorFluxesPreHierarchy)
   for (int ic = 0; ic < n_cells; ++ic)
   {
     EXPECT_NEAR(static_cast<double>((*anthro)(ic, "NOx")),
-                8.0e-9, 1.0e-22);
+                8.0e-9, kFluxTol);
   }
 }
 
@@ -256,7 +263,7 @@ TEST(EmissionsModuleTest, OrderingDoesNotAffectOutput)
                     std::move(s1).value().surface_flux_(ic, "NOx")),
                 static_cast<double>(
                     std::move(s2).value().surface_flux_(ic, "NOx")),
-                1.0e-22);
+                kFluxTol);
   }
 }
 
