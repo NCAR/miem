@@ -1,10 +1,10 @@
 # MIEM
 
-Model Independent Emissions Module. MIEM can be used to configure and apply atmospheric emissions in host models.
+[Model Independent Emissions Module](https://github.com/NCAR/miem). MIEM can be used to configure and apply atmospheric emissions in host models.
 
 [![Docker builds](https://github.com/NCAR/miem/actions/workflows/docker_and_coverage.yml/badge.svg)](https://github.com/NCAR/miem/actions/workflows/docker_and_coverage.yml) [![Windows](https://github.com/NCAR/miem/actions/workflows/windows.yml/badge.svg)](https://github.com/NCAR/miem/actions/workflows/windows.yml) [![Mac](https://github.com/NCAR/miem/actions/workflows/mac.yml/badge.svg)](https://github.com/NCAR/miem/actions/workflows/mac.yml) [![Ubuntu](https://github.com/NCAR/miem/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/NCAR/miem/actions/workflows/ubuntu.yml)
 
-Copyright (C) 2026 University Corporation for Atmospheric Research
+Copyright (C) 2026 National Center for Atmospheric Research
 
 ## Getting Started
 
@@ -51,16 +51,14 @@ make test
 
 ## Using the MIEM API
 
-The following example configures a single anthropogenic emissions source and runs one model timestep.
+The following example configures a single anthropogenic emissions source and validates the resulting `MIEMConfig`.
 
-Species mapping and inventory translation are handled upstream by `MechanismConfiguration` and `musica::Translate()`. By the time `MIEMConfig` is constructed here, species are already resolved.
+Species mapping and inventory translation are handled upstream by `MechanismConfiguration` and `musica::Translate()`.  By the time `MIEMConfig` is constructed here, every named reference has been resolved into a flat struct that MIEM owns.  MIEM does not parse YAML at any level.
 
 To run this example save the following code in a file named `miem_example.cpp`:
 
 ```cpp
-#include <miem/config.hpp>
-#include <miem/emissions.hpp>
-#include <miem/emissions_state.hpp>
+#include <miem/miem.hpp>
 
 #include <iostream>
 
@@ -68,50 +66,53 @@ using namespace miem;
 
 int main()
 {
-  SourceConfig cams_anthro{
-    .name_                   = "CAMS anthropogenic",
-    .mode_                   = SourceMode::Offline,
-    .type_                   = SourceType::Anthropogenic,
-    .file_pattern_           = "/path/to/CAMS-GLOB-ANT_{YYYY}-{MM}.nc",
-    .temporal_interpolation_ = TemporalInterpolation::Linear,
-    .vertical_injection_     = VerticalInjection::Surface,
-    .category_               = 0,
-    .hierarchy_              = 1,
-    .scaling_factor_         = 1.0,
-    .sector_                 = "anthropogenic",
-  };
+  SourceConfig cams_anthro;
+  cams_anthro.name_                   = "CAMS anthropogenic";
+  cams_anthro.mode_                   = SourceMode::Offline;
+  cams_anthro.type_                   = SourceType::Anthropogenic;
+  cams_anthro.file_pattern_           = "/path/to/CAMS-GLOB-ANT_{YYYY}-{MM}.nc";
+  cams_anthro.convention_             = "eccad";
+  cams_anthro.temporal_interpolation_ = TemporalInterpolation::Linear;
+  cams_anthro.vertical_injection_     = VerticalInjection::Surface;
+  cams_anthro.category_               = 0;
+  cams_anthro.hierarchy_              = 1;
+  cams_anthro.scaling_factor_         = 1.0;
+  cams_anthro.sector_                 = "anthropogenic";
 
-  MIEMConfig cfg{
-    .sources_ = { cams_anthro },
-  };
+  // Programmatic species map: NOx -> NO (0.9), NOx -> NO2 (0.1).
+  cams_anthro.species_map_.AddMapping("NOx", "NO",  0.9);
+  cams_anthro.species_map_.AddMapping("NOx", "NO2", 0.1);
 
-  Emissions emissions(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
+  MIEMConfig cfg;
+  cfg.version_ = "1.0.0";
+  cfg.sources_ = { cams_anthro };
 
-  EmissionsState state = emissions.Run(
-    86400.0 * 180.0,  // sim_time_sec: day 180
-    600.0             // dt_sec: 10 minutes
-  );
+  if (auto v = cfg.Validate(); !v)
+  {
+    std::cerr << "config invalid: " << v.errors().front().message_ << "\n";
+    return 1;
+  }
 
-  std::cout << "NO surface flux at cell 0: "
-            << state.surface_flux_(0, "NO")
-            << " kg m-2 s-1" << std::endl;
+  EmissionsModule module(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
+  std::cout << "module advertises " << module.NumSpecies()
+            << " mechanism species\n";
+
+  // module.Run(sim_time_sec, dt_sec) returns Result<EmisState>; the
+  // overload taking air_density/layer_thickness arrays additionally
+  // populates state.tendency_ via FluxConverter.
 
   return 0;
 }
 ```
 
-To build and run the example (assuming the default install location):
+To build and run the example with the installed `find_package(miem)` config:
 
-```bash
-g++ -o miem_example miem_example.cpp -I./include -std=c++20
-./miem_example
+```cmake
+find_package(miem CONFIG REQUIRED)
+target_link_libraries(my_app PRIVATE musica::miem)
 ```
 
-Output:
-
-```
-NO surface flux at cell 0: 0 kg m-2 s-1
-```
+A C consumer instead links `musica::miem_c` and includes `<miem/miem_c.h>`.
 
 ## Community and contributions
 
@@ -127,3 +128,5 @@ Please see the [MIEM documentation](https://miem.readthedocs.io/) for detailed i
 ## License
 
 - [Apache 2.0](LICENSE)
+
+Copyright (C) 2026 National Center for Atmospheric Research
