@@ -170,11 +170,20 @@ void ECCADReader::DetectFormat()
 {
   // ECCAD compliance via `eccad_version` (preferred) or legacy
   // `ses_version` global attribute.  Either is acceptable in this port;
-  // file producers can migrate at their own pace.
+  // file producers can migrate at their own pace.  Neither present
+  // means the file is not ECCAD/SES-conformant -- refuse rather than
+  // guess (S4 from review).
   eccad_version_ = ReadTextAttribute(ncid_, NC_GLOBAL, "eccad_version");
   if (eccad_version_.empty())
   {
     eccad_version_ = ReadTextAttribute(ncid_, NC_GLOBAL, "ses_version");
+  }
+  if (eccad_version_.empty())
+  {
+    throw IOError(
+        "ECCADReader: file '" + file_path_ +
+        "' has neither 'eccad_version' nor 'ses_version' global "
+        "attribute; refer to docs/eccad.md.");
   }
 
   // Time dimension (optional — a single-snapshot file may omit it).
@@ -243,7 +252,20 @@ std::vector<double> ECCADReader::GetTimeValues() const
   const int status = nc_inq_varid(ncid_, "time", &time_varid);
   if (status != NC_NOERR)
   {
-    return times;  // no time variable → return zero-filled times
+    // A single-snapshot file (no `time` dimension, n_time_steps_ == 1)
+    // legitimately may omit the `time` variable -- treat as t = 0.
+    // Anything else is a malformed file: refuse to silently fabricate
+    // zero-valued times.  (S2 from review -- complements the wrap-
+    // around-fabrication kill.)
+    if (n_time_steps_ > 1)
+    {
+      throw IOError(
+          "ECCADReader: file '" + file_path_ + "' has a 'time' "
+          "dimension of length " + std::to_string(n_time_steps_) +
+          " but no 'time' variable; refusing to fabricate zero-valued "
+          "time coordinates.");
+    }
+    return times;  // legitimate single-snapshot file
   }
 
   MIEM_NC_CHECK(nc_get_var_double(ncid_, time_varid, times.data()));

@@ -86,8 +86,12 @@ Result<void> FluxConverter::Apply(EmisState&  state,
         sum += state.tendency_[tend_idx] * rho * dz;
       }
       const Real flux = state.surface_flux_.At(isp, ic);
-      const Real tol  = kMassToleranceFactor *
-                        std::max(std::abs(flux), Real{ 1 });
+      // Relative + absolute tolerance.  The previous `max(|flux|, 1)`
+      // floor made the check vacuous at realistic 1e-10 kg/m^2/s flux
+      // magnitudes; the additive 1e-18 absolute floor keeps the
+      // all-zero case from tripping on FP noise without poisoning the
+      // relative tolerance at typical magnitudes.
+      const Real tol = kMassToleranceFactor * std::abs(flux) + Real{ 1e-18 };
       if (std::abs(sum - flux) > tol)
       {
         return Result<void>::Error(
