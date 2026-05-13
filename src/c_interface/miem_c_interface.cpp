@@ -6,6 +6,7 @@
 // `Result<T>` and exceptions into `MIEM_Error`.
 
 #include "error_handling.hpp"
+#include "handles.hpp"
 #include "miem/config.hpp"
 #include "miem/emissions_module.hpp"
 #include "miem/miem_c.h"
@@ -24,23 +25,8 @@ static_assert(std::is_same_v<::miem::Real, double>,
 using namespace ::miem;
 using namespace ::miem::c_api;
 
-/* -------------------------------------------------------------------- */
-/* Opaque wrappers.                                                     */
-
-struct miem_config_t
-{
-  MIEMConfig cfg_;
-};
-
-struct miem_t
-{
-  std::unique_ptr<EmissionsModule> module_;
-};
-
-struct miem_state_t
-{
-  EmisState state_;
-};
+// Opaque-struct definitions live in `handles.hpp` so every C-API
+// translation unit sees the same layout (ODR).
 
 namespace {
 

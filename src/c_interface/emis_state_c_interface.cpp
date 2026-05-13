@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "error_handling.hpp"
+#include "handles.hpp"
 #include "miem/emis_state.hpp"
 #include "miem/miem_c.h"
 
@@ -16,14 +17,8 @@ static_assert(std::is_same_v<::miem::Real, double>,
 using namespace ::miem;
 using namespace ::miem::c_api;
 
-// The opaque `miem_state_t` definition lives here so that this TU and
-// `miem_c_interface.cpp` share the same layout — the type must be
-// defined identically in both translation units.  Keep this in sync
-// with `miem_c_interface.cpp`.
-struct miem_state_t
-{
-  EmisState state_;
-};
+// Opaque-struct definitions live in `handles.hpp` so every C-API
+// translation unit sees the same layout (ODR).
 
 extern "C" {
 
