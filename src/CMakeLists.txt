@@ -16,6 +16,7 @@ set(MIEM_CORE_SOURCES
   temporal_interpolator.cpp
   flux_converter.cpp
   ses_reader.cpp
+  config.cpp
   util/error.cpp
 )
 
