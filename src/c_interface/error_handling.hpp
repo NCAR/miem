@@ -73,6 +73,30 @@ inline void SetErrorFromEntry(MIEM_Error* err, const ErrorEntry& e)
            e.message_.c_str());
 }
 
+// Map an exception's category string (set by the MIEMError-derived
+// constructor) onto the closest semantic ErrorCode.  Returning the
+// matching enum lets the C-API surface "this was an IO error" vs
+// "this was a config error" via err->code, not just err->category --
+// downstream Fortran/C consumers may switch on the integer.
+//
+// We reuse existing ErrorCode values rather than proliferate new ones:
+//   "Configuration" / "Validation" -> ConfigInvalid
+//   "IO"                           -> NetCDFError  (covers all I/O
+//                                      failures from ECCADReader; the
+//                                      message string carries the
+//                                      file path / netCDF detail)
+//   "Species"                      -> ConfigInvalid (species-mapping
+//                                      issues are configuration data)
+//   anything else                  -> InternalError
+inline ErrorCode ErrorCodeFromCategory(const std::string& category)
+{
+  if (category == "Configuration") return ErrorCode::ConfigInvalid;
+  if (category == "IO")            return ErrorCode::NetCDFError;
+  if (category == "Species")       return ErrorCode::ConfigInvalid;
+  if (category == "Validation")    return ErrorCode::ConfigInvalid;
+  return ErrorCode::InternalError;
+}
+
 // Translate a `Result<T>` into success/failure for the C API.  On
 // success returns true (and the caller pulls the value out via
 // `r.value()`).  On failure populates `err` from the first error.
@@ -90,13 +114,19 @@ bool UnwrapOrSet(Result<T>& r, MIEM_Error* err)
   }
   else
   {
-    SetError(err, 1, "InternalError", "Unknown failure");
+    SetError(err, static_cast<int>(ErrorCode::InternalError),
+             "InternalError", "Unknown failure");
   }
   return false;
 }
 
 // Run `func` and translate any thrown `MIEMError` (or other exception)
 // into an `MIEM_Error`.  Used to wrap kernel calls inside C-API entries.
+//
+// Code mapping: every thrown MIEMError carries a category string
+// ("Configuration", "IO", ...).  ErrorCodeFromCategory translates that
+// to the canonical ErrorCode enum, which is what the consumer reads
+// via err->code -- not the previous all-collapse-to-InternalError.
 template <typename F>
 void HandleErrors(MIEM_Error* err, F&& func)
 {
@@ -107,15 +137,18 @@ void HandleErrors(MIEM_Error* err, F&& func)
   }
   catch (const ::miem::MIEMError& e)
   {
-    SetError(err, 1, e.Category().c_str(), e.what());
+    const ErrorCode code = ErrorCodeFromCategory(e.Category());
+    SetError(err, static_cast<int>(code), e.Category().c_str(), e.what());
   }
   catch (const std::exception& e)
   {
-    SetError(err, 1, "Exception", e.what());
+    SetError(err, static_cast<int>(ErrorCode::InternalError),
+             "Exception", e.what());
   }
   catch (...)
   {
-    SetError(err, 2, "Unknown", "Unknown error occurred");
+    SetError(err, static_cast<int>(ErrorCode::InternalError),
+             "Unknown", "Unknown error occurred");
   }
 }
 

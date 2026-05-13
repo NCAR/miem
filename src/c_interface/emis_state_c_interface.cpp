@@ -72,12 +72,12 @@ int MIEMGetSectorName(const miem_state_t* state, int i, char* out,
   ClearError(err);
   if (!state || !out)
   {
-    SetError(err, 1, "ConfigInvalid", "MIEMGetSectorName: null argument");
+    SetError(err, static_cast<int>(ErrorCode::ConfigInvalid), "ConfigInvalid", "MIEMGetSectorName: null argument");
     return 1;
   }
   if (i < 0 || i >= static_cast<int>(state->state_.sector_names_.size()))
   {
-    SetError(err, 1, "UnknownSector", "MIEMGetSectorName: index out of range");
+    SetError(err, static_cast<int>(ErrorCode::UnknownSector), "UnknownSector", "MIEMGetSectorName: index out of range");
     return 1;
   }
   std::strncpy(out, state->state_.sector_names_[i].c_str(),
@@ -92,13 +92,13 @@ double* MIEMGetSectorFlux(miem_state_t* state, const char* sector_name,
   ClearError(err);
   if (!state || !sector_name)
   {
-    SetError(err, 1, "ConfigInvalid", "MIEMGetSectorFlux: null argument");
+    SetError(err, static_cast<int>(ErrorCode::ConfigInvalid), "ConfigInvalid", "MIEMGetSectorFlux: null argument");
     return nullptr;
   }
   auto it = state->state_.sector_fluxes_.find(sector_name);
   if (it == state->state_.sector_fluxes_.end())
   {
-    SetError(err, 1, "UnknownSector",
+    SetError(err, static_cast<int>(ErrorCode::UnknownSector), "UnknownSector",
              (std::string("MIEMGetSectorFlux: no such sector '") +
               sector_name + "'").c_str());
     return nullptr;

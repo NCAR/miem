@@ -102,7 +102,7 @@ int miem_config_add_source(miem_config_t*            cfg,
   ClearError(err);
   if (!cfg || !spec || !spec->name)
   {
-    SetError(err, 1, "ConfigInvalid",
+    SetError(err, static_cast<int>(ErrorCode::ConfigInvalid), "ConfigInvalid",
              "miem_config_add_source: null cfg/spec/name");
     return 1;
   }
@@ -134,7 +134,7 @@ int miem_config_add_species_mapping(miem_config_t* cfg,
   ClearError(err);
   if (!cfg || !source_name || !inventory_species || !mechanism_species)
   {
-    SetError(err, 1, "ConfigInvalid",
+    SetError(err, static_cast<int>(ErrorCode::ConfigInvalid), "ConfigInvalid",
              "miem_config_add_species_mapping: null argument");
     return 1;
   }
@@ -149,7 +149,7 @@ int miem_config_add_species_mapping(miem_config_t* cfg,
     }
   }
 
-  SetError(err, 1, "ConfigInvalid",
+  SetError(err, static_cast<int>(ErrorCode::ConfigInvalid), "ConfigInvalid",
            (std::string("source '") + source_name +
             "' not found; call miem_config_add_source first").c_str());
   return 1;
@@ -160,7 +160,7 @@ int miem_config_validate(const miem_config_t* cfg, MIEM_Error* err)
   ClearError(err);
   if (!cfg)
   {
-    SetError(err, 1, "ConfigInvalid", "miem_config_validate: null cfg");
+    SetError(err, static_cast<int>(ErrorCode::ConfigInvalid), "ConfigInvalid", "miem_config_validate: null cfg");
     return 1;
   }
   auto r = cfg->cfg_.Validate();
@@ -184,7 +184,7 @@ int CreateMIEM(const miem_config_t* cfg,
   ClearError(err);
   if (!cfg || !handle)
   {
-    SetError(err, 1, "ConfigInvalid", "CreateMIEM: null cfg or handle");
+    SetError(err, static_cast<int>(ErrorCode::ConfigInvalid), "ConfigInvalid", "CreateMIEM: null cfg or handle");
     return 1;
   }
 
@@ -225,7 +225,7 @@ int MIEMResolveHostIndices(miem_t*       handle,
   ClearError(err);
   if (!handle || !handle->module_ || !host_names || !indices)
   {
-    SetError(err, 1, "ConfigInvalid", "MIEMResolveHostIndices: null argument");
+    SetError(err, static_cast<int>(ErrorCode::ConfigInvalid), "ConfigInvalid", "MIEMResolveHostIndices: null argument");
     return 1;
   }
   std::vector<std::string> host_species;
@@ -258,7 +258,7 @@ int MIEMRun(miem_t*        handle,
   ClearError(err);
   if (!handle || !handle->module_ || !state_out)
   {
-    SetError(err, 1, "ConfigInvalid", "MIEMRun: null argument");
+    SetError(err, static_cast<int>(ErrorCode::ConfigInvalid), "ConfigInvalid", "MIEMRun: null argument");
     return 1;
   }
 
