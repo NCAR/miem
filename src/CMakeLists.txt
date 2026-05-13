@@ -15,7 +15,7 @@ set(MIEM_CORE_SOURCES
   species_map.cpp
   temporal_interpolator.cpp
   flux_converter.cpp
-  ses_reader.cpp
+  eccad_reader.cpp
   config.cpp
   util/error.cpp
 )
