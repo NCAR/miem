@@ -21,6 +21,11 @@ struct SourceConfig
   std::string provider_;
   TemporalInterpolation temporal_interpolation_ = TemporalInterpolation::Linear;
   VerticalInjection vertical_injection_      = VerticalInjection::Surface;
+  // Category/hierarchy follows the HEMCO aggregation pattern:
+  // Sources in different categories are summed together.
+  // Within the same category, the source with the highest hierarchy
+  // value wins per cell, allowing regional inventories to override
+  // global ones (e.g., EPA data over CEDS for US cells).
   int category_                              = 0;
   int hierarchy_                             = 1;
   double scaling_factor_                     = 1.0;

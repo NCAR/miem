@@ -104,7 +104,7 @@ int main()
 To build and run the example (assuming the default install location):
 
 ```bash
-g++ -o miem_example miem_example.cpp -I/usr/local/include -std=c++20
+g++ -o miem_example miem_example.cpp -I./include -std=c++20
 ./miem_example
 ```
 
