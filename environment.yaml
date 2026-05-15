@@ -7,6 +7,7 @@ dependencies:
   - make
   - cxx-compiler
   - doxygen
+  - libnetcdf
   - pip
   - pip:
       - -r docs/requirements.txt
