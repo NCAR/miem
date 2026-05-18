@@ -1,10 +1,10 @@
 # MIEM
 
-[Model Independent Emissions Module](https://github.com/NCAR/miem). MIEM can be used to configure and apply atmospheric emissions in host models.
+Model Independent Emissions Module. MIEM can be used to configure and apply atmospheric emissions in host models.
 
 [![Docker builds](https://github.com/NCAR/miem/actions/workflows/docker_and_coverage.yml/badge.svg)](https://github.com/NCAR/miem/actions/workflows/docker_and_coverage.yml) [![Windows](https://github.com/NCAR/miem/actions/workflows/windows.yml/badge.svg)](https://github.com/NCAR/miem/actions/workflows/windows.yml) [![Mac](https://github.com/NCAR/miem/actions/workflows/mac.yml/badge.svg)](https://github.com/NCAR/miem/actions/workflows/mac.yml) [![Ubuntu](https://github.com/NCAR/miem/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/NCAR/miem/actions/workflows/ubuntu.yml)
 
-Copyright (C) 2026 National Center for Atmospheric Research
+Copyright (C) 2026 University Corporation for Atmospheric Research
 
 ## Getting Started
 
@@ -59,8 +59,8 @@ To run this example save the following code in a file named `miem_example.cpp`:
 
 ```cpp
 #include <miem/config.hpp>
-#include <miem/emissions_module.hpp>
-#include <miem/emis_state.hpp>
+#include <miem/emissions.hpp>
+#include <miem/emissions_state.hpp>
 
 #include <iostream>
 
@@ -86,7 +86,7 @@ int main()
     .sources_ = { cams_anthro },
   };
 
-  EmissionsModule module(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
+  Emissions module(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
 
   EmisState state = module.Run(
     86400.0 * 180.0,  // sim_time_sec: day 180
@@ -128,5 +128,3 @@ Please see the [MIEM documentation](https://miem.readthedocs.io/) for detailed i
 ## License
 
 - [Apache 2.0](LICENSE)
-
-Copyright (C) 2026 National Center for Atmospheric Research

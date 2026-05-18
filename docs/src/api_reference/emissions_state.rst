@@ -2,5 +2,5 @@
 EmisState
 =========
 
-.. doxygenfile:: miem/emis_state.hpp
+.. doxygenfile:: miem/emissions_state.hpp
    :project: miem

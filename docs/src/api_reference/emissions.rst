@@ -2,5 +2,5 @@
 EmissionsModule
 ================
 
-.. doxygenfile:: miem/emissions_module.hpp
+.. doxygenfile:: miem/emissions.hpp
    :project: miem

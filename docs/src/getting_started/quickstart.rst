@@ -16,8 +16,8 @@ Setting Up Sources
 .. code-block:: cpp
 
    #include <miem/config.hpp>
-   #include <miem/emissions_module.hpp>
-   #include <miem/emis_state.hpp>
+   #include <miem/emissions.hpp>
+   #include <miem/emissions_state.hpp>
 
    using namespace miem;
 

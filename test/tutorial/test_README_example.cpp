@@ -1,6 +1,6 @@
 #include <miem/config.hpp>
-#include <miem/emissions_module.hpp>
-#include <miem/emis_state.hpp>
+#include <miem/emissions.hpp>
+#include <miem/emissions_state.hpp>
 
 #include <gtest/gtest.h>
 #include <iostream>
@@ -27,7 +27,7 @@ TEST(ReadmeExample, RunsWithoutError)
     .sources_ = { cams_anthro },
   };
 
-  EmissionsModule module(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
+  Emissions module(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
 
   EmisState state = module.Run(
     86400.0 * 180.0,  // sim_time_sec: day 180
