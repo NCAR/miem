@@ -8,5 +8,5 @@ Auto-generated API documentation from C++ header comments.
    :maxdepth: 2
 
    config
-   emissions_module
-   emis_state
+   emissions
+   emissions_state

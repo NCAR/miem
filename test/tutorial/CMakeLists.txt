@@ -1,0 +1,1 @@
+create_standard_test(NAME readme_example SOURCES test_README_example.cpp)

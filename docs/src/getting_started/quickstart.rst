@@ -16,8 +16,8 @@ Setting Up Sources
 .. code-block:: cpp
 
    #include <miem/config.hpp>
-   #include <miem/emissions_module.hpp>
-   #include <miem/emis_state.hpp>
+   #include <miem/emissions.hpp>
+   #include <miem/emissions_state.hpp>
 
    using namespace miem;
 
@@ -40,13 +40,12 @@ Assembling the Config and Running
 .. code-block:: cpp
 
    MIEMConfig cfg{
-     .version_ = "1.0.0",
      .sources_ = { cams_anthro },
    };
 
    EmissionsModule module(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
 
-   EmisState state = module.Run(
+   EmissionsState state = module.Run(
      86400.0 * 180.0,  // sim_time_sec: day 180
      600.0             // dt_sec: 10 minutes
    );
