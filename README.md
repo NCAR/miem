@@ -1,10 +1,10 @@
 # MIEM
 
-[Model Independent Emissions Module](https://github.com/NCAR/miem). MIEM can be used to configure and apply atmospheric emissions in host models.
+Model Independent Emissions Module. MIEM can be used to configure and apply atmospheric emissions in host models.
 
 [![Docker builds](https://github.com/NCAR/miem/actions/workflows/docker_and_coverage.yml/badge.svg)](https://github.com/NCAR/miem/actions/workflows/docker_and_coverage.yml) [![Windows](https://github.com/NCAR/miem/actions/workflows/windows.yml/badge.svg)](https://github.com/NCAR/miem/actions/workflows/windows.yml) [![Mac](https://github.com/NCAR/miem/actions/workflows/mac.yml/badge.svg)](https://github.com/NCAR/miem/actions/workflows/mac.yml) [![Ubuntu](https://github.com/NCAR/miem/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/NCAR/miem/actions/workflows/ubuntu.yml)
 
-Copyright (C) 2026 National Center for Atmospheric Research
+Copyright (C) 2026 University Corporation for Atmospheric Research
 
 ## Getting Started
 
@@ -127,5 +127,3 @@ Please see the [MIEM documentation](https://miem.readthedocs.io/) for detailed i
 ## License
 
 - [Apache 2.0](LICENSE)
-
-Copyright (C) 2026 National Center for Atmospheric Research
