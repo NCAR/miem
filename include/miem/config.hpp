@@ -63,7 +63,6 @@ struct SourceConfig
 // Top-level MIEM configuration.
 struct MIEMConfig
 {
-  std::string               version_;
   Regridding                regridding_;
   std::vector<SourceConfig> sources_;
 

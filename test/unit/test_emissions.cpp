@@ -1,15 +1,15 @@
 // Copyright (C) 2024-2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
-// EmissionsModule HEMCO category/hierarchy tests + H2 error
+// Emissions HEMCO category/hierarchy tests + H2 error
 // propagation regression.  Uses synthetic NetCDF files because
 // OfflineEmissionSource is the only v1 source path.
 
 #include "synthetic_nc.hpp"
 
 #include <miem/config.hpp>
-#include <miem/emis_state.hpp>
-#include <miem/emissions_module.hpp>
+#include <miem/emissions_state.hpp>
+#include <miem/emissions.hpp>
 #include <miem/util/result.hpp>
 #include <miem/util/types.hpp>
 
@@ -69,7 +69,7 @@ SourceConfig MakeSource(const std::string& name,
 // ---------------------------------------------------------------------
 // E1 / surface_flux sums when sources are in different categories.
 // ---------------------------------------------------------------------
-TEST(EmissionsModuleTest, DifferentCategoriesSum)
+TEST(EmissionsTest, DifferentCategoriesSum)
 {
   TempDir dir;
   const int n_cells = 4;
@@ -80,7 +80,7 @@ TEST(EmissionsModuleTest, DifferentCategoriesSum)
   cfg.sources_.push_back(MakeSource("A", p1, /*cat=*/0, /*hier=*/1));
   cfg.sources_.push_back(MakeSource("B", p2, /*cat=*/1, /*hier=*/1));
 
-  auto created = EmissionsModule::Create(cfg, n_cells, /*n_vl=*/2);
+  auto created = Emissions::Create(cfg, n_cells, /*n_vl=*/2);
   ASSERT_TRUE(static_cast<bool>(created))
       << (created.errors().empty() ? "" : created.errors().front().message_);
   auto module = std::move(created).value();
@@ -99,7 +99,7 @@ TEST(EmissionsModuleTest, DifferentCategoriesSum)
 // ---------------------------------------------------------------------
 // Same category, B higher hierarchy, both nonzero -> B shadows A.
 // ---------------------------------------------------------------------
-TEST(EmissionsModuleTest, SameCategoryHigherHierarchyShadows)
+TEST(EmissionsTest, SameCategoryHigherHierarchyShadows)
 {
   TempDir dir;
   const int n_cells = 4;
@@ -110,7 +110,7 @@ TEST(EmissionsModuleTest, SameCategoryHigherHierarchyShadows)
   cfg.sources_.push_back(MakeSource("low",  p_low,  /*cat=*/0, /*hier=*/1));
   cfg.sources_.push_back(MakeSource("high", p_high, /*cat=*/0, /*hier=*/2));
 
-  auto created = EmissionsModule::Create(cfg, n_cells, /*n_vl=*/2);
+  auto created = Emissions::Create(cfg, n_cells, /*n_vl=*/2);
   ASSERT_TRUE(static_cast<bool>(created));
   auto module = std::move(created).value();
 
@@ -130,7 +130,7 @@ TEST(EmissionsModuleTest, SameCategoryHigherHierarchyShadows)
 // We use a file where B's flux is 0.0 (bit-exact), produced by writing
 // zeros directly.
 // ---------------------------------------------------------------------
-TEST(EmissionsModuleTest, FallThroughWhenHigherHierarchyIsBitExactZero)
+TEST(EmissionsTest, FallThroughWhenHigherHierarchyIsBitExactZero)
 {
   TempDir dir;
   const int n_cells = 4;
@@ -141,7 +141,7 @@ TEST(EmissionsModuleTest, FallThroughWhenHigherHierarchyIsBitExactZero)
   cfg.sources_.push_back(MakeSource("low",  p_low,  /*cat=*/0, /*hier=*/1));
   cfg.sources_.push_back(MakeSource("high", p_high, /*cat=*/0, /*hier=*/2));
 
-  auto created = EmissionsModule::Create(cfg, n_cells, /*n_vl=*/2);
+  auto created = Emissions::Create(cfg, n_cells, /*n_vl=*/2);
   ASSERT_TRUE(static_cast<bool>(created));
   auto module = std::move(created).value();
 
@@ -160,7 +160,7 @@ TEST(EmissionsModuleTest, FallThroughWhenHigherHierarchyIsBitExactZero)
 // Per-source scaling_factor applied before hierarchy resolution:
 // A alone, scaling=0.5, flux=2e-9 -> surface = 1e-9.
 // ---------------------------------------------------------------------
-TEST(EmissionsModuleTest, PerSourceScalingAppliedBeforeHierarchy)
+TEST(EmissionsTest, PerSourceScalingAppliedBeforeHierarchy)
 {
   TempDir dir;
   const int n_cells = 4;
@@ -170,7 +170,7 @@ TEST(EmissionsModuleTest, PerSourceScalingAppliedBeforeHierarchy)
   cfg.sources_.push_back(
       MakeSource("A", path, 0, 1, /*sector=*/"", /*scaling=*/0.5));
 
-  auto created = EmissionsModule::Create(cfg, n_cells, 2);
+  auto created = Emissions::Create(cfg, n_cells, 2);
   ASSERT_TRUE(static_cast<bool>(created));
   auto module = std::move(created).value();
 
@@ -190,7 +190,7 @@ TEST(EmissionsModuleTest, PerSourceScalingAppliedBeforeHierarchy)
 // contributions independently in sector_fluxes_ even when one shadows
 // the other in surface_flux_.
 // ---------------------------------------------------------------------
-TEST(EmissionsModuleTest, SectorFluxesPreHierarchy)
+TEST(EmissionsTest, SectorFluxesPreHierarchy)
 {
   TempDir dir;
   const int n_cells = 3;
@@ -203,7 +203,7 @@ TEST(EmissionsModuleTest, SectorFluxesPreHierarchy)
   cfg.sources_.push_back(MakeSource("high", p_high, 0, 2,
                                     /*sector=*/"anthropogenic"));
 
-  auto created = EmissionsModule::Create(cfg, n_cells, 2);
+  auto created = Emissions::Create(cfg, n_cells, 2);
   ASSERT_TRUE(static_cast<bool>(created));
   auto module = std::move(created).value();
 
@@ -232,7 +232,7 @@ TEST(EmissionsModuleTest, SectorFluxesPreHierarchy)
 // Source-ordering commutativity: swapping the source list order yields
 // the same surface flux.
 // ---------------------------------------------------------------------
-TEST(EmissionsModuleTest, OrderingDoesNotAffectOutput)
+TEST(EmissionsTest, OrderingDoesNotAffectOutput)
 {
   TempDir dir;
   const int n_cells = 3;
@@ -247,8 +247,8 @@ TEST(EmissionsModuleTest, OrderingDoesNotAffectOutput)
   cfg2.sources_.push_back(MakeSource("B", p2, 1, 1));
   cfg2.sources_.push_back(MakeSource("A", p1, 0, 1));
 
-  auto m1 = EmissionsModule::Create(cfg1, n_cells, 2);
-  auto m2 = EmissionsModule::Create(cfg2, n_cells, 2);
+  auto m1 = Emissions::Create(cfg1, n_cells, 2);
+  auto m2 = Emissions::Create(cfg2, n_cells, 2);
   ASSERT_TRUE(static_cast<bool>(m1));
   ASSERT_TRUE(static_cast<bool>(m2));
 
@@ -271,7 +271,7 @@ TEST(EmissionsModuleTest, OrderingDoesNotAffectOutput)
 // H2 regression: when one source fails (bad convention -> SourceFactory
 // error), Create surfaces an error message that names the source.
 // ---------------------------------------------------------------------
-TEST(EmissionsModuleCreateTest, H2_ErrorIdentifiesSourceByName)
+TEST(EmissionsCreateTest, H2_ErrorIdentifiesSourceByName)
 {
   TempDir dir;
   const int n_cells = 3;
@@ -298,7 +298,7 @@ TEST(EmissionsModuleCreateTest, H2_ErrorIdentifiesSourceByName)
   bad.hierarchy_     = 1;
   cfg.sources_.push_back(bad);
 
-  auto created = EmissionsModule::Create(cfg, n_cells, 2);
+  auto created = Emissions::Create(cfg, n_cells, 2);
   EXPECT_FALSE(static_cast<bool>(created));
   ASSERT_FALSE(created.errors().empty());
   // Expect the error message to identify 'bad_one' somewhere in the
@@ -320,7 +320,7 @@ TEST(EmissionsModuleCreateTest, H2_ErrorIdentifiesSourceByName)
 // Duplicate (category, hierarchy) at construction is rejected by
 // Validate (and therefore by Create which calls Validate first).
 // ---------------------------------------------------------------------
-TEST(EmissionsModuleCreateTest, DuplicateCategoryHierarchyRejectedByCreate)
+TEST(EmissionsCreateTest, DuplicateCategoryHierarchyRejectedByCreate)
 {
   TempDir dir;
   const int n_cells = 3;
@@ -331,7 +331,7 @@ TEST(EmissionsModuleCreateTest, DuplicateCategoryHierarchyRejectedByCreate)
   cfg.sources_.push_back(MakeSource("A", p1, 0, 1));
   cfg.sources_.push_back(MakeSource("B", p2, 0, 1));
 
-  auto created = EmissionsModule::Create(cfg, n_cells, 2);
+  auto created = Emissions::Create(cfg, n_cells, 2);
   EXPECT_FALSE(static_cast<bool>(created));
   bool found = false;
   for (const auto& e : created.errors())

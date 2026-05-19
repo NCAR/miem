@@ -20,7 +20,7 @@ Real FluxConverter::FluxToTendency(Real flux_kg_m2_s,
   return flux_kg_m2_s / (air_density_kg_m3 * layer_thickness_m);
 }
 
-Result<void> FluxConverter::Apply(EmisState&  state,
+Result<void> FluxConverter::Apply(EmissionsState&  state,
                                   const Real* air_density,
                                   const Real* layer_thickness,
                                   int         n_atm_elements)

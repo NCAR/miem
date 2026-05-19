@@ -77,7 +77,6 @@ typedef struct {
 miem_config_t* miem_config_new(void);
 void           miem_config_delete(miem_config_t* cfg);
 
-void miem_config_set_version(miem_config_t* cfg, const char* version);
 void miem_config_set_regridding_none(miem_config_t* cfg);
 
 /* Append a source.  Returns 0 on success, nonzero on failure (and
@@ -147,7 +146,7 @@ int  MIEMRun(miem_t*        handle,
 void DeleteMIEMState(miem_state_t* state);
 
 /* ------------------------------------------------------------------------ */
-/* EmisState accessors (zero-copy)                                           */
+/* EmissionsState accessors (zero-copy)                                           */
 /* ------------------------------------------------------------------------ */
 
 /* (n_species * n_cells) kg/m²/s, layout [species * n_cells + cell] */

@@ -42,7 +42,7 @@ class ECCADReader
   ECCADReader& operator=(ECCADReader&&) noexcept;
 
   // Open a NetCDF file.  Throws IOError on failure (caught at the
-  // EmissionsModule boundary).
+  // Emissions boundary).
   void Open(const std::string& file_path);
 
   void Close();

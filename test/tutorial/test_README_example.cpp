@@ -1,6 +1,6 @@
 #include <miem/config.hpp>
-#include <miem/emis_state.hpp>
-#include <miem/emissions_module.hpp>
+#include <miem/emissions_state.hpp>
+#include <miem/emissions.hpp>
 
 #include <gtest/gtest.h>
 #include <iostream>
@@ -27,7 +27,6 @@ TEST(ReadmeExample, BuildsAConfigAndModule)
   cams_anthro.species_map_.AddMapping("NOx", "NO2", 0.1);
 
   MIEMConfig cfg;
-  cfg.version_  = "1.0.0";
   cfg.sources_  = { cams_anthro };
 
   // The config alone is valid prior to opening any file — that is what
@@ -37,7 +36,7 @@ TEST(ReadmeExample, BuildsAConfigAndModule)
       << "config failed to validate: "
       << (valid.errors().empty() ? "" : valid.errors().front().message_);
 
-  EmissionsModule module(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
+  Emissions module(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
   EXPECT_GE(module.NumSpecies(), 0);
 
   std::cout << "MIEMConfig validated; module exposes "

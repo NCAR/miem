@@ -84,7 +84,6 @@ int main()
   cams_anthro.species_map_.AddMapping("NOx", "NO2", 0.1);
 
   MIEMConfig cfg;
-  cfg.version_ = "1.0.0";
   cfg.sources_ = { cams_anthro };
 
   if (auto v = cfg.Validate(); !v)
@@ -93,12 +92,12 @@ int main()
     return 1;
   }
 
-  EmissionsModule module(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
-  std::cout << "module advertises " << module.NumSpecies()
+  Emissions emissions(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
+  std::cout << "emissions advertises " << emissions.NumSpecies()
             << " mechanism species\n";
 
-  // module.Run(sim_time_sec, dt_sec) returns Result<EmisState>; the
-  // overload taking air_density/layer_thickness arrays additionally
+  // emissions.Run(sim_time_sec, dt_sec) returns Result<EmissionsState>;
+  // the overload taking air_density/layer_thickness arrays additionally
   // populates state.tendency_ via FluxConverter.
 
   return 0;

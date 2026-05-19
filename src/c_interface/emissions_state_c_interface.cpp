@@ -3,7 +3,7 @@
 
 #include "error_handling.hpp"
 #include "handles.hpp"
-#include "miem/emis_state.hpp"
+#include "miem/emissions_state.hpp"
 #include "miem/miem_c.h"
 
 #include <algorithm>

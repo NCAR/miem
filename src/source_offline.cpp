@@ -104,7 +104,7 @@ Result<void> OfflineEmissionSource::LoadBrackets(double time_current,
   const std::string file_path = ResolveFilePath(time_current);
 
   // ECCADReader throws IOError on open/IO failures; the boundary
-  // (EmissionsModule::Run) catches and converts.
+  // (Emissions::Run) catches and converts.
   reader_->Open(file_path);
   inventory_species_ = reader_->QuerySpecies();
 

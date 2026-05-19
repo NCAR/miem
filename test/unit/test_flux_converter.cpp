@@ -5,7 +5,7 @@
 // multi-cell/level surface injection, and column-integral mass
 // conservation round-trip.
 
-#include <miem/emis_state.hpp>
+#include <miem/emissions_state.hpp>
 #include <miem/flux_converter.hpp>
 #include <miem/util/result.hpp>
 #include <miem/util/types.hpp>
@@ -30,10 +30,10 @@ constexpr double kTendTol = 1.0e-18;
 constexpr double kFluxTol = 1.0e-15;
 #endif
 
-// Build an EmisState pre-populated with a single species + surface flux.
-EmisState MakeState(int n_cells, int n_vert_levels, Real flux_value)
+// Build an EmissionsState pre-populated with a single species + surface flux.
+EmissionsState MakeState(int n_cells, int n_vert_levels, Real flux_value)
 {
-  EmisState s(/*n_species=*/1, n_cells, n_vert_levels);
+  EmissionsState s(/*n_species=*/1, n_cells, n_vert_levels);
   s.species_names_   = { "NO" };
   s.injection_layer_ = { 0 };
   s.surface_flux_.SetSpecies(s.species_names_);
@@ -95,7 +95,7 @@ TEST(FluxConverterTest, SurfaceInjectionOnlyAtLayerZero)
   const int n_vl    = 5;
   const Real flux   = static_cast<Real>(1.0e-9);
 
-  EmisState s = MakeState(n_cells, n_vl, flux);
+  EmissionsState s = MakeState(n_cells, n_vl, flux);
 
   std::vector<Real> rho(n_vl * n_cells, static_cast<Real>(1.0));
   std::vector<Real> dz (n_vl * n_cells, static_cast<Real>(100.0));
@@ -136,7 +136,7 @@ TEST(FluxConverterTest, ColumnIntegralMatchesSurfaceFlux)
   const int n_vl    = 3;
   const Real flux   = static_cast<Real>(1.0e-9);
 
-  EmisState s = MakeState(n_cells, n_vl, flux);
+  EmissionsState s = MakeState(n_cells, n_vl, flux);
   std::vector<Real> rho(n_vl * n_cells, static_cast<Real>(1.225));
   std::vector<Real> dz (n_vl * n_cells, static_cast<Real>(100.0));
 
@@ -173,7 +173,7 @@ TEST(FluxConverterTest, InsufficientAtmElementsReturnsError)
 {
   const int n_cells = 4;
   const int n_vl    = 3;
-  EmisState s = MakeState(n_cells, n_vl, static_cast<Real>(1.0e-9));
+  EmissionsState s = MakeState(n_cells, n_vl, static_cast<Real>(1.0e-9));
 
   std::vector<Real> rho(2, static_cast<Real>(1.0));   // far too short
   std::vector<Real> dz (2, static_cast<Real>(100.0));

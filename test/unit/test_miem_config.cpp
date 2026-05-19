@@ -30,7 +30,6 @@ MIEMConfig MakeMinimalConfig()
   src.file_pattern_ = "/tmp/does_not_exist.nc";  // validate doesn't touch disk
 
   MIEMConfig cfg;
-  cfg.version_ = "1.0.0";
   cfg.sources_ = { src };
   return cfg;
 }
@@ -199,7 +198,6 @@ TEST(MIEMConfigDefaultsTest, BareSourceDefaultsMatchHeader)
 TEST(MIEMConfigDefaultsTest, BareMIEMConfigDefaultsMatchHeader)
 {
   MIEMConfig cfg;
-  EXPECT_TRUE(cfg.version_.empty());
   EXPECT_EQ(cfg.regridding_.type_, RegriddingType::None);
   EXPECT_TRUE(cfg.regridding_.weights_file_.empty());
   EXPECT_TRUE(cfg.sources_.empty());

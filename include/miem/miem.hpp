@@ -6,8 +6,8 @@
 #pragma once
 
 #include "miem/config.hpp"
-#include "miem/emis_state.hpp"
-#include "miem/emissions_module.hpp"
+#include "miem/emissions_state.hpp"
+#include "miem/emissions.hpp"
 #include "miem/flux_converter.hpp"
 #include "miem/source.hpp"
 #include "miem/source_factory.hpp"

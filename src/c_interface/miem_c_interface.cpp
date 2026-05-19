@@ -8,7 +8,7 @@
 #include "error_handling.hpp"
 #include "handles.hpp"
 #include "miem/config.hpp"
-#include "miem/emissions_module.hpp"
+#include "miem/emissions.hpp"
 #include "miem/miem_c.h"
 
 #include <cstring>
@@ -80,12 +80,6 @@ miem_config_t* miem_config_new(void)
 void miem_config_delete(miem_config_t* cfg)
 {
   delete cfg;
-}
-
-void miem_config_set_version(miem_config_t* cfg, const char* version)
-{
-  if (!cfg || !version) return;
-  cfg->cfg_.version_ = version;
 }
 
 void miem_config_set_regridding_none(miem_config_t* cfg)
@@ -190,7 +184,7 @@ int CreateMIEM(const miem_config_t* cfg,
 
   int rc = 1;
   HandleErrors(err, [&]() {
-    auto created = EmissionsModule::Create(cfg->cfg_, n_cells, n_vert_levels);
+    auto created = Emissions::Create(cfg->cfg_, n_cells, n_vert_levels);
     if (!created)
     {
       SetErrorFromEntry(err, created.errors().front());
@@ -262,7 +256,7 @@ int MIEMRun(miem_t*        handle,
     return 1;
   }
 
-  Result<EmisState> r = (air_density && layer_thickness && n_atm_elements > 0)
+  Result<EmissionsState> r = (air_density && layer_thickness && n_atm_elements > 0)
                            ? handle->module_->Run(time_sec, dt_sec,
                                                   air_density, layer_thickness,
                                                   n_atm_elements)

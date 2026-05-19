@@ -27,8 +27,8 @@ create_standard_test(
 )
 
 create_standard_test(
-  NAME    emissions_module
-  SOURCES test_emissions_module.cpp
+  NAME    emissions
+  SOURCES test_emissions.cpp
   LIBRARIES miem_test_synthetic_nc
 )
 

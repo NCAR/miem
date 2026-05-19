@@ -1,13 +1,13 @@
 // Copyright (C) 2024-2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 
-#include "miem/emis_state.hpp"
+#include "miem/emissions_state.hpp"
 
 #include <algorithm>
 
 namespace miem {
 
-void EmisState::Resize(int n_species, int n_cells, int n_vert_levels)
+void EmissionsState::Resize(int n_species, int n_cells, int n_vert_levels)
 {
   n_species_     = n_species;
   n_cells_       = n_cells;
@@ -21,7 +21,7 @@ void EmisState::Resize(int n_species, int n_cells, int n_vert_levels)
   species_names_.assign(n_species, std::string{});
 }
 
-void EmisState::Zero()
+void EmissionsState::Zero()
 {
   std::fill(surface_flux_.raw().begin(), surface_flux_.raw().end(),
             Real{ 0 });
@@ -32,7 +32,7 @@ void EmisState::Zero()
   }
 }
 
-const FluxArray* EmisState::GetSectorFlux(const std::string& sector) const
+const FluxArray* EmissionsState::GetSectorFlux(const std::string& sector) const
 {
   auto it = sector_fluxes_.find(sector);
   if (it == sector_fluxes_.end())

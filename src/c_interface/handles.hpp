@@ -15,8 +15,8 @@
 #include <memory>
 
 #include "miem/config.hpp"
-#include "miem/emis_state.hpp"
-#include "miem/emissions_module.hpp"
+#include "miem/emissions_state.hpp"
+#include "miem/emissions.hpp"
 
 struct miem_config_t
 {
@@ -25,10 +25,10 @@ struct miem_config_t
 
 struct miem_t
 {
-  std::unique_ptr<::miem::EmissionsModule> module_;
+  std::unique_ptr<::miem::Emissions> module_;
 };
 
 struct miem_state_t
 {
-  ::miem::EmisState state_;
+  ::miem::EmissionsState state_;
 };

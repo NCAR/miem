@@ -8,8 +8,8 @@ configure_file(version.hpp.in
 # Core sources (no C API, no YAML, no MechanismConfiguration)
 
 set(MIEM_CORE_SOURCES
-  emissions_module.cpp
-  emis_state.cpp
+  emissions.cpp
+  emissions_state.cpp
   source_offline.cpp
   source_factory.cpp
   species_map.cpp
@@ -22,7 +22,7 @@ set(MIEM_CORE_SOURCES
 
 set(MIEM_C_API_SOURCES
   c_interface/miem_c_interface.cpp
-  c_interface/emis_state_c_interface.cpp
+  c_interface/emissions_state_c_interface.cpp
 )
 
 ################################################################################

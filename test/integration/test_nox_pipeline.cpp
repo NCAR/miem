@@ -12,7 +12,7 @@
 //   2. Programmatically constructs a MIEMConfig with one source: NOx
 //      -> NO @ 0.9 + NOx -> NO2 @ 0.1, O3 -> O3 @ 1.0 (identity),
 //      anthropogenic sector.
-//   3. Calls EmissionsModule::Run at one or more times.
+//   3. Calls Emissions::Run at one or more times.
 //   4. Asserts:
 //        - surface_flux(NO)  == 0.9 * 1e-9 = 9.0e-10 +/- 1e-22
 //        - surface_flux(NO2) == 0.1 * 1e-9 = 1.0e-10 +/- 1e-22
@@ -23,8 +23,8 @@
 #include "synthetic_nc.hpp"
 
 #include <miem/config.hpp>
-#include <miem/emis_state.hpp>
-#include <miem/emissions_module.hpp>
+#include <miem/emissions_state.hpp>
+#include <miem/emissions.hpp>
 #include <miem/util/result.hpp>
 #include <miem/util/types.hpp>
 
@@ -96,10 +96,9 @@ TEST(NoxPipelineIntegrationTest, NOxSplitAndO3Passthrough)
   src.species_map_.AddMapping("O3",  "O3",  1.0);
 
   MIEMConfig cfg;
-  cfg.version_ = "1.0.0";
   cfg.sources_ = { src };
 
-  auto created = EmissionsModule::Create(cfg, kNCells, kNVertLevels);
+  auto created = Emissions::Create(cfg, kNCells, kNVertLevels);
   ASSERT_TRUE(static_cast<bool>(created))
       << (created.errors().empty() ? "" : created.errors().front().message_);
   auto module = std::move(created).value();
@@ -156,7 +155,7 @@ TEST(NoxPipelineIntegrationTest, TendencyMatchesFluxOverColumnIntegrand)
   MIEMConfig cfg;
   cfg.sources_ = { src };
 
-  auto created = EmissionsModule::Create(cfg, kNCells, kNVertLevels);
+  auto created = Emissions::Create(cfg, kNCells, kNVertLevels);
   ASSERT_TRUE(static_cast<bool>(created));
   auto module = std::move(created).value();
 
@@ -253,7 +252,7 @@ TEST(NoxPipelineIntegrationTest, RepeatedRunsRespectTimeBracket)
   MIEMConfig cfg;
   cfg.sources_ = { src };
 
-  auto module = std::move(EmissionsModule::Create(
+  auto module = std::move(Emissions::Create(
                               cfg, kNCells, kNVertLevels)).value();
 
   for (double t : { 100.0, 1800.0, 3500.0 })

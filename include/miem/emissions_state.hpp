@@ -1,7 +1,7 @@
 // Copyright (C) 2024-2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
-// `EmisState` is the value returned by `EmissionsModule::Run`.  It holds
+// `EmissionsState` is the value returned by `Emissions::Run`.  It holds
 // the per-cell, per-species surface flux and volumetric tendency arrays,
 // plus optional per-sector diagnostic fluxes.  All field names carry a
 // trailing underscore per plan §D2.
@@ -102,7 +102,7 @@ struct EmissionsState
   std::vector<std::string> species_names_;
 
   // Maps emission species index to host chemistry species index, -1 if
-  // not present.  Populated by `EmissionsModule::ResolveHostIndices`.
+  // not present.  Populated by `Emissions::ResolveHostIndices`.
   std::vector<int> emis_to_chem_idx_;
 
   // Per-species injection layer (0 = surface).
@@ -117,8 +117,8 @@ struct EmissionsState
   std::map<std::string, FluxArray> sector_fluxes_;
   std::vector<std::string>         sector_names_;  // insertion order
 
-  EmisState() = default;
-  EmisState(int n_species, int n_cells, int n_vert_levels)
+  EmissionsState() = default;
+  EmissionsState(int n_species, int n_cells, int n_vert_levels)
   {
     Resize(n_species, n_cells, n_vert_levels);
   }

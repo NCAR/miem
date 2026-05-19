@@ -16,7 +16,7 @@
 
 #include <vector>
 
-#include "miem/emis_state.hpp"
+#include "miem/emissions_state.hpp"
 #include "miem/util/result.hpp"
 #include "miem/util/types.hpp"
 
@@ -32,7 +32,7 @@ class FluxConverter
   // Returns CellCountMismatch on size mismatch; MassConservationViolation
   // when MIEM_CHECK_MASS_CONSERVATION is enabled and the column integral
   // drifts beyond `kMassToleranceFactor`.
-  static Result<void> Apply(EmisState&  state,
+  static Result<void> Apply(EmissionsState&  state,
                             const Real* air_density,
                             const Real* layer_thickness,
                             int         n_atm_elements);

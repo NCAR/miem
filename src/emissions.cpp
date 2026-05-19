@@ -1,7 +1,7 @@
 // Copyright (C) 2024-2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 
-#include "miem/emissions_module.hpp"
+#include "miem/emissions.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -17,7 +17,7 @@
 
 namespace miem {
 
-Result<void> EmissionsModule::BuildSources(const MIEMConfig& cfg)
+Result<void> Emissions::BuildSources(const MIEMConfig& cfg)
 {
   std::vector<ErrorEntry> errors;
 
@@ -60,7 +60,7 @@ Result<void> EmissionsModule::BuildSources(const MIEMConfig& cfg)
   return Result<void>::Ok();
 }
 
-EmissionsModule::EmissionsModule(const MIEMConfig& cfg,
+Emissions::Emissions(const MIEMConfig& cfg,
                                  int               n_cells,
                                  int               n_vert_levels)
     : n_cells_(n_cells), n_vert_levels_(n_vert_levels)
@@ -68,7 +68,7 @@ EmissionsModule::EmissionsModule(const MIEMConfig& cfg,
   // Defense in depth: assert the regridding precondition that
   // MIEMConfig::Validate() already enforces (plan §D6).
   assert(cfg.regridding_.type_ == RegriddingType::None &&
-         "EmissionsModule: regridding != None — call MIEMConfig::Validate()");
+         "Emissions: regridding != None — call MIEMConfig::Validate()");
 
   // Construction errors are silently discarded here — callers should
   // prefer the `Create` factory which surfaces them.  Source-factory
@@ -78,32 +78,32 @@ EmissionsModule::EmissionsModule(const MIEMConfig& cfg,
   (void)BuildSources(cfg);
 }
 
-Result<std::unique_ptr<EmissionsModule>>
-EmissionsModule::Create(const MIEMConfig& cfg,
+Result<std::unique_ptr<Emissions>>
+Emissions::Create(const MIEMConfig& cfg,
                         int               n_cells,
                         int               n_vert_levels)
 {
   if (auto v = cfg.Validate(); !v)
   {
-    return Result<std::unique_ptr<EmissionsModule>>::Errors(v.errors());
+    return Result<std::unique_ptr<Emissions>>::Errors(v.errors());
   }
 
   // Construct an empty shell, then invoke BuildSources directly so we
   // get the structured per-source error list.  The legacy constructor
   // path also calls BuildSources but silently discards the errors;
   // here we want them.
-  auto module = std::unique_ptr<EmissionsModule>(
-      new EmissionsModule(n_cells, n_vert_levels));
+  auto module = std::unique_ptr<Emissions>(
+      new Emissions(n_cells, n_vert_levels));
 
   Result<void> built = module->BuildSources(cfg);
   if (!built)
   {
-    return Result<std::unique_ptr<EmissionsModule>>::Errors(built.errors());
+    return Result<std::unique_ptr<Emissions>>::Errors(built.errors());
   }
-  return Result<std::unique_ptr<EmissionsModule>>::Ok(std::move(module));
+  return Result<std::unique_ptr<Emissions>>::Ok(std::move(module));
 }
 
-void EmissionsModule::ResolveHostIndices(
+void Emissions::ResolveHostIndices(
     const std::vector<std::string>& host_species,
     std::vector<int>&               indices) const
 {
@@ -125,11 +125,11 @@ void EmissionsModule::ResolveHostIndices(
   }
 }
 
-Result<EmisState> EmissionsModule::Run(double sim_time_sec, double /*dt_sec*/)
+Result<EmissionsState> Emissions::Run(double sim_time_sec, double /*dt_sec*/)
 {
   const int n_agg = static_cast<int>(aggregated_species_.size());
 
-  EmisState state(n_agg, n_cells_, n_vert_levels_);
+  EmissionsState state(n_agg, n_cells_, n_vert_levels_);
   state.species_names_ = aggregated_species_;
   state.surface_flux_.SetSpecies(aggregated_species_);
 
@@ -163,7 +163,7 @@ Result<EmisState> EmissionsModule::Run(double sim_time_sec, double /*dt_sec*/)
                                      src_flux, src_species);
       if (!r)
       {
-        return Result<EmisState>::Errors(r.errors());
+        return Result<EmissionsState>::Errors(r.errors());
       }
 
       std::vector<Real> mapped(flux_size, Real{ 0 });
@@ -191,8 +191,8 @@ Result<EmisState> EmissionsModule::Run(double sim_time_sec, double /*dt_sec*/)
   }
   catch (const MIEMError& e)
   {
-    return Result<EmisState>::Error(ErrorCode::InternalError,
-                                    std::string("EmissionsModule::Run: ") +
+    return Result<EmissionsState>::Error(ErrorCode::InternalError,
+                                    std::string("Emissions::Run: ") +
                                     e.what());
   }
 
@@ -258,10 +258,10 @@ Result<EmisState> EmissionsModule::Run(double sim_time_sec, double /*dt_sec*/)
     }
   }
 
-  return Result<EmisState>::Ok(std::move(state));
+  return Result<EmissionsState>::Ok(std::move(state));
 }
 
-Result<EmisState> EmissionsModule::Run(double      sim_time_sec,
+Result<EmissionsState> Emissions::Run(double      sim_time_sec,
                                        double      dt_sec,
                                        const Real* air_density,
                                        const Real* layer_thickness,
@@ -272,14 +272,14 @@ Result<EmisState> EmissionsModule::Run(double      sim_time_sec,
   {
     return run_result;
   }
-  EmisState state = std::move(run_result).value();
+  EmissionsState state = std::move(run_result).value();
 
   if (auto conv = FluxConverter::Apply(state, air_density,
                                        layer_thickness, n_atm_elements); !conv)
   {
-    return Result<EmisState>::Errors(conv.errors());
+    return Result<EmissionsState>::Errors(conv.errors());
   }
-  return Result<EmisState>::Ok(std::move(state));
+  return Result<EmissionsState>::Ok(std::move(state));
 }
 
 }  // namespace miem

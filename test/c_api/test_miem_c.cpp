@@ -79,7 +79,6 @@ TEST(MIEMCApiTest, C1_FullLifecycle)
 
   miem_config_t* cfg = miem_config_new();
   ASSERT_NE(cfg, nullptr);
-  miem_config_set_version(cfg, "1.0.0");
   miem_config_set_regridding_none(cfg);
 
   miem_source_spec_t spec =
@@ -139,7 +138,7 @@ TEST(MIEMCApiTest, C1_FullLifecycle)
 }
 
 // ---------------------------------------------------------------------
-// C2 — MIEMGetSurfaceFlux returns bit-equal values to C++ EmisState
+// C2 — MIEMGetSurfaceFlux returns bit-equal values to C++ EmissionsState
 // (well, the same values, since the underlying buffer is shared via
 // the opaque handle).
 // ---------------------------------------------------------------------

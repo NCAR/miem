@@ -1,9 +1,9 @@
 // Copyright (C) 2024-2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
-// `EmissionsModule` is the runtime entry point for MIEM.  Construct with a
+// `Emissions` is the runtime entry point for MIEM.  Construct with a
 // pre-validated `MIEMConfig` plus host grid dimensions; call `Run` once
-// per time step to obtain an `EmisState` snapshot of surface flux, per-
+// per time step to obtain an `EmissionsState` snapshot of surface flux, per-
 // sector flux, and (optionally) volumetric tendency.
 //
 // The constructor is noexcept-on-pre-validated-config: schema invariants
@@ -17,38 +17,38 @@
 #include <vector>
 
 #include "miem/config.hpp"
-#include "miem/emis_state.hpp"
+#include "miem/emissions_state.hpp"
 #include "miem/source.hpp"
 #include "miem/util/result.hpp"
 #include "miem/util/types.hpp"
 
 namespace miem {
 
-class EmissionsModule
+class Emissions
 {
  public:
   // Preconditions: `cfg` has passed `MIEMConfig::Validate()`.
   // Construction itself is fallible (source factories may reject) so
   // callers should prefer the static `Create` factory below.
-  EmissionsModule(const MIEMConfig& cfg, int n_cells, int n_vert_levels);
+  Emissions(const MIEMConfig& cfg, int n_cells, int n_vert_levels);
 
   // Convenience factory that runs `cfg.Validate()` first and bundles
-  // construction errors into a single `Result<EmissionsModule>`.
-  static Result<std::unique_ptr<EmissionsModule>>
+  // construction errors into a single `Result<Emissions>`.
+  static Result<std::unique_ptr<Emissions>>
   Create(const MIEMConfig& cfg, int n_cells, int n_vert_levels);
 
   // Aggregate mechanism species across all sources.
   std::vector<std::string> QuerySpecies() const { return aggregated_species_; }
 
-  // Surface-flux-only run (no tendency conversion).  Returned EmisState
+  // Surface-flux-only run (no tendency conversion).  Returned EmissionsState
   // has `surface_flux_` and `sector_fluxes_` populated; `tendency_` is
   // zero-filled.
-  Result<EmisState> Run(double sim_time_sec, double dt_sec);
+  Result<EmissionsState> Run(double sim_time_sec, double dt_sec);
 
   // Full run with tendency conversion.  Both `air_density` and
   // `layer_thickness` are (n_vert_levels * n_cells) flat arrays
   // (layout: [level * n_cells + cell]).
-  Result<EmisState> Run(double      sim_time_sec,
+  Result<EmissionsState> Run(double      sim_time_sec,
                         double      dt_sec,
                         const Real* air_density,
                         const Real* layer_thickness,
@@ -68,7 +68,7 @@ class EmissionsModule
   // Grid-only constructor used by `Create` -- leaves `sources_` empty
   // so `BuildSources` can be invoked separately and its Result
   // surfaced.
-  EmissionsModule(int n_cells, int n_vert_levels)
+  Emissions(int n_cells, int n_vert_levels)
       : n_cells_(n_cells), n_vert_levels_(n_vert_levels) {}
 
   struct SourceEntry
