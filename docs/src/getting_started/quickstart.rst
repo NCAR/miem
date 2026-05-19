@@ -40,7 +40,6 @@ Assembling the Config and Running
 .. code-block:: cpp
 
    MIEMConfig cfg{
-     .version_ = "1.0.0",
      .sources_ = { cams_anthro },
    };
 

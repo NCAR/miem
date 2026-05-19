@@ -34,7 +34,6 @@ struct SourceConfig
 
 struct MIEMConfig
 {
-  std::string version_;
   std::vector<SourceConfig> sources_;
 };
 
