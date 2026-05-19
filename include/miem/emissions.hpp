@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // `Emissions` is the runtime entry point for MIEM.  Construct with a
-// pre-validated `MIEMConfig` plus host grid dimensions; call `Run` once
+// pre-validated `EmissionsConfig` plus host grid dimensions; call `Run` once
 // per time step to obtain an `EmissionsState` snapshot of surface flux, per-
 // sector flux, and (optionally) volumetric tendency.
 //
 // The constructor is noexcept-on-pre-validated-config: schema invariants
-// are checked once by `MIEMConfig::Validate()` and assumed to hold.
+// are checked once by `EmissionsConfig::Validate()` and assumed to hold.
 // Runtime failures (NetCDF I/O, cell-count mismatch with host arrays,
 // time-out-of-range) surface as `Result::Error{…}` from `Run`.
 #pragma once
@@ -27,15 +27,15 @@ namespace miem {
 class Emissions
 {
  public:
-  // Preconditions: `cfg` has passed `MIEMConfig::Validate()`.
+  // Preconditions: `cfg` has passed `EmissionsConfig::Validate()`.
   // Construction itself is fallible (source factories may reject) so
   // callers should prefer the static `Create` factory below.
-  Emissions(const MIEMConfig& cfg, int n_cells, int n_vert_levels);
+  Emissions(const EmissionsConfig& cfg, int n_cells, int n_vert_levels);
 
   // Convenience factory that runs `cfg.Validate()` first and bundles
   // construction errors into a single `Result<Emissions>`.
   static Result<std::unique_ptr<Emissions>>
-  Create(const MIEMConfig& cfg, int n_cells, int n_vert_levels);
+  Create(const EmissionsConfig& cfg, int n_cells, int n_vert_levels);
 
   // Aggregate mechanism species across all sources.
   std::vector<std::string> QuerySpecies() const { return aggregated_species_; }
@@ -89,7 +89,7 @@ class Emissions
   // full success; otherwise returns a Result carrying the
   // accumulated per-source errors (each tagged with the source's
   // name) so Create() can surface them.
-  Result<void> BuildSources(const MIEMConfig& cfg);
+  Result<void> BuildSources(const EmissionsConfig& cfg);
 };
 
 }  // namespace miem

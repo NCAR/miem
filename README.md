@@ -51,9 +51,9 @@ make test
 
 ## Using the MIEM API
 
-The following example configures a single anthropogenic emissions source and validates the resulting `MIEMConfig`.
+The following example configures a single anthropogenic emissions source and validates the resulting `EmissionsConfig`.
 
-Species mapping and inventory translation are handled upstream by `MechanismConfiguration` and `musica::Translate()`.  By the time `MIEMConfig` is constructed here, every named reference has been resolved into a flat struct that MIEM owns.  MIEM does not parse YAML at any level.
+Species mapping and inventory translation are handled upstream by `MechanismConfiguration` and `musica::Translate()`.  By the time `EmissionsConfig` is constructed here, every named reference has been resolved into a flat struct that MIEM owns.  MIEM does not parse YAML at any level.
 
 To run this example save the following code in a file named `miem_example.cpp`:
 
@@ -83,7 +83,7 @@ int main()
   cams_anthro.species_map_.AddMapping("NOx", "NO",  0.9);
   cams_anthro.species_map_.AddMapping("NOx", "NO2", 0.1);
 
-  MIEMConfig cfg;
+  EmissionsConfig cfg;
   cfg.sources_ = { cams_anthro };
 
   if (auto v = cfg.Validate(); !v)

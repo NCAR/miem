@@ -20,7 +20,7 @@
 
 struct miem_config_t
 {
-  ::miem::MIEMConfig cfg_;
+  ::miem::EmissionsConfig cfg_;
 };
 
 struct miem_t

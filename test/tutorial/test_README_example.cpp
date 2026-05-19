@@ -26,7 +26,7 @@ TEST(ReadmeExample, BuildsAConfigAndModule)
   cams_anthro.species_map_.AddMapping("NOx", "NO",  0.9);
   cams_anthro.species_map_.AddMapping("NOx", "NO2", 0.1);
 
-  MIEMConfig cfg;
+  EmissionsConfig cfg;
   cfg.sources_  = { cams_anthro };
 
   // The config alone is valid prior to opening any file — that is what
@@ -36,9 +36,9 @@ TEST(ReadmeExample, BuildsAConfigAndModule)
       << "config failed to validate: "
       << (valid.errors().empty() ? "" : valid.errors().front().message_);
 
-  Emissions module(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
-  EXPECT_GE(module.NumSpecies(), 0);
+  Emissions emissions(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
+  EXPECT_GE(emissions.NumSpecies(), 0);
 
-  std::cout << "MIEMConfig validated; module exposes "
-            << module.NumSpecies() << " mechanism species." << std::endl;
+  std::cout << "EmissionsConfig validated; emissions exposes "
+            << emissions.NumSpecies() << " mechanism species." << std::endl;
 }

@@ -9,7 +9,7 @@
 //   1. Generates a synthetic ECCAD NetCDF holding emi_NOx = 1.0e-9
 //      kg/m^2/s and emi_O3 = 5.0e-10 kg/m^2/s on N cells, at multiple
 //      time steps.
-//   2. Programmatically constructs a MIEMConfig with one source: NOx
+//   2. Programmatically constructs a EmissionsConfig with one source: NOx
 //      -> NO @ 0.9 + NOx -> NO2 @ 0.1, O3 -> O3 @ 1.0 (identity),
 //      anthropogenic sector.
 //   3. Calls Emissions::Run at one or more times.
@@ -95,7 +95,7 @@ TEST(NoxPipelineIntegrationTest, NOxSplitAndO3Passthrough)
   src.species_map_.AddMapping("NOx", "NO2", 0.1);
   src.species_map_.AddMapping("O3",  "O3",  1.0);
 
-  MIEMConfig cfg;
+  EmissionsConfig cfg;
   cfg.sources_ = { src };
 
   auto created = Emissions::Create(cfg, kNCells, kNVertLevels);
@@ -122,7 +122,7 @@ TEST(NoxPipelineIntegrationTest, NOxSplitAndO3Passthrough)
   }
 
   // Sector flux for "anthropogenic" should reflect all three species.
-  const FluxArray* sec = state.GetSectorFlux("anthropogenic");
+  const EmissionsArray* sec = state.GetSectorFlux("anthropogenic");
   ASSERT_NE(sec, nullptr);
   for (int ic = 0; ic < kNCells; ++ic)
   {
@@ -152,7 +152,7 @@ TEST(NoxPipelineIntegrationTest, TendencyMatchesFluxOverColumnIntegrand)
   src.species_map_.AddMapping("NOx", "NO2", 0.1);
   src.species_map_.AddMapping("O3",  "O3",  1.0);
 
-  MIEMConfig cfg;
+  EmissionsConfig cfg;
   cfg.sources_ = { src };
 
   auto created = Emissions::Create(cfg, kNCells, kNVertLevels);
@@ -249,7 +249,7 @@ TEST(NoxPipelineIntegrationTest, RepeatedRunsRespectTimeBracket)
   src.species_map_.AddMapping("NOx", "NO2", 0.1);
   src.species_map_.AddMapping("O3",  "O3",  1.0);
 
-  MIEMConfig cfg;
+  EmissionsConfig cfg;
   cfg.sources_ = { src };
 
   auto module = std::move(Emissions::Create(

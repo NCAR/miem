@@ -1,7 +1,7 @@
 // Copyright (C) 2024-2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
-// Tests for `MIEMConfig::Validate()` and the defaults audit.  Each
+// Tests for `EmissionsConfig::Validate()` and the defaults audit.  Each
 // validator branch (V1-V6 from the plan plus DuplicateCategoryHierarchy)
 // is exercised in isolation; the defaults audit asserts that a minimal
 // `SourceConfig` only carrying name + file_pattern validates and that
@@ -23,13 +23,13 @@ namespace {
 
 // Build a minimal-but-valid config (one offline ECCAD source, no species
 // mappings, default category/hierarchy).
-MIEMConfig MakeMinimalConfig()
+EmissionsConfig MakeMinimalConfig()
 {
   SourceConfig src;
   src.name_         = "test";
   src.file_pattern_ = "/tmp/does_not_exist.nc";  // validate doesn't touch disk
 
-  MIEMConfig cfg;
+  EmissionsConfig cfg;
   cfg.sources_ = { src };
   return cfg;
 }
@@ -49,9 +49,9 @@ bool HasErrorCode(const Result<void>& r, ErrorCode c)
 // ---------------------------------------------------------------------
 // V1: regridding type must be None
 // ---------------------------------------------------------------------
-TEST(MIEMConfigValidateTest, V1_RejectsRegriddingScrip)
+TEST(EmissionsConfigValidateTest, V1_RejectsRegriddingScrip)
 {
-  MIEMConfig cfg = MakeMinimalConfig();
+  EmissionsConfig cfg = MakeMinimalConfig();
   cfg.regridding_.type_ = RegriddingType::Scrip;
 
   auto r = cfg.Validate();
@@ -62,9 +62,9 @@ TEST(MIEMConfigValidateTest, V1_RejectsRegriddingScrip)
 // ---------------------------------------------------------------------
 // V2: convention must be ECCAD (case-insensitive)
 // ---------------------------------------------------------------------
-TEST(MIEMConfigValidateTest, V2_RejectsUnknownConvention)
+TEST(EmissionsConfigValidateTest, V2_RejectsUnknownConvention)
 {
-  MIEMConfig cfg = MakeMinimalConfig();
+  EmissionsConfig cfg = MakeMinimalConfig();
   cfg.sources_[0].convention_ = "descriptor";  // not "eccad"
 
   auto r = cfg.Validate();
@@ -72,9 +72,9 @@ TEST(MIEMConfigValidateTest, V2_RejectsUnknownConvention)
   EXPECT_TRUE(HasErrorCode(r, ErrorCode::UnknownConvention));
 }
 
-TEST(MIEMConfigValidateTest, V2_AcceptsCaseInsensitiveEccad)
+TEST(EmissionsConfigValidateTest, V2_AcceptsCaseInsensitiveEccad)
 {
-  MIEMConfig cfg = MakeMinimalConfig();
+  EmissionsConfig cfg = MakeMinimalConfig();
   cfg.sources_[0].convention_ = "ECCAD";
 
   auto r = cfg.Validate();
@@ -85,9 +85,9 @@ TEST(MIEMConfigValidateTest, V2_AcceptsCaseInsensitiveEccad)
 // ---------------------------------------------------------------------
 // V3: mode must be Offline
 // ---------------------------------------------------------------------
-TEST(MIEMConfigValidateTest, V3_RejectsOnlineMode)
+TEST(EmissionsConfigValidateTest, V3_RejectsOnlineMode)
 {
-  MIEMConfig cfg = MakeMinimalConfig();
+  EmissionsConfig cfg = MakeMinimalConfig();
   cfg.sources_[0].mode_ = SourceMode::Online;
 
   auto r = cfg.Validate();
@@ -98,9 +98,9 @@ TEST(MIEMConfigValidateTest, V3_RejectsOnlineMode)
 // ---------------------------------------------------------------------
 // V4: vertical injection must be Surface
 // ---------------------------------------------------------------------
-TEST(MIEMConfigValidateTest, V4_RejectsPlumeInjection)
+TEST(EmissionsConfigValidateTest, V4_RejectsPlumeInjection)
 {
-  MIEMConfig cfg = MakeMinimalConfig();
+  EmissionsConfig cfg = MakeMinimalConfig();
   cfg.sources_[0].vertical_injection_ = VerticalInjection::Plume;
 
   auto r = cfg.Validate();
@@ -111,9 +111,9 @@ TEST(MIEMConfigValidateTest, V4_RejectsPlumeInjection)
 // ---------------------------------------------------------------------
 // V5: scaling-factor sum > 1.0 + 1e-6 rejected
 // ---------------------------------------------------------------------
-TEST(MIEMConfigValidateTest, V5_RejectsScalingSumOverOne)
+TEST(EmissionsConfigValidateTest, V5_RejectsScalingSumOverOne)
 {
-  MIEMConfig cfg = MakeMinimalConfig();
+  EmissionsConfig cfg = MakeMinimalConfig();
   cfg.sources_[0].species_map_.AddMapping("NOx", "NO",  0.9);
   cfg.sources_[0].species_map_.AddMapping("NOx", "NO2", 0.2);  // sum = 1.1
 
@@ -123,9 +123,9 @@ TEST(MIEMConfigValidateTest, V5_RejectsScalingSumOverOne)
 }
 
 // Boundary test: 1.0 + 1e-7 is within tolerance (1e-6) — accepted.
-TEST(MIEMConfigValidateTest, V5_BoundaryAcceptsTinyOverhead)
+TEST(EmissionsConfigValidateTest, V5_BoundaryAcceptsTinyOverhead)
 {
-  MIEMConfig cfg = MakeMinimalConfig();
+  EmissionsConfig cfg = MakeMinimalConfig();
   cfg.sources_[0].species_map_.AddMapping("NOx", "NO",
       static_cast<Real>(1.0) + static_cast<Real>(1e-7));
 
@@ -135,9 +135,9 @@ TEST(MIEMConfigValidateTest, V5_BoundaryAcceptsTinyOverhead)
 }
 
 // Boundary test: 1.0 + 1e-5 exceeds tolerance — rejected.
-TEST(MIEMConfigValidateTest, V5_BoundaryRejectsClearOverhead)
+TEST(EmissionsConfigValidateTest, V5_BoundaryRejectsClearOverhead)
 {
-  MIEMConfig cfg = MakeMinimalConfig();
+  EmissionsConfig cfg = MakeMinimalConfig();
   cfg.sources_[0].species_map_.AddMapping("NOx", "NO",
       static_cast<Real>(1.0) + static_cast<Real>(1e-5));
 
@@ -149,9 +149,9 @@ TEST(MIEMConfigValidateTest, V5_BoundaryRejectsClearOverhead)
 // ---------------------------------------------------------------------
 // Duplicate (category, hierarchy) rejected
 // ---------------------------------------------------------------------
-TEST(MIEMConfigValidateTest, RejectsDuplicateCategoryHierarchy)
+TEST(EmissionsConfigValidateTest, RejectsDuplicateCategoryHierarchy)
 {
-  MIEMConfig cfg = MakeMinimalConfig();
+  EmissionsConfig cfg = MakeMinimalConfig();
   // Add a second source with identical (category=0, hierarchy=1).
   SourceConfig dup = cfg.sources_[0];
   dup.name_ = "test2";
@@ -165,9 +165,9 @@ TEST(MIEMConfigValidateTest, RejectsDuplicateCategoryHierarchy)
 // ---------------------------------------------------------------------
 // V6: minimal valid config accepted (positive case)
 // ---------------------------------------------------------------------
-TEST(MIEMConfigValidateTest, V6_AcceptsMinimalConfig)
+TEST(EmissionsConfigValidateTest, V6_AcceptsMinimalConfig)
 {
-  MIEMConfig cfg = MakeMinimalConfig();
+  EmissionsConfig cfg = MakeMinimalConfig();
   auto r = cfg.Validate();
   EXPECT_TRUE(static_cast<bool>(r))
       << (r.errors().empty() ? "" : r.errors().front().message_);
@@ -177,7 +177,7 @@ TEST(MIEMConfigValidateTest, V6_AcceptsMinimalConfig)
 // Defaults audit: a bare SourceConfig with only name + file_pattern set
 // must validate, and each defaulted field must have its documented value.
 // ---------------------------------------------------------------------
-TEST(MIEMConfigDefaultsTest, BareSourceDefaultsMatchHeader)
+TEST(EmissionsConfigDefaultsTest, BareSourceDefaultsMatchHeader)
 {
   SourceConfig src;
   src.name_         = "defaults_audit";
@@ -195,26 +195,26 @@ TEST(MIEMConfigDefaultsTest, BareSourceDefaultsMatchHeader)
   EXPECT_TRUE(src.species_map_.Mappings().empty());
 }
 
-TEST(MIEMConfigDefaultsTest, BareMIEMConfigDefaultsMatchHeader)
+TEST(EmissionsConfigDefaultsTest, BareEmissionsConfigDefaultsMatchHeader)
 {
-  MIEMConfig cfg;
+  EmissionsConfig cfg;
   EXPECT_EQ(cfg.regridding_.type_, RegriddingType::None);
   EXPECT_TRUE(cfg.regridding_.weights_file_.empty());
   EXPECT_TRUE(cfg.sources_.empty());
 }
 
-TEST(MIEMConfigDefaultsTest, MinimalConfigPassesValidate)
+TEST(EmissionsConfigDefaultsTest, MinimalConfigPassesValidate)
 {
-  MIEMConfig cfg = MakeMinimalConfig();
+  EmissionsConfig cfg = MakeMinimalConfig();
   auto r = cfg.Validate();
   EXPECT_TRUE(static_cast<bool>(r));
 }
 
 // Multi-error accumulation: one source can fail several invariants at once
 // (mode != Offline AND vertical != Surface) — both should be reported.
-TEST(MIEMConfigValidateTest, AccumulatesMultipleErrorsOnOneSource)
+TEST(EmissionsConfigValidateTest, AccumulatesMultipleErrorsOnOneSource)
 {
-  MIEMConfig cfg = MakeMinimalConfig();
+  EmissionsConfig cfg = MakeMinimalConfig();
   cfg.sources_[0].mode_               = SourceMode::Online;
   cfg.sources_[0].vertical_injection_ = VerticalInjection::Plume;
 

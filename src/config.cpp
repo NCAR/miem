@@ -22,7 +22,7 @@ std::string ToLower(std::string s)
 
 }  // namespace
 
-Result<void> MIEMConfig::Validate() const
+Result<void> EmissionsConfig::Validate() const
 {
   Result<void> result;
 
@@ -30,7 +30,7 @@ Result<void> MIEMConfig::Validate() const
   if (regridding_.type_ != RegriddingType::None)
   {
     result.AddError(ErrorCode::UnsupportedRegriddingType,
-                    "MIEMConfig: only Regridding::None is supported in v1.");
+                    "EmissionsConfig: only Regridding::None is supported in v1.");
   }
 
   // Track (category, hierarchy) to flag duplicates.

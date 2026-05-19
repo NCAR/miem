@@ -194,7 +194,7 @@ TEST(SpeciesMapApplyTest, A6_DistinctInventoryToSameMechanismSums)
 
 // ---------------------------------------------------------------------
 // A7 (boundary): SpeciesMap::Validate boundary at 1.0 + tolerance
-// (matches MIEMConfigValidateTest cousins).
+// (matches EmissionsConfigValidateTest cousins).
 // ---------------------------------------------------------------------
 TEST(SpeciesMapValidateTest, BoundaryAcceptsOnePlus1e7)
 {

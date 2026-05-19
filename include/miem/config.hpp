@@ -61,7 +61,7 @@ struct SourceConfig
 };
 
 // Top-level MIEM configuration.
-struct MIEMConfig
+struct EmissionsConfig
 {
   Regridding                regridding_;
   std::vector<SourceConfig> sources_;

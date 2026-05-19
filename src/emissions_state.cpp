@@ -32,7 +32,7 @@ void EmissionsState::Zero()
   }
 }
 
-const FluxArray* EmissionsState::GetSectorFlux(const std::string& sector) const
+const EmissionsArray* EmissionsState::GetSectorFlux(const std::string& sector) const
 {
   auto it = sector_fluxes_.find(sector);
   if (it == sector_fluxes_.end())

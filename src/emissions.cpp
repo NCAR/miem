@@ -17,7 +17,7 @@
 
 namespace miem {
 
-Result<void> Emissions::BuildSources(const MIEMConfig& cfg)
+Result<void> Emissions::BuildSources(const EmissionsConfig& cfg)
 {
   std::vector<ErrorEntry> errors;
 
@@ -60,15 +60,15 @@ Result<void> Emissions::BuildSources(const MIEMConfig& cfg)
   return Result<void>::Ok();
 }
 
-Emissions::Emissions(const MIEMConfig& cfg,
+Emissions::Emissions(const EmissionsConfig& cfg,
                                  int               n_cells,
                                  int               n_vert_levels)
     : n_cells_(n_cells), n_vert_levels_(n_vert_levels)
 {
   // Defense in depth: assert the regridding precondition that
-  // MIEMConfig::Validate() already enforces (plan §D6).
+  // EmissionsConfig::Validate() already enforces (plan §D6).
   assert(cfg.regridding_.type_ == RegriddingType::None &&
-         "Emissions: regridding != None — call MIEMConfig::Validate()");
+         "Emissions: regridding != None — call EmissionsConfig::Validate()");
 
   // Construction errors are silently discarded here — callers should
   // prefer the `Create` factory which surfaces them.  Source-factory
@@ -79,7 +79,7 @@ Emissions::Emissions(const MIEMConfig& cfg,
 }
 
 Result<std::unique_ptr<Emissions>>
-Emissions::Create(const MIEMConfig& cfg,
+Emissions::Create(const EmissionsConfig& cfg,
                         int               n_cells,
                         int               n_vert_levels)
 {
@@ -241,7 +241,7 @@ Result<EmissionsState> Emissions::Run(double sim_time_sec, double /*dt_sec*/)
     auto it = state.sector_fluxes_.find(sf.sector_);
     if (it == state.sector_fluxes_.end())
     {
-      FluxArray fa(n_agg, n_cells_);
+      EmissionsArray fa(n_agg, n_cells_);
       fa.SetSpecies(aggregated_species_);
       auto& raw = fa.raw();
       raw = sf.flux_;

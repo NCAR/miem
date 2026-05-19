@@ -76,7 +76,7 @@ TEST(EmissionsTest, DifferentCategoriesSum)
   const std::string p1 = MakeFile(dir, "a.nc", n_cells, 1.0e-9);
   const std::string p2 = MakeFile(dir, "b.nc", n_cells, 2.0e-9);
 
-  MIEMConfig cfg;
+  EmissionsConfig cfg;
   cfg.sources_.push_back(MakeSource("A", p1, /*cat=*/0, /*hier=*/1));
   cfg.sources_.push_back(MakeSource("B", p2, /*cat=*/1, /*hier=*/1));
 
@@ -106,7 +106,7 @@ TEST(EmissionsTest, SameCategoryHigherHierarchyShadows)
   const std::string p_low  = MakeFile(dir, "low.nc",  n_cells, 5.0e-9);
   const std::string p_high = MakeFile(dir, "high.nc", n_cells, 9.0e-9);
 
-  MIEMConfig cfg;
+  EmissionsConfig cfg;
   cfg.sources_.push_back(MakeSource("low",  p_low,  /*cat=*/0, /*hier=*/1));
   cfg.sources_.push_back(MakeSource("high", p_high, /*cat=*/0, /*hier=*/2));
 
@@ -137,7 +137,7 @@ TEST(EmissionsTest, FallThroughWhenHigherHierarchyIsBitExactZero)
   const std::string p_low  = MakeFile(dir, "low.nc",  n_cells, 5.0e-9);
   const std::string p_high = MakeFile(dir, "high.nc", n_cells, 0.0);  // bit-exact
 
-  MIEMConfig cfg;
+  EmissionsConfig cfg;
   cfg.sources_.push_back(MakeSource("low",  p_low,  /*cat=*/0, /*hier=*/1));
   cfg.sources_.push_back(MakeSource("high", p_high, /*cat=*/0, /*hier=*/2));
 
@@ -166,7 +166,7 @@ TEST(EmissionsTest, PerSourceScalingAppliedBeforeHierarchy)
   const int n_cells = 4;
   const std::string path = MakeFile(dir, "a.nc", n_cells, 2.0e-9);
 
-  MIEMConfig cfg;
+  EmissionsConfig cfg;
   cfg.sources_.push_back(
       MakeSource("A", path, 0, 1, /*sector=*/"", /*scaling=*/0.5));
 
@@ -197,7 +197,7 @@ TEST(EmissionsTest, SectorFluxesPreHierarchy)
   const std::string p_low  = MakeFile(dir, "low.nc",  n_cells, 1.0e-9);
   const std::string p_high = MakeFile(dir, "high.nc", n_cells, 7.0e-9);
 
-  MIEMConfig cfg;
+  EmissionsConfig cfg;
   cfg.sources_.push_back(MakeSource("low",  p_low,  0, 1,
                                     /*sector=*/"anthropogenic"));
   cfg.sources_.push_back(MakeSource("high", p_high, 0, 2,
@@ -219,7 +219,7 @@ TEST(EmissionsTest, SectorFluxesPreHierarchy)
   }
 
   // sector_fluxes_ aggregates both sources (1e-9 + 7e-9 = 8e-9).
-  const FluxArray* anthro = state.GetSectorFlux("anthropogenic");
+  const EmissionsArray* anthro = state.GetSectorFlux("anthropogenic");
   ASSERT_NE(anthro, nullptr);
   for (int ic = 0; ic < n_cells; ++ic)
   {
@@ -239,11 +239,11 @@ TEST(EmissionsTest, OrderingDoesNotAffectOutput)
   const std::string p1 = MakeFile(dir, "a.nc", n_cells, 1.0e-9);
   const std::string p2 = MakeFile(dir, "b.nc", n_cells, 2.0e-9);
 
-  MIEMConfig cfg1;
+  EmissionsConfig cfg1;
   cfg1.sources_.push_back(MakeSource("A", p1, 0, 1));
   cfg1.sources_.push_back(MakeSource("B", p2, 1, 1));
 
-  MIEMConfig cfg2;
+  EmissionsConfig cfg2;
   cfg2.sources_.push_back(MakeSource("B", p2, 1, 1));
   cfg2.sources_.push_back(MakeSource("A", p1, 0, 1));
 
@@ -278,7 +278,7 @@ TEST(EmissionsCreateTest, H2_ErrorIdentifiesSourceByName)
   const std::string path = MakeFile(dir, "ok.nc", n_cells, 1.0e-9);
 
   // Source A is valid but source B will fail at validate (online mode).
-  // We need to bypass MIEMConfig::Validate (which would itself flag it)
+  // We need to bypass EmissionsConfig::Validate (which would itself flag it)
   // to exercise the per-source factory error path inside BuildSources.
   // Use an invalid convention to slip past validate (which only
   // rejects)... but validate also catches that.  So we test the H2
@@ -286,7 +286,7 @@ TEST(EmissionsCreateTest, H2_ErrorIdentifiesSourceByName)
   // calling Validate first.  In the Create path, the validator
   // surfaces the per-source error tagged with the source name.
 
-  MIEMConfig cfg;
+  EmissionsConfig cfg;
   cfg.sources_.push_back(MakeSource("good_one",   path, 0, 1));
   // Inject an online-mode source to force OnlineSourcesNotSupported.
   SourceConfig bad;
@@ -327,7 +327,7 @@ TEST(EmissionsCreateTest, DuplicateCategoryHierarchyRejectedByCreate)
   const std::string p1 = MakeFile(dir, "a.nc", n_cells, 1.0e-9);
   const std::string p2 = MakeFile(dir, "b.nc", n_cells, 2.0e-9);
 
-  MIEMConfig cfg;
+  EmissionsConfig cfg;
   cfg.sources_.push_back(MakeSource("A", p1, 0, 1));
   cfg.sources_.push_back(MakeSource("B", p2, 0, 1));
 

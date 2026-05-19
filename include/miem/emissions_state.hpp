@@ -28,11 +28,11 @@ namespace miem {
 // Two-dimensional view backed by a flat std::vector<Real>: rows are
 // species, columns are cells.  Stored in species-major (row-major)
 // order so `&data()[species_idx * n_cells_]` is the start of a row.
-class FluxArray
+class EmissionsArray
 {
  public:
-  FluxArray() = default;
-  FluxArray(int n_species, int n_cells)
+  EmissionsArray() = default;
+  EmissionsArray(int n_species, int n_cells)
       : n_species_(n_species),
         n_cells_(n_cells),
         data_(static_cast<std::size_t>(n_species) * n_cells, Real{ 0 })
@@ -108,13 +108,13 @@ struct EmissionsState
   // Per-species injection layer (0 = surface).
   std::vector<int> injection_layer_;
 
-  FluxArray surface_flux_;   // (n_species, n_cells)            [kg/m²/s]
+  EmissionsArray surface_flux_;   // (n_species, n_cells)            [kg/m²/s]
 
   // Volumetric tendency: flat (n_species * n_vert_levels * n_cells).
   std::vector<Real> tendency_;
 
   // Optional diagnostic per-sector fluxes (same shape as surface_flux_).
-  std::map<std::string, FluxArray> sector_fluxes_;
+  std::map<std::string, EmissionsArray> sector_fluxes_;
   std::vector<std::string>         sector_names_;  // insertion order
 
   EmissionsState() = default;
@@ -130,7 +130,7 @@ struct EmissionsState
 
   // Convenience accessor for sector flux by name; returns nullptr if the
   // sector is not present.
-  const FluxArray* GetSectorFlux(const std::string& sector) const;
+  const EmissionsArray* GetSectorFlux(const std::string& sector) const;
 
   // Raw-pointer accessors for the C API zero-copy hand-off.
   Real*       SurfaceFluxData()       { return surface_flux_.data(); }

@@ -46,7 +46,7 @@ typedef struct miem_t        miem_t;
 typedef struct miem_state_t  miem_state_t;
 
 /* Public POD for adding sources.  Strings are NUL-terminated and copied
- * by `miem_config_add_source`.  Field order matches MIEMConfig's
+ * by `miem_config_add_source`.  Field order matches EmissionsConfig's
  * trailing-underscore fields in C++. */
 typedef struct {
   const char* name;                    /* required */
