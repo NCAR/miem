@@ -46,7 +46,7 @@ Assembling the Config and Running
 
    EmissionsModule module(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
 
-   EmisState state = module.Run(
+   EmissionsState state = module.Run(
      86400.0 * 180.0,  // sim_time_sec: day 180
      600.0             // dt_sec: 10 minutes
    );

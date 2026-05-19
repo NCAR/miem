@@ -86,9 +86,9 @@ int main()
     .sources_ = { cams_anthro },
   };
 
-  Emissions module(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
+  Emissions emissions(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
 
-  EmisState state = module.Run(
+  EmissionsState state = emissions.Run(
     86400.0 * 180.0,  // sim_time_sec: day 180
     600.0             // dt_sec: 10 minutes
   );

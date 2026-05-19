@@ -12,7 +12,7 @@ struct FluxArray
   double operator()(int cell, const std::string& species) const { return 0.0; }
 };
 
-struct EmisState
+struct EmissionsState
 {
   FluxArray surface_flux_;
   FluxArray tendency_;

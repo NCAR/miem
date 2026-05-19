@@ -15,9 +15,9 @@ class Emissions
   {
   }
 
-  EmisState Run(double sim_time_sec, double dt_sec)
+  EmissionsState Run(double sim_time_sec, double dt_sec)
   {
-    EmisState state;
+    EmissionsState state;
     for (const auto& source : cfg_.sources_)
       if (!source.sector_.empty())
         state.sector_fluxes_.emplace(source.sector_, FluxArray{});
