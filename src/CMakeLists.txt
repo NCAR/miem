@@ -15,10 +15,15 @@ endif()
 
 target_sources(miem PRIVATE
   emissions_state.cpp
+  source_offline.cpp
+  source_factory.cpp
   species_map.cpp
   temporal_interpolator.cpp
   flux_converter.cpp
+  eccad_reader.cpp
 )
+
+target_link_libraries(miem PRIVATE netCDF::netcdf_normalized)
 
 target_include_directories(miem
   PUBLIC

@@ -27,3 +27,12 @@
 #define MIEM_ERROR_CATEGORY_VALIDATION                 "MIEM Validation"
 #define MIEM_VALIDATION_ERROR_CODE_CELL_COUNT_MISMATCH 1
 #define MIEM_VALIDATION_ERROR_CODE_MASS_CONSERVATION   2
+
+// --- IO --------------------------------------------------------------
+#define MIEM_ERROR_CATEGORY_IO                         "MIEM IO"
+#define MIEM_IO_ERROR_CODE_FILE_NOT_FOUND        1
+#define MIEM_IO_ERROR_CODE_NETCDF                2
+#define MIEM_IO_ERROR_CODE_INVALID_FORMAT        3
+#define MIEM_IO_ERROR_CODE_TIME_OUT_OF_RANGE     4
+#define MIEM_IO_ERROR_CODE_UNSUPPORTED_CALENDAR  5
+#define MIEM_IO_ERROR_CODE_INVALID_TIME_UNITS    6
