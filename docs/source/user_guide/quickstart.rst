@@ -7,21 +7,22 @@ mirrors how a host model (e.g. MPAS-A) drives MIEM directly in C++, without
 going through the YAML parsing layer.
 
 Species mapping and inventory translation are handled upstream by
-``MechanismConfiguration`` and ``musica::Translate()``. By the time the
-configuration reaches MIEM, species are already resolved.
+``MechanismConfiguration`` and ``musica::Translate()``. By the time a
+``Source`` reaches MIEM, species are already resolved.
 
-Setting Up Sources
-==================
+Describing a Source
+===================
+
+A ``Source`` is the description of one emission inventory -- the emissions
+analog of a single ``micm::Process``.
 
 .. code-block:: cpp
 
-   #include <miem/config.hpp>
-   #include <miem/emissions.hpp>
-   #include <miem/emissions_state.hpp>
+   #include <miem/miem.hpp>
 
    using namespace miem;
 
-   SourceConfig cams_anthro{
+   Source cams_anthro{
      .name_                   = "cams anthro",
      .mode_                   = SourceMode::Offline,
      .type_                   = SourceType::Anthropogenic,
@@ -34,16 +35,21 @@ Setting Up Sources
      .sector_                 = "anthropogenic",
    };
 
-Assembling the Config and Running
-=================================
+Building the Module and Running
+===============================
+
+Following micm's ``CpuSolverBuilder``, MIEM has no aggregate config object:
+``EmissionsBuilder`` takes the ``Source`` domain objects and validates and
+builds the runtime module in ``Build()`` (which throws
+``miem::MiemException`` if the configuration is invalid).
 
 .. code-block:: cpp
 
-   MIEMConfig cfg{
-     .sources_ = { cams_anthro },
-   };
-
-   EmissionsModule module(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
+   Emissions module = EmissionsBuilder()
+                          .SetGridDimensions(/*n_cells=*/163842,
+                                             /*n_vert_levels=*/60)
+                          .AddSource(cams_anthro)
+                          .Build();
 
    EmissionsState state = module.Run(
      86400.0 * 180.0,  // sim_time_sec: day 180

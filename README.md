@@ -51,16 +51,14 @@ make test
 
 ## Using the MIEM API
 
-The following example configures a single anthropogenic emissions source and runs one model timestep.
+The following example describes a single anthropogenic emissions source and assembles it into an `Emissions` module with `EmissionsBuilder`.  Following micm, MIEM has no aggregate configuration object: you hand the builder `Source` domain objects and it validates and builds the module in `Build()`.
 
-Species mapping and inventory translation are handled upstream by `MechanismConfiguration` and `musica::Translate()`. By the time `MIEMConfig` is constructed here, species are already resolved.
+Species mapping and inventory translation are handled upstream by `MechanismConfiguration` and `musica::Translate()`.  By the time a `Source` is constructed here, every named reference has been resolved into a flat struct that MIEM owns.  MIEM does not parse YAML at any level.
 
 To run this example save the following code in a file named `miem_example.cpp`:
 
 ```cpp
-#include <miem/config.hpp>
-#include <miem/emissions.hpp>
-#include <miem/emissions_state.hpp>
+#include <miem/miem.hpp>
 
 #include <iostream>
 
@@ -68,49 +66,58 @@ using namespace miem;
 
 int main()
 {
-  SourceConfig cams_anthro{
-    .name_                   = "CAMS anthropogenic",
-    .mode_                   = SourceMode::Offline,
-    .type_                   = SourceType::Anthropogenic,
-    .file_pattern_           = "/path/to/CAMS-GLOB-ANT_{YYYY}-{MM}.nc",
-    .temporal_interpolation_ = TemporalInterpolation::Linear,
-    .vertical_injection_     = VerticalInjection::Surface,
-    .category_               = 0,
-    .hierarchy_              = 1,
-    .scaling_factor_         = 1.0,
-    .sector_                 = "anthropogenic",
-  };
+  Source cams_anthro;
+  cams_anthro.name_                   = "CAMS anthropogenic";
+  cams_anthro.mode_                   = SourceMode::Offline;
+  cams_anthro.type_                   = SourceType::Anthropogenic;
+  cams_anthro.file_pattern_           = "/path/to/CAMS-GLOB-ANT_{YYYY}-{MM}.nc";
+  cams_anthro.convention_             = "eccad";
+  cams_anthro.temporal_interpolation_ = TemporalInterpolation::Linear;
+  cams_anthro.vertical_injection_     = VerticalInjection::Surface;
+  cams_anthro.category_               = 0;
+  cams_anthro.hierarchy_              = 1;
+  cams_anthro.scaling_factor_         = 1.0;
+  cams_anthro.sector_                 = "anthropogenic";
 
-  MIEMConfig cfg{
-    .sources_ = { cams_anthro },
-  };
+  // Programmatic species map: NOx -> NO (0.9), NOx -> NO2 (0.1).
+  cams_anthro.species_map_.AddMapping("NOx", "NO",  0.9);
+  cams_anthro.species_map_.AddMapping("NOx", "NO2", 0.1);
 
-  Emissions emissions(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
+  try
+  {
+    // EmissionsBuilder assembles Source descriptions into a runtime
+    // module, mirroring micm's CpuSolverBuilder.  Build() validates the
+    // configuration and throws miem::MiemException if any invariant fails.
+    Emissions emissions = EmissionsBuilder()
+                              .SetGridDimensions(/*n_cells=*/163842,
+                                                 /*n_vert_levels=*/60)
+                              .AddSource(cams_anthro)
+                              .Build();
 
-  EmissionsState state = emissions.Run(
-    86400.0 * 180.0,  // sim_time_sec: day 180
-    600.0             // dt_sec: 10 minutes
-  );
+    std::cout << "emissions advertises " << emissions.NumSpecies()
+              << " mechanism species\n";
 
-  std::cout << "NO surface flux at cell 0: "
-            << state.surface_flux_(0, "NO")
-            << " kg m-2 s-1" << std::endl;
+    // emissions.Run(sim_time_sec, dt_sec) returns an EmissionsState and
+    // throws miem::MiemException on failure; the overload taking
+    // air_density/layer_thickness arrays additionally populates
+    // state.tendency_ via FluxConverter.
+  }
+  catch (const miem::MiemException& e)
+  {
+    std::cerr << "configuration invalid [" << e.Category() << '/' << e.Code()
+              << "]: " << e.what() << "\n";
+    return 1;
+  }
 
   return 0;
 }
 ```
 
-To build and run the example (assuming the default install location):
+To build and run the example with the installed `find_package(miem)` config:
 
-```bash
-g++ -o miem_example miem_example.cpp -I./include -std=c++20
-./miem_example
-```
-
-Output:
-
-```
-NO surface flux at cell 0: 0 kg m-2 s-1
+```cmake
+find_package(miem CONFIG REQUIRED)
+target_link_libraries(my_app PRIVATE musica::miem)
 ```
 
 ## Community and contributions
