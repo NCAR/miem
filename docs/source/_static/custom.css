@@ -1,0 +1,13 @@
+/* MIEM documentation custom styles. */
+
+/* Keep the landing-page card icons a consistent, modest size. */
+.sd-card .sd-card-img-top {
+    width: 120px;
+    height: 90px;
+    margin: 1rem auto 0 auto;
+    object-fit: contain;
+}
+
+.sd-card-title {
+    font-weight: 600;
+}

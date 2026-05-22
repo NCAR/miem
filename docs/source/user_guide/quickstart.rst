@@ -2,13 +2,13 @@
 Quickstart
 ==========
 
-This example shows how to configure and run one emissions timestep.
-It mirrors how a host model (e.g. MPAS-A) drives MIEM directly in C++,
-without going through the YAML parsing layer.
+This example shows how to configure and run one emissions timestep. It
+mirrors how a host model (e.g. MPAS-A) drives MIEM directly in C++, without
+going through the YAML parsing layer.
 
 Species mapping and inventory translation are handled upstream by
-``MechanismConfiguration`` and ``musica::Translate()``. By the time
-``MIEMConfig`` reaches MIEM, species are already resolved.
+``MechanismConfiguration`` and ``musica::Translate()``. By the time the
+configuration reaches MIEM, species are already resolved.
 
 Setting Up Sources
 ==================
@@ -35,7 +35,7 @@ Setting Up Sources
    };
 
 Assembling the Config and Running
-==================================
+=================================
 
 .. code-block:: cpp
 
