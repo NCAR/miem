@@ -11,6 +11,14 @@
 // Codes restart at 1 within each category, matching the MICM convention.
 #pragma once
 
+// --- Configuration ---------------------------------------------------
+#define MIEM_ERROR_CATEGORY_CONFIGURATION                       "MIEM Configuration"
+#define MIEM_CONFIGURATION_ERROR_CODE_UNSUPPORTED_REGRIDDING         1
+#define MIEM_CONFIGURATION_ERROR_CODE_UNKNOWN_CONVENTION             2
+#define MIEM_CONFIGURATION_ERROR_CODE_ONLINE_NOT_SUPPORTED           3
+#define MIEM_CONFIGURATION_ERROR_CODE_UNSUPPORTED_VERTICAL_INJECTION 4
+#define MIEM_CONFIGURATION_ERROR_CODE_DUPLICATE_CATEGORY_HIERARCHY   5
+
 // --- Species ---------------------------------------------------------
 #define MIEM_ERROR_CATEGORY_SPECIES                    "MIEM Species"
 #define MIEM_SPECIES_ERROR_CODE_SCALING_EXCEEDS_ONE    1
