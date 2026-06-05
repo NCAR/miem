@@ -13,22 +13,29 @@ include(FetchContent)
 # the casing (`netCDF::netCDF` vs `netCDF::netcdf`) across providers.
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
+
+# Honor the $NETCDF env variable set by HPC module systems (e.g. Derecho).
+if(DEFINED ENV{NETCDF} AND NOT "$ENV{NETCDF}" STREQUAL "")
+  list(PREPEND CMAKE_PREFIX_PATH "$ENV{NETCDF}")
+endif()
+
+# Try a system/module-installed netCDF first; fall back to FetchContent.
+# Note: FIND_PACKAGE_ARGS in FetchContent_Declare passes extra args to
+# find_package using the *content name* as the package name — it cannot
+# override the name, so FetchContent_Declare(netcdf-c ... FIND_PACKAGE_ARGS netCDF)
+# would call find_package(netcdf-c netCDF), which is invalid.
+# We therefore call find_package explicitly before FetchContent.
 find_package(netCDF QUIET)
 
 if(NOT netCDF_FOUND)
-  # FetchContent fallback — pinned to the same tag musica uses.
-  message(STATUS "netCDF not found via config or FindnetCDF; using FetchContent fallback")
+  set(BUILD_UTILITIES OFF CACHE BOOL "" FORCE)
+  set(ENABLE_TESTS    OFF CACHE BOOL "" FORCE)
+  set(ENABLE_NETCDF_4 ON  CACHE BOOL "" FORCE)
   FetchContent_Declare(netcdf-c
     GIT_REPOSITORY https://github.com/Unidata/netcdf-c.git
     GIT_TAG v4.9.2
   )
-  set(BUILD_UTILITIES OFF CACHE BOOL "" FORCE)
-  set(ENABLE_TESTS    OFF CACHE BOOL "" FORCE)
-  set(ENABLE_NETCDF_4 ON  CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(netcdf-c)
-  set(MIEM_FETCHED_NETCDF TRUE CACHE INTERNAL "")
-else()
-  set(MIEM_FETCHED_NETCDF FALSE CACHE INTERNAL "")
 endif()
 
 if(NOT TARGET netCDF::netcdf_normalized)
