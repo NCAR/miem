@@ -1,0 +1,33 @@
+name: Clang Tidy
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  clang-tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang clang-tidy libnetcdf-dev
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -D CMAKE_BUILD_TYPE=Debug \
+            -D MIEM_ENABLE_TESTS=ON \
+            -D CMAKE_CXX_CLANG_TIDY="clang-tidy"
+
+      - name: Build (runs clang-tidy)
+        run: cmake --build build -j$(nproc)

@@ -15,36 +15,34 @@ if(NOT CMAKE_BUILD_TYPE)
       FORCE)
 endif()
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 include(GNUInstallDirs)
 
 ################################################################################
 # Options
 
-option(MIEM_ENABLE_TESTS    "Build the test suite"              ON)
-option(MIEM_ENABLE_MEMCHECK "Enable memory checking in tests"   OFF)
-option(MIEM_ENABLE_COVERAGE "Enable code coverage output"       OFF)
-option(MIEM_BUILD_DOCS      "Build the documentation"           OFF)
+option(MIEM_ENABLE_TESTS              "Build the test suite"              OFF)
+option(MIEM_ENABLE_MEMCHECK           "Enable memory checking in tests"   OFF)
+option(MIEM_ENABLE_COVERAGE           "Enable code coverage output"       OFF)
+option(MIEM_BUILD_DOCS                "Build the documentation"           OFF)
+option(MIEM_USE_DOUBLE                "Use double-precision Real type"    ON)
+option(MIEM_BUILD_SHARED_LIBS         "Build shared libraries"            OFF)
 
 ################################################################################
 # Dependencies
+#
+# PR 1 (build foundation) sets up `find_package(netCDF)` so the search
+# logic, FetchContent fallback, and `netCDF::netcdf_normalized` alias are
+# in place — but no library target links against it yet.  Consumers come
+# online in PR 4 (data layer).
 
 include(dependencies)
 
 ################################################################################
-# MIEM library (header-only)
-
-add_library(miem INTERFACE)
-add_library(musica::miem ALIAS miem)
+# MIEM library (foundation slice)
 
 add_subdirectory(src)
-
-target_compile_features(miem INTERFACE cxx_std_20)
-
-target_include_directories(miem
-  INTERFACE
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
 
 ################################################################################
 # Tests
@@ -74,4 +72,11 @@ endif()
 
 if(MIEM_BUILD_DOCS)
   add_subdirectory(docs)
+endif()
+
+################################################################################
+# Install / config-package
+
+if(PROJECT_IS_TOP_LEVEL)
+  add_subdirectory(packaging)
 endif()

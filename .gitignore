@@ -1,0 +1,49 @@
+# Build directories
+**/build/
+**/build*/
+**/CMakeCache.txt
+**/CMakeFiles/
+**/cmake_install.cmake
+**/Makefile
+
+# Object / archive / shared-library artifacts
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# Generated headers
+include/miem/version.hpp
+
+# IDE
+.vscode/
+.idea/
+xcode/
+*.xcodeproj/
+.cache/
+
+# Editor backups
+*.swp
+*.swo
+*~
+
+# OS
+**/.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Docs
+doc/html/
+doc/latex/
+docs/_build/
+
+# Claude / agent scratch
+.claude/
+.entire/
