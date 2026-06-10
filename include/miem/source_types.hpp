@@ -62,12 +62,27 @@ struct Source
   /// resolved by musica's translator: MIEM receives a concrete path.
   std::string file_pattern_;
 
-  /// Inventory convention. v1 accepts only "eccad" (case-insensitive);
+  /// Inventory convention: the on-disk NetCDF layout MIEM assumes when it
+  /// reads this source's files. v1 accepts only "eccad" (case-insensitive);
   /// anything else is @c UnknownConvention at build time.
+  ///
+  /// The "eccad" convention follows the file layout published by ECCAD
+  /// (Emissions of atmospheric Compounds and Compilation of Ancillary Data,
+  /// https://eccad.aeris-data.fr/) -- the AERIS-hosted repository MIEM's
+  /// reference inventories (e.g. CAMS-GLOB-ANT) are distributed through.
+  /// See the "Inventory conventions" page of the user guide for the
+  /// variable/dimension/units expectations this implies, and for how
+  /// non-conforming files are adapted via a dataset descriptor.
   std::string convention_ = "eccad";
 
-  /// Programmatic species map (musica builds this by translating the
-  /// parsed configuration's named @c species_map entry).
+  /// Inventory-to-mechanism species map: rewrites this source's emission
+  /// flux from the inventory's species names onto the chemical mechanism's
+  /// species (the names MICM solves for), redistributing mass per the
+  /// configured per-mapping scaling factors. It maps emission *flux*, not
+  /// concentration, and only renames/splits species -- it does not itself
+  /// move data between MIEM and MICM. musica builds it by translating the
+  /// parsed configuration's named @c species_map entry. See
+  /// @ref SpeciesMap::Apply for the transform.
   SpeciesMap species_map_;
 
   /// @brief Interpolation between successive input time slices.
