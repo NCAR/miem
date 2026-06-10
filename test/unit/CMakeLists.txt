@@ -17,7 +17,6 @@ create_standard_test(
 target_include_directories(test_eccad_reader PRIVATE
   ${PROJECT_SOURCE_DIR}/src
 )
-target_link_libraries(test_eccad_reader PRIVATE netCDF::netcdf_normalized)
 
 create_standard_test(
   NAME    source_offline
