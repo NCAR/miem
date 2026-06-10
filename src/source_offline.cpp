@@ -186,8 +186,6 @@ void OfflineEmissionSource::LoadBrackets(double time_current,
   const double time_right = (n_times > 1) ? times[right_idx] : time_left + 1.0;
 
   interpolator_.SetBracket(time_left, time_right, mapped_left, mapped_right);
-
-  brackets_loaded_ = true;
 }
 
 void OfflineEmissionSource::Update(
@@ -196,7 +194,7 @@ void OfflineEmissionSource::Update(
     std::vector<Real>&        flux_out,
     std::vector<std::string>& species_names_out)
 {
-  if (!brackets_loaded_ || !interpolator_.CoversTime(time_current))
+  if (!interpolator_.HasBracket() || !interpolator_.CoversTime(time_current))
   {
     LoadBrackets(time_current, n_cells);  // throws on failure
   }

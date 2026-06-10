@@ -3,11 +3,6 @@
 //
 // `ECCADReader` reads ECCAD-conforming NetCDF emission files.
 //
-// Internal header: lives under `src/internal/` and is not installed, so
-// its NetCDF dependency and throwing IO surface stay out of the public
-// API. Downstream consumers only see `OfflineEmissionSource`, which
-// forward-declares this type and holds it via `std::unique_ptr`.
-//
 // CF-calendar policy: the `time` variable's `calendar` attribute must be
 // one of `gregorian` / `proleptic_gregorian` / `standard` / missing.
 // Anything else (notably `noleap`, `360_day`, `julian`) is rejected with

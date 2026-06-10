@@ -18,8 +18,8 @@
 
 namespace miem {
 
-// Forward declaration — `ECCADReader` lives in src/internal/ so its
-// throwing IO surface stays out of the installed public header set.
+// Forward-declared (defined in src/internal/) to keep NetCDF out of this
+// public header.
 class ECCADReader;
 
 class OfflineEmissionSource : public EmissionSource
@@ -50,8 +50,6 @@ class OfflineEmissionSource : public EmissionSource
 
   std::vector<std::string> inventory_species_;
   std::vector<std::string> mechanism_species_;
-
-  bool brackets_loaded_ = false;
 
   void         LoadBrackets(double time_current, int n_cells);
   std::string  ResolveFilePath(double time) const;
