@@ -7,9 +7,9 @@
 #include <netcdf.h>
 
 #include <algorithm>
+#include <charconv>
 #include <cstring>
 #include <ctime>
-#include <regex>
 #include <set>
 #include <string>
 
@@ -45,22 +45,15 @@ bool ParseCFTimeUnits(const std::string& units_str,
                       double&            multiplier,
                       double&            ref_epoch)
 {
-  static const std::regex kCfPattern(
-      R"((\w+)\s+since\s+(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?)");
-  std::smatch match;
-  if (!std::regex_search(units_str, match, kCfPattern))
+  // CF time units are "<unit> since <ISO-8601 datetime>",
+  // e.g. "seconds since 2012-01-01 00:00:00".
+  const std::string::size_type since = units_str.find(" since ");
+  if (since == std::string::npos)
   {
     return false;
   }
 
-  const std::string unit  = match[1].str();
-  const int         year  = std::stoi(match[2].str());
-  const int         month = std::stoi(match[3].str());
-  const int         day   = std::stoi(match[4].str());
-  const int         hour  = match[5].matched ? std::stoi(match[5].str()) : 0;
-  const int         minute= match[6].matched ? std::stoi(match[6].str()) : 0;
-  const int         second= match[7].matched ? std::stoi(match[7].str()) : 0;
-
+  const std::string unit = units_str.substr(0, since);
   if (unit == "seconds" || unit == "second" || unit == "s")
   {
     multiplier = 1.0;
@@ -80,6 +73,54 @@ bool ParseCFTimeUnits(const std::string& units_str,
   else
   {
     return false;
+  }
+
+  // Parse the reference datetime: "YYYY-MM-DD" with an optional
+  // "[ T]HH:MM[:SS]" tail. (std::chrono::parse would be cleaner but is not
+  // yet available across our toolchains.)
+  const std::string when   = units_str.substr(since + 7);
+  const char*       cursor = when.data();
+  const char* const end    = when.data() + when.size();
+
+  // Read an integer, then require/consume `delim` (unless delim == '\0').
+  const auto take = [&](int& out, char delim) -> bool {
+    const auto [next, ec] = std::from_chars(cursor, end, out);
+    if (ec != std::errc{})
+    {
+      return false;
+    }
+    cursor = next;
+    if (delim != '\0')
+    {
+      if (cursor == end || *cursor != delim)
+      {
+        return false;
+      }
+      ++cursor;
+    }
+    return true;
+  };
+
+  int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
+  if (!take(year, '-') || !take(month, '-') || !take(day, '\0'))
+  {
+    return false;
+  }
+  if (cursor != end && (*cursor == ' ' || *cursor == 'T'))
+  {
+    ++cursor;
+    if (!take(hour, ':') || !take(minute, '\0'))
+    {
+      return false;
+    }
+    if (cursor != end && *cursor == ':')
+    {
+      ++cursor;
+      if (!take(second, '\0'))
+      {
+        return false;
+      }
+    }
   }
 
   std::tm ref_tm{};
