@@ -1,8 +1,8 @@
 // Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
-// Interim placeholder.  The full runtime module — constructed through
-// `EmissionsBuilder` and backed by the `EmissionSource` hierarchy — lands
+// Interim placeholder.  The full runtime module -- constructed through
+// `EmissionsBuilder` and backed by the `EmissionSource` hierarchy -- lands
 // in the runtime-integration slice.  Until then this stub only holds the
 // `Source` descriptions so the description types can be exercised in
 // isolation.
