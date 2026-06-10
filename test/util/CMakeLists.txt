@@ -16,4 +16,4 @@ target_link_libraries(miem_test_synthetic_nc
   PRIVATE netCDF::netcdf_normalized
 )
 
-target_compile_features(miem_test_synthetic_nc PUBLIC cxx_std_17)
+target_compile_features(miem_test_synthetic_nc PUBLIC cxx_std_20)

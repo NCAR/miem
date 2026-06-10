@@ -12,6 +12,7 @@
 #include <string>
 
 #include "internal/eccad_reader.hpp"
+#include "internal/time_utils.hpp"
 #include <miem/util/error.hpp>
 #include <miem/util/miem_exception.hpp>
 
@@ -28,19 +29,6 @@ InterpolationMode AsInterpolationMode(TemporalInterpolation t)
     case TemporalInterpolation::None:    return InterpolationMode::kNone;
   }
   return InterpolationMode::kLinear;
-}
-
-// Portable UTC broken-down time: gmtime_r on POSIX, gmtime_s on Windows
-// (the MSVC variant takes its arguments in the opposite order).
-std::tm GmTimeUtc(std::time_t t)
-{
-  std::tm result{};
-#if defined(_WIN32)
-  gmtime_s(&result, &t);
-#else
-  gmtime_r(&t, &result);
-#endif
-  return result;
 }
 
 }  // namespace
@@ -88,7 +76,7 @@ std::string OfflineEmissionSource::ResolveFilePath(double time) const
   }
 
   auto time_t_val = static_cast<std::time_t>(time);
-  std::tm tm_val = GmTimeUtc(time_t_val);
+  std::tm tm_val = UtcTmFromTime(time_t_val);
 
   auto replace_token = [&](const std::string& token, const std::string& value) {
     std::string::size_type pos;
