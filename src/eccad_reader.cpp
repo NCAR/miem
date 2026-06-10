@@ -30,6 +30,16 @@ namespace miem {
 
 namespace {
 
+// Portable UTC tm -> time_t: timegm on POSIX, _mkgmtime on Windows.
+std::time_t TimeGmUtc(std::tm& tm)
+{
+#if defined(_WIN32)
+  return _mkgmtime(&tm);
+#else
+  return timegm(&tm);
+#endif
+}
+
 // Accept any of these calendars (or missing).  Anything else is a hard
 // `UnsupportedCalendar` error per plan / user decision 5.
 bool IsAcceptedCalendar(const std::string& cal)
@@ -88,7 +98,7 @@ bool ParseCFTimeUnits(const std::string& units_str,
   ref_tm.tm_hour = hour;
   ref_tm.tm_min  = minute;
   ref_tm.tm_sec  = second;
-  ref_epoch      = static_cast<double>(timegm(&ref_tm));
+  ref_epoch      = static_cast<double>(TimeGmUtc(ref_tm));
   return true;
 }
 
