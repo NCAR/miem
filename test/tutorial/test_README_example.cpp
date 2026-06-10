@@ -1,15 +1,20 @@
-#include <miem/config.hpp>
+#include <miem/source_types.hpp>
 #include <miem/emissions.hpp>
 #include <miem/emissions_state.hpp>
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include <vector>
 
 using namespace miem;
 
-TEST(ReadmeExample, RunsWithoutError)
+// At this stage of the port MIEM ships the `Source` description type; the
+// fluent `EmissionsBuilder` that assembles sources into a runtime module
+// lands with the runtime-integration slice.  This tutorial builds a single
+// source and hands it to the interim module placeholder.
+TEST(ReadmeExample, BuildsASource)
 {
-  SourceConfig cams_anthro{
+  Source cams_anthro{
     .name_                   = "CAMS anthropogenic",
     .mode_                   = SourceMode::Offline,
     .type_                   = SourceType::Anthropogenic,
@@ -22,18 +27,18 @@ TEST(ReadmeExample, RunsWithoutError)
     .sector_                 = "anthropogenic",
   };
 
-  MIEMConfig cfg{
-    .sources_ = { cams_anthro },
-  };
+  // Programmatic species map: NOx -> NO (0.9), NOx -> NO2 (0.1).
+  cams_anthro.species_map_.AddMapping("NOx", "NO",  0.9);
+  cams_anthro.species_map_.AddMapping("NOx", "NO2", 0.1);
 
-  Emissions emissions(cfg, /*n_cells=*/163842, /*n_vert_levels=*/60);
+  Emissions emissions(std::vector<Source>{ cams_anthro },
+                      /*n_cells=*/163842, /*n_vert_levels=*/60);
 
   EmissionsState state = emissions.Run(
     86400.0 * 180.0,  // sim_time_sec: day 180
     600.0             // dt_sec: 10 minutes
   );
 
-  std::cout << "NO surface flux at cell 0: "
-            << state.surface_flux_(0, "NO")
-            << " kg m-2 s-1" << std::endl;
+  std::cout << "module holds " << emissions.NumSources()
+            << " emission source(s)." << std::endl;
 }

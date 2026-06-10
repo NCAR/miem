@@ -18,3 +18,4 @@ kind of example you'd like.
    :caption: Contents:
 
    quickstart
+   inventory_conventions
