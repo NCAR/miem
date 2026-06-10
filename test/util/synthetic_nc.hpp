@@ -1,10 +1,10 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
-// Test-only utility: synthetic ECCAD-conforming NetCDF emission files and
-// an RAII temp directory.  Lifted from `feature/scaffolding`'s
-// `test/unit/test_emissions_integration.cpp` (pre-triaged as reusable by
-// the planning team).
+// Test-only utility: builds synthetic ECCAD-conforming NetCDF emission
+// files and provides an RAII temp directory, so unit tests can assert
+// against known inputs and deliberately malformed files that real
+// fixtures can't easily provide.
 //
 // Not installed.  Lives in `test/util/` and is linked into individual
 // test executables via the `miem_test_synthetic_nc` interface library.
@@ -15,8 +15,8 @@
 
 namespace miem_test {
 
-// RAII helper around `mkdtemp` — creates a unique temp dir on
-// construction, `rm -rf`s it on destruction.
+// RAII unique temporary directory: created on construction (via
+// std::filesystem) and removed on destruction.
 class TempDir
 {
  public:
@@ -48,12 +48,12 @@ struct SyntheticNcOptions
   // Global attribute style.  Setting `eccad_version` to non-empty writes
   // it as the modern marker; otherwise `ses_version` is written (legacy
   // marker still accepted by the reader).  Setting both empty is the
-  // explicit "neither" case for the S4-fix test.
+  // explicit "neither" case (a file with no version attribute).
   std::string eccad_version = "1.0";
   std::string ses_version;
 
   // If true, suppress emitting a `time` variable even though the time
-  // dimension exists — used for the S2 (missing-time-variable) test.
+  // dimension exists — used to test the missing-time-variable case.
   bool omit_time_variable = false;
 };
 

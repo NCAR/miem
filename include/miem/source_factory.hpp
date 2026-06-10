@@ -1,16 +1,15 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
-// Factory for the EmissionSource hierarchy.  v1 only supports
-// `mode_ == SourceMode::Offline` + `convention_ == "eccad"`; anything
-// else throws MiemException (Configuration category) — validation upstream
-// should have already filtered these, but the factory remains defensive.
+// Builds the concrete EmissionSource for a given Source description, or
+// throws MiemException (Configuration) if its mode/convention isn't
+// supported.
 #pragma once
 
 #include <memory>
 
-#include "miem/source_types.hpp"
-#include "miem/source.hpp"
+#include <miem/source_types.hpp>
+#include <miem/source.hpp>
 
 namespace miem {
 

@@ -1,22 +1,23 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
-// Unit tests for the internal `ECCADReader` (src/internal/) — CF time-
-// units decoding, calendar enforcement, S2 missing-time-variable
-// promotion, S4 empty-version-sentinel rejection.  This test compiles
-// against the internal header; it is *not* exposed through any
-// installed surface.
+// Unit tests for the internal `ECCADReader` (src/internal/): CF time-units
+// decoding, calendar enforcement, missing-time-variable handling, and
+// rejection of files with no version attribute. Compiles against the
+// internal header, which is not part of the installed surface.
 
 #include "internal/eccad_reader.hpp"
 #include "synthetic_nc.hpp"
 
 #include <miem/util/miem_exception.hpp>
+#include <miem/util/types.hpp>
 
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 using miem::ECCADReader;
@@ -28,11 +29,8 @@ using miem_test::TempDir;
 namespace {
 
 // Precision-aware tolerance: tight under double, relaxed under float.
-#ifdef MIEM_USE_DOUBLE
-constexpr double kFluxTol = 1.0e-22;
-#else
-constexpr double kFluxTol = 1.0e-15;
-#endif
+constexpr double kFluxTol =
+    std::is_same_v<miem::Real, double> ? 1.0e-22 : 1.0e-15;
 
 // Helper: build a single-species file with one flux value per cell.
 void WriteSimpleFile(const std::string&                       path,
@@ -165,11 +163,10 @@ TEST(ECCADReaderTimeTest, MissingUnitsAttributeRejected)
 }
 
 // ---------------------------------------------------------------------
-// S2 regression: time dim of length > 1 but no `time` variable -> hard
-// error (climatology kill complement).  Synthesize via
-// SyntheticNcOptions::omit_time_variable.
+// A time dimension of length > 1 with no `time` variable is a hard error
+// (synthesized via SyntheticNcOptions::omit_time_variable).
 // ---------------------------------------------------------------------
-TEST(ECCADReaderTimeTest, S2_MissingTimeVariableForMultipleStepsIsError)
+TEST(ECCADReaderTimeTest, MissingTimeVariableForMultipleStepsIsError)
 {
   TempDir dir;
   const std::string path = dir.File("notimevar.nc");
@@ -202,10 +199,10 @@ TEST(ECCADReaderTimeTest, MissingTimeVariableForSingleSnapshotAccepted)
 }
 
 // ---------------------------------------------------------------------
-// S4 regression: file with neither eccad_version nor ses_version global
-// attribute -> hard error on Open (refused, not silently accepted).
+// A file with neither `eccad_version` nor `ses_version` is refused on
+// Open (a hard error, not silently accepted).
 // ---------------------------------------------------------------------
-TEST(ECCADReaderVersionTest, S4_NeitherVersionAttributeRejected)
+TEST(ECCADReaderVersionTest, NeitherVersionAttributeRejected)
 {
   TempDir dir;
   const std::string path = dir.File("noversion.nc");

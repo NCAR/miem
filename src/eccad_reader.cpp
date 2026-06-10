@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 
 #include "internal/eccad_reader.hpp"
@@ -12,8 +12,8 @@
 #include <set>
 #include <string>
 
-#include "miem/util/error.hpp"
-#include "miem/util/miem_exception.hpp"
+#include <miem/util/error.hpp>
+#include <miem/util/miem_exception.hpp>
 
 #define MIEM_NC_CHECK(call)                                                    \
   do {                                                                         \
@@ -40,8 +40,8 @@ std::time_t TimeGmUtc(std::tm& tm)
 #endif
 }
 
-// Accept any of these calendars (or missing).  Anything else is a hard
-// `UnsupportedCalendar` error per plan / user decision 5.
+// Accept any of these calendars (or missing). Anything else is a hard
+// UnsupportedCalendar error.
 bool IsAcceptedCalendar(const std::string& cal)
 {
   return cal.empty() ||
@@ -110,12 +110,41 @@ std::string ReadTextAttribute(int ncid, int varid, const std::string& name)
   {
     return {};
   }
-  std::vector<char> buf(att_len + 1, '\0');
-  if (nc_get_att_text(ncid, varid, name.c_str(), buf.data()) != NC_NOERR)
+  std::string value(att_len, '\0');
+  if (nc_get_att_text(ncid, varid, name.c_str(), value.data()) != NC_NOERR)
   {
     return {};
   }
-  return std::string(buf.data(), att_len);
+  return value;
+}
+
+// Type-dispatched NetCDF readers so the `Real` element type selects the
+// matching call via overload resolution, without preprocessor branching.
+int NcGetVara(int ncid, int varid, const std::size_t* start,
+              const std::size_t* count, double* out)
+{
+  return nc_get_vara_double(ncid, varid, start, count, out);
+}
+int NcGetVara(int ncid, int varid, const std::size_t* start,
+              const std::size_t* count, float* out)
+{
+  return nc_get_vara_float(ncid, varid, start, count, out);
+}
+int NcGetVar(int ncid, int varid, double* out)
+{
+  return nc_get_var_double(ncid, varid, out);
+}
+int NcGetVar(int ncid, int varid, float* out)
+{
+  return nc_get_var_float(ncid, varid, out);
+}
+int NcGetAttFill(int ncid, int varid, const char* name, double* out)
+{
+  return nc_get_att_double(ncid, varid, name, out);
+}
+int NcGetAttFill(int ncid, int varid, const char* name, float* out)
+{
+  return nc_get_att_float(ncid, varid, name, out);
 }
 
 }  // namespace
@@ -183,11 +212,9 @@ void ECCADReader::Close()
 
 void ECCADReader::DetectFormat()
 {
-  // ECCAD compliance via `eccad_version` (preferred) or legacy
-  // `ses_version` global attribute.  Either is acceptable in this port;
-  // file producers can migrate at their own pace.  Neither present
-  // means the file is not ECCAD/SES-conformant -- refuse rather than
-  // guess (S4 from review).
+  // ECCAD compliance is signalled by the `eccad_version` (preferred) or
+  // legacy `ses_version` global attribute. If neither is present the file
+  // is not ECCAD/SES-conformant, so refuse rather than guess.
   eccad_version_ = ReadTextAttribute(ncid_, NC_GLOBAL, "eccad_version");
   if (eccad_version_.empty())
   {
@@ -238,6 +265,8 @@ void ECCADReader::DiscoverSpecies()
   int n_vars;
   MIEM_NC_CHECK(nc_inq_nvars(ncid_, &n_vars));
 
+  // ECCAD names each emission variable "emi_<species>" (e.g. emi_co);
+  // strip the prefix to recover the species name.
   static const std::string kPrefix = "emi_";
   std::set<std::string> seen;
   for (int varid = 0; varid < n_vars; ++varid)
@@ -272,10 +301,9 @@ std::vector<double> ECCADReader::GetTimeValues() const
   if (status != NC_NOERR)
   {
     // A single-snapshot file (no `time` dimension, n_time_steps_ == 1)
-    // legitimately may omit the `time` variable -- treat as t = 0.
+    // may legitimately omit the `time` variable -- treat as t = 0.
     // Anything else is a malformed file: refuse to silently fabricate
-    // zero-valued times.  (S2 from review -- complements the wrap-
-    // around-fabrication kill.)
+    // zero-valued times.
     if (n_time_steps_ > 1)
     {
       throw MiemException(
@@ -365,19 +393,11 @@ void ECCADReader::ReadFlux(int                             time_index,
     {
       const std::size_t start[2] = { static_cast<std::size_t>(time_index), 0 };
       const std::size_t count[2] = { 1, static_cast<std::size_t>(n_cells_) };
-#ifdef MIEM_USE_DOUBLE
-      MIEM_NC_CHECK(nc_get_vara_double(ncid_, varid, start, count, raw.data()));
-#else
-      MIEM_NC_CHECK(nc_get_vara_float (ncid_, varid, start, count, raw.data()));
-#endif
+      MIEM_NC_CHECK(NcGetVara(ncid_, varid, start, count, raw.data()));
     }
     else if (ndims == 1)
     {
-#ifdef MIEM_USE_DOUBLE
-      MIEM_NC_CHECK(nc_get_var_double(ncid_, varid, raw.data()));
-#else
-      MIEM_NC_CHECK(nc_get_var_float (ncid_, varid, raw.data()));
-#endif
+      MIEM_NC_CHECK(NcGetVar(ncid_, varid, raw.data()));
     }
     else
     {
@@ -386,21 +406,12 @@ void ECCADReader::ReadFlux(int                             time_index,
 
     Real fill_value = Real{ 0 };
     bool has_fill   = false;
-#ifdef MIEM_USE_DOUBLE
-    double fv;
-    if (nc_get_att_double(ncid_, varid, "_FillValue", &fv) == NC_NOERR)
+    Real fv{};
+    if (NcGetAttFill(ncid_, varid, "_FillValue", &fv) == NC_NOERR)
     {
-      fill_value = static_cast<Real>(fv);
+      fill_value = fv;
       has_fill   = true;
     }
-#else
-    float fv;
-    if (nc_get_att_float(ncid_, varid, "_FillValue", &fv) == NC_NOERR)
-    {
-      fill_value = static_cast<Real>(fv);
-      has_fill   = true;
-    }
-#endif
 
     for (int ic = 0; ic < n_cells_; ++ic)
     {

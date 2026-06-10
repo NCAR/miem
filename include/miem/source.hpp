@@ -1,15 +1,14 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
-// Abstract base for emission sources.  Subclasses include the v1
-// `OfflineEmissionSource`; future online sources (dust, sea salt,
-// biogenic) plug in via `SourceFactory::Create`.
+// Interface for an emission source: reports the mechanism species it
+// provides and accumulates their flux for a requested time step.
 #pragma once
 
 #include <string>
 #include <vector>
 
-#include "miem/util/types.hpp"
+#include <miem/util/types.hpp>
 
 namespace miem {
 

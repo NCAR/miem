@@ -1,7 +1,7 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 
-#include "miem/source_offline.hpp"
+#include <miem/source_offline.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -12,8 +12,8 @@
 #include <string>
 
 #include "internal/eccad_reader.hpp"
-#include "miem/util/error.hpp"
-#include "miem/util/miem_exception.hpp"
+#include <miem/util/error.hpp>
+#include <miem/util/miem_exception.hpp>
 
 namespace miem {
 
@@ -74,6 +74,10 @@ std::vector<std::string> OfflineEmissionSource::QuerySpecies() const
   return mechanism_species_;
 }
 
+// Expands date tokens (e.g. {YYYY}, {MM}, {DD}) in the configured file
+// pattern using the UTC calendar date of `time` (seconds since the Unix
+// epoch) and returns the path. A pattern with no tokens is returned
+// unchanged.
 std::string OfflineEmissionSource::ResolveFilePath(double time) const
 {
   std::string pattern = config_.file_pattern_;
@@ -143,8 +147,8 @@ void OfflineEmissionSource::LoadBrackets(double time_current,
         " cells but host expects " + std::to_string(n_cells) + ".");
   }
 
-  // Find the bracketing time indices.  Climatological wrap-around has
-  // been removed (plan §D5): out-of-range is a hard error.
+  // Find the time steps bracketing `time_current`. Times outside the
+  // file's range are a hard error (no climatological wrap-around).
   int  left_idx       = 0;
   int  right_idx      = std::min(1, n_times - 1);
   bool found_bracket  = (n_times == 1);

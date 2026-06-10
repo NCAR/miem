@@ -1,17 +1,12 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
-// `ECCADReader` reads ECCAD-conforming NetCDF emission files.  Renamed
-// from `SESReader` in this port per user decision (overrides plan's
-// "defer rename" guidance).
+// `ECCADReader` reads ECCAD-conforming NetCDF emission files.
 //
-// INTERNAL HEADER.  Lives under `src/internal/` and is NOT installed.
-// `ECCADReader` throws `MiemException` (IO category) on open/IO failures,
-// which would violate the "no throwing in installed public headers"
-// acceptance criterion if the header were exposed.  Downstream consumers
-// only see `OfflineEmissionSource`, which forward-declares this type and
-// holds it via `std::unique_ptr` so the implementation can stay
-// private.
+// Internal header: lives under `src/internal/` and is not installed, so
+// its NetCDF dependency and throwing IO surface stay out of the public
+// API. Downstream consumers only see `OfflineEmissionSource`, which
+// forward-declares this type and holds it via `std::unique_ptr`.
 //
 // CF-calendar policy: the `time` variable's `calendar` attribute must be
 // one of `gregorian` / `proleptic_gregorian` / `standard` / missing.
@@ -27,7 +22,7 @@
 #include <string>
 #include <vector>
 
-#include "miem/util/types.hpp"
+#include <miem/util/types.hpp>
 
 namespace miem {
 
