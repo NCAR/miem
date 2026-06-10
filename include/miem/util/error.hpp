@@ -1,57 +1,21 @@
-// Copyright (C) 2026 University Corporation for Atmospheric Research
+// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
-// Internal exception hierarchy.  Public C++ API returns `miem::Result<T>`
-// (defined in `result.hpp`); kernels may throw these internally to
-// short-circuit deep call stacks, and a boundary-layer try/catch at every
-// public entry converts them to `Result::Error{code, message}`.
+// MIEM error categories (strings) and codes (integers), defined as
+// `#define` macros (modeled on `micm/util/error.hpp`) so the same
+// definitions can be shared by C++ and (eventually) the Fortran interface
+// without duplication.  Failures are reported by throwing
+// `miem::MiemException` (see `miem_exception.hpp`) with one of these
+// (category, code) pairs; `musica::HandleErrors()` catches it at the
+// C boundary and converts it to a MUSICA `Error` struct, preserving both.
+// Codes restart at 1 within each category, matching the MICM convention.
 #pragma once
 
-#include <stdexcept>
-#include <string>
+// --- Species ---------------------------------------------------------
+#define MIEM_ERROR_CATEGORY_SPECIES                    "MIEM Species"
+#define MIEM_SPECIES_ERROR_CODE_SCALING_EXCEEDS_ONE    1
 
-namespace miem {
-
-class MIEMError : public std::runtime_error
-{
- public:
-  MIEMError(const std::string& category, const std::string& message)
-      : std::runtime_error(message), category_(category)
-  {
-  }
-
-  const std::string& Category() const { return category_; }
-
- private:
-  std::string category_;
-};
-
-class ConfigError : public MIEMError
-{
- public:
-  explicit ConfigError(const std::string& message)
-      : MIEMError("Configuration", message) {}
-};
-
-class IOError : public MIEMError
-{
- public:
-  explicit IOError(const std::string& message)
-      : MIEMError("IO", message) {}
-};
-
-class SpeciesError : public MIEMError
-{
- public:
-  explicit SpeciesError(const std::string& message)
-      : MIEMError("Species", message) {}
-};
-
-class ValidationError : public MIEMError
-{
- public:
-  explicit ValidationError(const std::string& message)
-      : MIEMError("Validation", message) {}
-};
-
-}  // namespace miem
+// --- Validation ------------------------------------------------------
+#define MIEM_ERROR_CATEGORY_VALIDATION                 "MIEM Validation"
+#define MIEM_VALIDATION_ERROR_CODE_CELL_COUNT_MISMATCH 1
+#define MIEM_VALIDATION_ERROR_CODE_MASS_CONSERVATION   2

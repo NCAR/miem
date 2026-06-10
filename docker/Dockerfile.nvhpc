@@ -7,6 +7,7 @@ RUN apt update \
         cmake \
         cmake-curses-gui \
         git \
+        libnetcdf-dev \
         make \
     && apt clean
 
@@ -19,6 +20,7 @@ RUN mkdir /build \
     && cd /build \
     && cmake \
         -D CMAKE_BUILD_TYPE=Release \
+        -D MIEM_ENABLE_TESTS=ON \
         /miem \
     && make -j 8
 

@@ -20,7 +20,7 @@ class Emissions
     EmissionsState state;
     for (const auto& source : cfg_.sources_)
       if (!source.sector_.empty())
-        state.sector_fluxes_.emplace(source.sector_, FluxArray{});
+        state.sector_fluxes_.emplace(source.sector_, EmissionsArray{});
     return state;
   }
 

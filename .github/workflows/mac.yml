@@ -16,6 +16,7 @@ jobs:
     runs-on: macos-latest
     continue-on-error: true
     strategy:
+      fail-fast: false
       matrix:
         compiler:
           - { cpp: g++-14, c: gcc-14 }
@@ -27,8 +28,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install netCDF
+        run: brew install netcdf
+
+      # Homebrew links netcdf into the main prefix (it is not keg-only), so
+      # find_package(netCDF) resolves without an explicit CMAKE_PREFIX_PATH,
+      # matching how musica's macOS CI builds.
       - name: Run CMake
-        run: cmake -S . -B build -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        run: >
+          cmake -S . -B build
+          -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -D MIEM_ENABLE_TESTS=ON
 
       - name: Build
         run: cmake --build build --parallel 10

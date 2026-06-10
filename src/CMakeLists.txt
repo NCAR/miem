@@ -14,7 +14,10 @@ else()
 endif()
 
 target_sources(miem PRIVATE
-  util/error.cpp
+  emissions_state.cpp
+  species_map.cpp
+  temporal_interpolator.cpp
+  flux_converter.cpp
 )
 
 target_include_directories(miem
@@ -28,6 +31,10 @@ target_compile_features(miem PUBLIC cxx_std_20)
 
 if(MIEM_USE_DOUBLE)
   target_compile_definitions(miem PUBLIC MIEM_USE_DOUBLE)
+endif()
+
+if(MIEM_CHECK_MASS_CONSERVATION)
+  target_compile_definitions(miem PRIVATE MIEM_CHECK_MASS_CONSERVATION)
 endif()
 
 add_library(musica::miem ALIAS miem)

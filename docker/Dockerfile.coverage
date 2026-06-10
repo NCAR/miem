@@ -8,6 +8,7 @@ RUN dnf -y update \
         git \
         lcov \
         make \
+        netcdf-devel \
         tree \
     && dnf clean all
 
@@ -17,6 +18,7 @@ RUN cd miem \
     && cmake -S . \
              -B build \
              -D CMAKE_BUILD_TYPE=Debug \
+             -D MIEM_ENABLE_TESTS=ON \
              -D MIEM_ENABLE_COVERAGE=ON \
     && cd build \
     && make -j 8

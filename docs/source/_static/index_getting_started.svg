@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" role="img" aria-label="Getting started">
+  <rect x="8" y="8" width="224" height="164" rx="16" fill="#eaf3fb"/>
+  <circle cx="120" cy="86" r="46" fill="#2a6ebb"/>
+  <path d="M120 60 l20 34 h-40 z" fill="#ffffff"/>
+  <rect x="112" y="92" width="16" height="22" fill="#ffffff"/>
+  <text x="120" y="156" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="#1b4a7a">Getting started</text>
+</svg>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" role="img" aria-label="Contributors guide">
+  <rect x="8" y="8" width="224" height="164" rx="16" fill="#fdefe8"/>
+  <g fill="#e2683a">
+    <circle cx="84" cy="62" r="14"/>
+    <circle cx="84" cy="118" r="14"/>
+    <circle cx="156" cy="90" r="14"/>
+  </g>
+  <g stroke="#e2683a" stroke-width="7" fill="none" stroke-linecap="round">
+    <path d="M84 76 v28"/>
+    <path d="M96 66 q40 8 48 20"/>
+    <path d="M96 114 q40 -8 48 -20"/>
+  </g>
+  <text x="120" y="156" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="#a8431f">Contributors</text>
+</svg>

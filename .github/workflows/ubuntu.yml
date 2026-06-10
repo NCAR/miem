@@ -12,20 +12,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  gcc:
+  build-test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        build_type: [Release]
+        compiler:
+          - { cc: gcc,   cxx: g++ }
+          - { cc: clang, cxx: clang++ }
+        build_type: [Debug, Release]
     env:
-      CC: gcc
-      CXX: g++
+      CC: ${{ matrix.compiler.cc }}
+      CXX: ${{ matrix.compiler.cxx }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # MIEM links netCDF; ubuntu-latest's libnetcdf-dev ships netCDFConfig.cmake
+      # so find_package(netCDF) resolves it (no FetchContent source build).
+      - name: Install netCDF
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libnetcdf-dev
+
       - name: Run CMake
-        run: cmake -S . -B build -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        run: >
+          cmake -S . -B build
+          -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -D MIEM_ENABLE_TESTS=ON
 
       - name: Build
         run: cmake --build build --parallel 10
@@ -35,11 +49,10 @@ jobs:
           cd build
           ctest -C ${{ matrix.build_type }} --rerun-failed --output-on-failure . --verbose -j 10
 
-  clang:
+  # Guard the Real-vs-double boundary (the P0 silent-corruption risk): build and
+  # run the full suite in single precision.
+  single-precision:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        build_type: [Release]
     env:
       CC: clang
       CXX: clang++
@@ -47,13 +60,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run CMake
-        run: cmake -S . -B build -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
+      - name: Install netCDF
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libnetcdf-dev
+
+      - name: Run CMake (MIEM_USE_DOUBLE=OFF)
+        run: >
+          cmake -S . -B build
+          -D CMAKE_BUILD_TYPE=Release
+          -D MIEM_ENABLE_TESTS=ON
+          -D MIEM_USE_DOUBLE=OFF
 
       - name: Build
-        run: cmake --build build --verbose
+        run: cmake --build build --parallel 10
 
       - name: Run tests
         run: |
           cd build
-          ctest -C ${{ matrix.build_type }} --rerun-failed --output-on-failure . --verbose -j 10
+          ctest -C Release --rerun-failed --output-on-failure . --verbose -j 10
