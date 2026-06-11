@@ -1,0 +1,24 @@
+# Valgrind leak suppressions for third-party libraries whose internal
+# allocations MIEM does not own and cannot free.
+#
+# udunits2 reads its unit/prefix tables from the XML database once into the
+# ut_system (parsed with EXPAT). MIEM frees the ut_system it creates (see
+# CfUnitSystem in src/eccad_reader.cpp), but udunits2's and EXPAT's own
+# one-time internals still show up as "possibly lost" under --leak-check=full.
+# Suppress leaks whose allocation stack passes through those libraries.
+
+{
+   udunits2-internal-tables
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   obj:*libudunits2*
+}
+
+{
+   expat-via-udunits2
+   Memcheck:Leak
+   match-leak-kinds: all
+   ...
+   obj:*libexpat*
+}
