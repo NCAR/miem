@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <memory>
 #include <set>
 #include <string>
 
@@ -45,23 +46,16 @@ bool IsAcceptedCalendar(const std::string& cal)
 // nullptr if the database can't be read (then GetTimeValues reports an error).
 ut_system* CfUnitSystem()
 {
-  // Held in a function-local static so the database is read once and the
-  // system is freed at program exit (keeping the leak checker quiet about the
-  // tables udunits2 retains for the process lifetime).
-  struct UnitSystem
-  {
-    ut_system* handle;
-    UnitSystem()
-    {
-      ut_set_error_message_handler(ut_ignore);  // keep udunits2 off stderr
-      handle = ut_read_xml(nullptr);
-    }
-    ~UnitSystem() { ut_free_system(handle); }
-    UnitSystem(const UnitSystem&)            = delete;
-    UnitSystem& operator=(const UnitSystem&) = delete;
-  };
-  static UnitSystem system;
-  return system.handle;
+  // Read the database once and free the system at program exit via a static
+  // unique_ptr with ut_free_system as its deleter, so the leak checker sees
+  // the tables udunits2 retains for the process lifetime released.
+  static const std::unique_ptr<ut_system, decltype(&ut_free_system)> system{
+      [] {
+        ut_set_error_message_handler(ut_ignore);  // keep udunits2 off stderr
+        return ut_read_xml(nullptr);
+      }(),
+      ut_free_system};
+  return system.get();
 }
 
 std::string ReadTextAttribute(int ncid, int varid, const std::string& name)
