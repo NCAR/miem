@@ -54,6 +54,46 @@ if(NOT TARGET netCDF::netcdf_normalized)
 endif()
 
 ################################################################################
+# UDUNITS-2 — required (CF time-unit decoding in the ECCAD reader).
+#
+# Prefer a system/module install (FindUDUNITS2.cmake): it ships the XML unit
+# database at a default path udunits2 finds on its own. Otherwise FetchContent-
+# build it, mirroring netCDF above. The fetched build needs an EXPAT library on
+# the host and keeps its XML database in the source tree, so the unit tests
+# point UDUNITS2_XML_PATH at it (a system install needs no such hint).
+
+find_package(UDUNITS2 QUIET)
+
+if(NOT UDUNITS2_FOUND)
+  # udunits2's CMakeLists force-overrides CMAKE_INSTALL_PREFIX when it was
+  # left at the default; snapshot ours and restore it afterwards.
+  set(_miem_saved_prefix "${CMAKE_INSTALL_PREFIX}")
+
+  FetchContent_Declare(udunits2
+    GIT_REPOSITORY https://github.com/Unidata/UDUNITS-2.git
+    GIT_TAG v2.2.28
+    PATCH_COMMAND ${CMAKE_COMMAND} -P
+                  "${CMAKE_CURRENT_LIST_DIR}/patch_udunits2.cmake"
+  )
+  FetchContent_MakeAvailable(udunits2)
+
+  set(CMAKE_INSTALL_PREFIX "${_miem_saved_prefix}" CACHE PATH "" FORCE)
+
+  # The fetched library target is `libudunits2` (output name udunits2) and
+  # exposes no build-tree include directory. Present it under the same
+  # UDUNITS2::udunits2 name as the find module, as an INTERFACE IMPORTED target
+  # (like netCDF::netcdf_normalized above) so it is allowed in miem's
+  # install(EXPORT) interface without being part of an export set.
+  add_library(UDUNITS2::udunits2 INTERFACE IMPORTED GLOBAL)
+  target_link_libraries(UDUNITS2::udunits2 INTERFACE libudunits2)
+  target_include_directories(UDUNITS2::udunits2 INTERFACE "${udunits2_SOURCE_DIR}/lib")
+
+  # With no system install, tests must be told where the XML database lives.
+  set(MIEM_UDUNITS2_XML_PATH "${udunits2_SOURCE_DIR}/lib/udunits2.xml"
+      CACHE INTERNAL "udunits2 XML database (FetchContent build) for tests")
+endif()
+
+################################################################################
 # Google Test (only when MIEM_ENABLE_TESTS=ON).
 
 if(MIEM_ENABLE_TESTS)

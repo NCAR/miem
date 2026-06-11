@@ -2,13 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "internal/eccad_reader.hpp"
-#include "internal/time_utils.hpp"
 
 #include <netcdf.h>
+#include <udunits2.h>
 
 #include <algorithm>
-#include <charconv>
-#include <chrono>
 #include <cstring>
 #include <set>
 #include <string>
@@ -41,164 +39,17 @@ bool IsAcceptedCalendar(const std::string& cal)
          cal == "standard";
 }
 
-bool ParseCFTimeUnits(const std::string& units_str,
-                      double&            multiplier,
-                      double&            ref_epoch)
+// The udunits2 unit system, read once on first use. udunits2 locates its XML
+// unit database via the UDUNITS2_XML_PATH environment variable when set,
+// otherwise the built-in default path populated by a system install. Returns
+// nullptr if the database can't be read (then GetTimeValues reports an error).
+ut_system* CfUnitSystem()
 {
-  // CF time units are "<unit> since <ISO-8601 datetime>",
-  // e.g. "seconds since 2012-01-01 00:00:00".
-  const std::string::size_type since = units_str.find(" since ");
-  if (since == std::string::npos)
-  {
-    return false;
-  }
-
-  const std::string unit = units_str.substr(0, since);
-  if (unit == "seconds" || unit == "second" || unit == "s")
-  {
-    multiplier = 1.0;
-  }
-  else if (unit == "minutes" || unit == "minute")
-  {
-    multiplier = 60.0;
-  }
-  else if (unit == "hours" || unit == "hour" || unit == "h")
-  {
-    multiplier = 3600.0;
-  }
-  else if (unit == "days" || unit == "day" || unit == "d")
-  {
-    multiplier = 86400.0;
-  }
-  else
-  {
-    return false;
-  }
-
-  // Parse the reference datetime: a "YYYY-MM-DD" date, an optional
-  // "[ T]HH:MM[:SS]" time, an optional fractional second, and an optional
-  // UTC offset -- e.g. "2012-01-01", "...00:00:00", "...00:00:00.5",
-  // "...00:00:00 +01:00", or both. UDUNITS/CF permit the fraction and the
-  // offset, so we honour them instead of silently dropping them; anything
-  // left unconsumed at the end is treated as malformed. (std::chrono::parse
-  // would be tidier but isn't available across all of our toolchains yet.)
-  const std::string when   = units_str.substr(since + 7);
-  const char*       cursor = when.data();
-  const char* const end    = when.data() + when.size();
-
-  // Read an integer, then require/consume `delim` (unless delim == '\0').
-  const auto take = [&](int& out, char delim) -> bool {
-    const auto [next, ec] = std::from_chars(cursor, end, out);
-    if (ec != std::errc{})
-    {
-      return false;
-    }
-    cursor = next;
-    if (delim != '\0')
-    {
-      if (cursor == end || *cursor != delim)
-      {
-        return false;
-      }
-      ++cursor;
-    }
-    return true;
-  };
-
-  int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
-  if (!take(year, '-') || !take(month, '-') || !take(day, '\0'))
-  {
-    return false;
-  }
-
-  double frac_seconds   = 0.0;
-  double offset_seconds = 0.0;
-
-  if (cursor != end && (*cursor == ' ' || *cursor == 'T'))
-  {
-    ++cursor;
-    if (!take(hour, ':') || !take(minute, '\0'))
-    {
-      return false;
-    }
-    if (cursor != end && *cursor == ':')
-    {
-      ++cursor;
-      if (!take(second, '\0'))
-      {
-        return false;
-      }
-    }
-
-    // Optional fractional second (".5", ".250", ...). Accumulated as a
-    // double so it survives into ref_epoch.
-    if (cursor != end && *cursor == '.')
-    {
-      ++cursor;
-      double scale = 0.1;
-      bool   any   = false;
-      for (; cursor != end && *cursor >= '0' && *cursor <= '9'; ++cursor)
-      {
-        frac_seconds += (*cursor - '0') * scale;
-        scale *= 0.1;
-        any = true;
-      }
-      if (!any)  // a lone '.' with no digits
-      {
-        return false;
-      }
-    }
-
-    // Optional UTC offset: "Z", or a signed "+HH" / "+HH:MM" (and the
-    // negative forms). A reference given at an offset is that many hours
-    // ahead of UTC, so we subtract it below.
-    if (cursor != end && *cursor == ' ')
-    {
-      ++cursor;
-    }
-    if (cursor != end && (*cursor == 'Z' || *cursor == 'z'))
-    {
-      ++cursor;  // explicit UTC; offset stays zero
-    }
-    else if (cursor != end && (*cursor == '+' || *cursor == '-'))
-    {
-      const int sign = (*cursor == '-') ? -1 : 1;
-      ++cursor;
-      int off_hour = 0, off_min = 0;
-      if (!take(off_hour, '\0'))
-      {
-        return false;
-      }
-      if (cursor != end && *cursor == ':')
-      {
-        ++cursor;
-        if (!take(off_min, '\0'))
-        {
-          return false;
-        }
-      }
-      offset_seconds = sign * (off_hour * 3600.0 + off_min * 60.0);
-    }
-  }
-
-  // Reject anything we could not account for rather than silently ignoring
-  // a malformed or unsupported units string.
-  for (; cursor != end && *cursor == ' '; ++cursor)
-  {
-  }
-  if (cursor != end)
-  {
-    return false;
-  }
-
-  // UTC reference instant = the calendar fields, less the offset, plus any
-  // fractional second. ref_epoch is a double, so sub-second precision is
-  // preserved.
-  const std::chrono::sys_seconds tp =
-      UtcTimePoint(year, month, day, hour, minute, second);
-  ref_epoch = static_cast<double>(tp.time_since_epoch().count()) +
-              frac_seconds - offset_seconds;
-  return true;
+  static ut_system* const system = [] {
+    ut_set_error_message_handler(ut_ignore);  // keep udunits2 off stderr
+    return ut_read_xml(nullptr);
+  }();
+  return system;
 }
 
 std::string ReadTextAttribute(int ncid, int varid, const std::string& name)
@@ -438,20 +289,45 @@ std::vector<double> ECCADReader::GetTimeValues() const
         "missing.");
   }
 
-  double multiplier = 1.0;
-  double ref_epoch  = 0.0;
-  if (!ParseCFTimeUnits(units_str, multiplier, ref_epoch))
+  // Decode the CF "units" string with udunits2 and convert every raw time
+  // coordinate to seconds since the Unix epoch. udunits2 handles the unit
+  // scale, the reference origin, fractional seconds, and any UTC offset.
+  ut_system* const system = CfUnitSystem();
+  if (system == nullptr)
   {
     throw MiemException(
         MIEM_ERROR_CATEGORY_IO, MIEM_IO_ERROR_CODE_INVALID_TIME_UNITS,
-        "ECCADReader: invalid CF time units '" + units_str +
+        "ECCADReader: could not initialize the udunits2 unit database "
+        "(set UDUNITS2_XML_PATH if udunits2 is not installed system-wide).");
+  }
+
+  ut_unit* const file_unit  = ut_parse(system, units_str.c_str(), UT_ASCII);
+  ut_unit* const epoch_unit =
+      ut_parse(system, "seconds since 1970-01-01 00:00:00 UTC", UT_ASCII);
+  cv_converter* const to_epoch =
+      (file_unit != nullptr && epoch_unit != nullptr &&
+       ut_are_convertible(file_unit, epoch_unit) != 0)
+          ? ut_get_converter(file_unit, epoch_unit)
+          : nullptr;
+
+  if (to_epoch == nullptr)
+  {
+    ut_free(file_unit);
+    ut_free(epoch_unit);
+    throw MiemException(
+        MIEM_ERROR_CATEGORY_IO, MIEM_IO_ERROR_CODE_INVALID_TIME_UNITS,
+        "ECCADReader: invalid or non-temporal CF time units '" + units_str +
         "' in " + file_path_);
   }
 
   for (auto& t : times)
   {
-    t = t * multiplier + ref_epoch;
+    t = cv_convert_double(to_epoch, t);
   }
+
+  cv_free(to_epoch);
+  ut_free(file_unit);
+  ut_free(epoch_unit);
 
   return times;
 }
