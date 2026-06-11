@@ -112,6 +112,83 @@ TEST(ECCADReaderTimeTest, HoursSinceMid1990)
 }
 
 // ---------------------------------------------------------------------
+// A reference time carrying a UTC offset (e.g. "+01:00") is shifted back
+// to UTC. 2012-01-01T00:00:00Z is 1325376000 s since the Unix epoch; a
+// +01:00 reference names an instant one hour earlier in UTC.
+// ---------------------------------------------------------------------
+TEST(ECCADReaderTimeTest, ReferenceTimezoneOffsetShiftsToUtc)
+{
+  TempDir dir;
+  const std::string path = dir.File("tzoffset.nc");
+  SyntheticNcOptions opts;
+  opts.time_units = "seconds since 2012-01-01 00:00:00 +01:00";
+  WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
+
+  ECCADReader r;
+  r.Open(path);
+  const auto times = r.GetTimeValues();
+  ASSERT_EQ(times.size(), 2u);
+  EXPECT_NEAR(times[0], 1325376000.0 - 3600.0,          1.0e-3);
+  EXPECT_NEAR(times[1], 1325376000.0 - 3600.0 + 3600.0, 1.0e-3);
+}
+
+// ---------------------------------------------------------------------
+// A fractional second in the reference ("...00.5") is retained in the
+// decoded times rather than truncated.
+// ---------------------------------------------------------------------
+TEST(ECCADReaderTimeTest, ReferenceFractionalSecondsRetained)
+{
+  TempDir dir;
+  const std::string path = dir.File("frac.nc");
+  SyntheticNcOptions opts;
+  opts.time_units = "seconds since 2012-01-01 00:00:00.5";
+  WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
+
+  ECCADReader r;
+  r.Open(path);
+  const auto times = r.GetTimeValues();
+  ASSERT_EQ(times.size(), 2u);
+  EXPECT_NEAR(times[0], 1325376000.5,          1.0e-3);
+  EXPECT_NEAR(times[1], 1325376000.5 + 3600.0, 1.0e-3);
+}
+
+// ---------------------------------------------------------------------
+// Fractional seconds and a UTC offset together are both applied.
+// ---------------------------------------------------------------------
+TEST(ECCADReaderTimeTest, ReferenceFractionalSecondsAndOffset)
+{
+  TempDir dir;
+  const std::string path = dir.File("fractz.nc");
+  SyntheticNcOptions opts;
+  opts.time_units = "seconds since 2012-01-01 00:00:00.5 +01:00";
+  WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
+
+  ECCADReader r;
+  r.Open(path);
+  const auto times = r.GetTimeValues();
+  ASSERT_EQ(times.size(), 2u);
+  EXPECT_NEAR(times[0], 1325376000.5 - 3600.0,          1.0e-3);
+  EXPECT_NEAR(times[1], 1325376000.5 - 3600.0 + 3600.0, 1.0e-3);
+}
+
+// ---------------------------------------------------------------------
+// A units string we cannot fully account for (here a garbled offset) is
+// rejected outright rather than silently truncated to the part we parsed.
+// ---------------------------------------------------------------------
+TEST(ECCADReaderTimeTest, MalformedReferenceOffsetRejected)
+{
+  TempDir dir;
+  const std::string path = dir.File("badoffset.nc");
+  SyntheticNcOptions opts;
+  opts.time_units = "seconds since 2012-01-01 00:00:00 +bananas";
+  WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
+
+  ECCADReader r;
+  r.Open(path);
+  EXPECT_THROW(r.GetTimeValues(), MiemException);
+}
+
+// ---------------------------------------------------------------------
 // calendar = "noleap" rejected with UnsupportedCalendar (MiemException)
 // ---------------------------------------------------------------------
 TEST(ECCADReaderCalendarTest, NoLeapRejected)

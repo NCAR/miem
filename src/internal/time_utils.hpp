@@ -12,17 +12,18 @@
 
 namespace miem {
 
-// UTC broken-down calendar time -> seconds since the Unix epoch.
-inline std::time_t TimeFromUtcTm(const std::tm& tm)
+// UTC calendar fields -> a system-clock time point (second resolution).
+// Fields use the natural calendar convention (full year, 1-based month and
+// day), so callers assembling a time from parsed digits can skip the std::tm
+// intermediate entirely.
+inline std::chrono::sys_seconds UtcTimePoint(int year, int month, int day,
+                                             int hour, int minute, int second)
 {
   using namespace std::chrono;
-  const year_month_day ymd{year{tm.tm_year + 1900} /
-                           month{static_cast<unsigned>(tm.tm_mon + 1)} /
-                           day{static_cast<unsigned>(tm.tm_mday)}};
-  const seconds since_epoch =
-      duration_cast<seconds>(sys_days{ymd}.time_since_epoch()) +
-      hours{tm.tm_hour} + minutes{tm.tm_min} + seconds{tm.tm_sec};
-  return static_cast<std::time_t>(since_epoch.count());
+  const year_month_day ymd{std::chrono::year{year} /
+                           std::chrono::month{static_cast<unsigned>(month)} /
+                           std::chrono::day{static_cast<unsigned>(day)}};
+  return sys_days{ymd} + hours{hour} + minutes{minute} + seconds{second};
 }
 
 // Seconds since the Unix epoch -> UTC broken-down calendar time.

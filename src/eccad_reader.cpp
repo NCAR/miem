@@ -8,8 +8,8 @@
 
 #include <algorithm>
 #include <charconv>
+#include <chrono>
 #include <cstring>
-#include <ctime>
 #include <set>
 #include <string>
 
@@ -75,9 +75,13 @@ bool ParseCFTimeUnits(const std::string& units_str,
     return false;
   }
 
-  // Parse the reference datetime: "YYYY-MM-DD" with an optional
-  // "[ T]HH:MM[:SS]" tail. (std::chrono::parse would be cleaner but is not
-  // yet available across our toolchains.)
+  // Parse the reference datetime: a "YYYY-MM-DD" date, an optional
+  // "[ T]HH:MM[:SS]" time, an optional fractional second, and an optional
+  // UTC offset -- e.g. "2012-01-01", "...00:00:00", "...00:00:00.5",
+  // "...00:00:00 +01:00", or both. UDUNITS/CF permit the fraction and the
+  // offset, so we honour them instead of silently dropping them; anything
+  // left unconsumed at the end is treated as malformed. (std::chrono::parse
+  // would be tidier but isn't available across all of our toolchains yet.)
   const std::string when   = units_str.substr(since + 7);
   const char*       cursor = when.data();
   const char* const end    = when.data() + when.size();
@@ -106,6 +110,10 @@ bool ParseCFTimeUnits(const std::string& units_str,
   {
     return false;
   }
+
+  double frac_seconds   = 0.0;
+  double offset_seconds = 0.0;
+
   if (cursor != end && (*cursor == ' ' || *cursor == 'T'))
   {
     ++cursor;
@@ -121,16 +129,75 @@ bool ParseCFTimeUnits(const std::string& units_str,
         return false;
       }
     }
+
+    // Optional fractional second (".5", ".250", ...). Accumulated as a
+    // double so it survives into ref_epoch.
+    if (cursor != end && *cursor == '.')
+    {
+      ++cursor;
+      double scale = 0.1;
+      bool   any   = false;
+      for (; cursor != end && *cursor >= '0' && *cursor <= '9'; ++cursor)
+      {
+        frac_seconds += (*cursor - '0') * scale;
+        scale *= 0.1;
+        any = true;
+      }
+      if (!any)  // a lone '.' with no digits
+      {
+        return false;
+      }
+    }
+
+    // Optional UTC offset: "Z", or a signed "+HH" / "+HH:MM" (and the
+    // negative forms). A reference given at an offset is that many hours
+    // ahead of UTC, so we subtract it below.
+    if (cursor != end && *cursor == ' ')
+    {
+      ++cursor;
+    }
+    if (cursor != end && (*cursor == 'Z' || *cursor == 'z'))
+    {
+      ++cursor;  // explicit UTC; offset stays zero
+    }
+    else if (cursor != end && (*cursor == '+' || *cursor == '-'))
+    {
+      const int sign = (*cursor == '-') ? -1 : 1;
+      ++cursor;
+      int off_hour = 0, off_min = 0;
+      if (!take(off_hour, '\0'))
+      {
+        return false;
+      }
+      if (cursor != end && *cursor == ':')
+      {
+        ++cursor;
+        if (!take(off_min, '\0'))
+        {
+          return false;
+        }
+      }
+      offset_seconds = sign * (off_hour * 3600.0 + off_min * 60.0);
+    }
   }
 
-  std::tm ref_tm{};
-  ref_tm.tm_year = year - 1900;
-  ref_tm.tm_mon  = month - 1;
-  ref_tm.tm_mday = day;
-  ref_tm.tm_hour = hour;
-  ref_tm.tm_min  = minute;
-  ref_tm.tm_sec  = second;
-  ref_epoch      = static_cast<double>(TimeFromUtcTm(ref_tm));
+  // Reject anything we could not account for rather than silently ignoring
+  // a malformed or unsupported units string.
+  for (; cursor != end && *cursor == ' '; ++cursor)
+  {
+  }
+  if (cursor != end)
+  {
+    return false;
+  }
+
+  // UTC reference instant = the calendar fields, less the offset, plus any
+  // fractional second. ref_epoch is a double, so sub-second precision is
+  // preserved.
+  const std::chrono::sys_seconds tp =
+      UtcTimePoint(year, month, day, hour, minute, second);
+  ref_epoch = static_cast<double>(tp.time_since_epoch().count()) +
+              frac_seconds - offset_seconds;
   return true;
 }
 
