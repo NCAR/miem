@@ -699,12 +699,12 @@ definition. MIEM does not consume this variable — it has no fixtures.
 
 ## 11. Open design questions (decisions needed before implementation)
 
-> **Superseded in part.** §11 and §12 describe the MC/musica pipeline that is
-> still unbuilt, and the MIEM-side steps as they were *planned* (path-taking C
-> API, `MIEMConfig`, `EmissionsModule`). MIEM has since shipped the builder API
-> described in **Update (2026-06-09)** at the top, and its C API moved to
-> musica. Read the MIEM-side specifics below through those substitutions; the
-> MC/musica steps are unchanged.
+> **Status.** The MC/musica pipeline described here is still unbuilt design.
+> The MIEM side, however, has shipped: MIEM exposes `miem::Source` +
+> `EmissionsBuilder` (see **Update (2026-06-09)** at the top) — no aggregate
+> `MIEMConfig`, and no path-taking or C entry point (the C boundary lives in
+> musica). The MIEM-side specifics below have been updated to that shipped API,
+> and §12 reflects that MIEM's part is done — only the MC + musica work remains.
 
 1. **Sibling repo vs module inside MechanismConfiguration?** *Decided:* the
    schema lives *inside* MC under `mechanism_configuration::emissions::v1`.
@@ -718,10 +718,10 @@ definition. MIEM does not consume this variable — it has no fixtures.
 
 2. **Integration layer: musica, not MIEM.** *Decided.* Following MICM's
    precedent exactly — MIEM takes no dependency on MechanismConfiguration.
-   Musica FetchContent's both, owns the `Translate()` function, and invokes
-   MIEM via its struct-based C API. Consequences:
-   - MIEM's standalone testing loses a YAML-to-flux round-trip capability. MIEM integration tests construct `MIEMConfig` directly in C++; musica tests cover the full YAML → `MIEMConfig` → `EmisState` path.
-   - Any non-musica caller of MIEM (MPAS direct integration, ad-hoc tooling) also constructs `MIEMConfig` programmatically. The YAML-path convenience is musica-exclusive.
+   Musica FetchContent's both, owns the `Translate()` function, and drives
+   `miem::EmissionsBuilder` directly (no MIEM-side C API). Consequences:
+   - MIEM has no standalone YAML-to-flux round-trip: MIEM integration tests build `miem::Source`s and drive `EmissionsBuilder` directly in C++, while musica tests cover the full YAML → `std::vector<miem::Source>` → flux path.
+   - Any non-musica caller of MIEM (MPAS direct integration, ad-hoc tooling) builds `miem::Source`s and calls `EmissionsBuilder` programmatically. The YAML-path convenience is musica-exclusive.
    - Three repos coordinate on schema changes (see §13).
 
 3. **yaml-cpp leak — concrete discipline for the new emissions module in MC.**
@@ -757,16 +757,13 @@ definition. MIEM does not consume this variable — it has no fixtures.
    real user asks for one. Do not re-link yaml-cpp into MIEM under any
    circumstance.
 
-## 12. Migration sequence
+## 12. Build sequence — remaining MC + musica work
 
-Staged in five steps across three repos. Each step leaves all three repos
-buildable. Tests migrate alongside the code they verify.
-
-There is no signature-stability contract for MIEM's old path-based API —
-this migration breaks it deliberately. MIEM's direct callers (today: a
-small set of tests, possibly in-tree tooling) move to the struct-based API
-in Step 3. External hosts that loaded MIEM with a YAML path switch to
-calling the musica entry point from Step 4 onward.
+MIEM's side is **already shipped**: it exposes `miem::Source` +
+`EmissionsBuilder` (see the Update at top), links no yaml-cpp, and has no
+path-taking or C entry point — the C boundary lives in musica. So the original
+five-step migration reduces to the MC and musica work that remains. Each step
+leaves all repos buildable; tests live with the code they verify.
 
 1. **MC hygiene PR.** Open a PR on MechanismConfiguration demoting
    `yaml-cpp::yaml-cpp` to `PRIVATE` and moving leaking headers
@@ -785,27 +782,16 @@ calling the musica entry point from Step 4 onward.
    - CMake `install(DIRECTORY examples/emissions/v1 …)` and the `MechanismConfiguration_EMISSIONS_EXAMPLES_DIR` variable (see §10)
    - Ship a new MC tag (e.g., `v1.2.0`) that bundles this with the Step 1 hygiene change.
 
-3. **Add the struct-based entry point to MIEM (non-breaking addition).**
-   - Add `EmissionsModule(const MIEMConfig&, int n_cells, int n_vert_levels)` alongside the existing path-taking constructor.
-   - Add `CreateMIEM(const miem_config_t*, …)` C API alongside the existing `CreateMIEM(const char* config_path, …)`.
-   - Migrate MIEM's internal unit tests that can (e.g., `test_emis_state.cpp`) to construct `MIEMConfig` directly, confirming the new path works.
-   - The YAML-path path still exists and still uses yaml-cpp. Nothing in MIEM is deleted yet. MIEM still links yaml-cpp.
-
-4. **Wire musica to MC-emissions and MIEM's new API.**
+3. **Wire musica to MC-emissions and MIEM's builder.**
    - Bump musica's MechanismConfiguration pin in `cmake/dependencies.cmake` to the new MC tag from Step 2.
-   - Add `musica::emissions::Translate(const mechanism_configuration::emissions::v1::types::EmissionsConfig&) -> miem::MIEMConfig` under `musica/src/emissions/`.
-   - Add `musica::emissions::CreateMIEMFromYAML(path, …)` that calls `emissions::v1::Parser::Parse` → `Translate` → MIEM's struct-based constructor.
-   - Move MIEM's YAML → flux integration tests to musica (their natural home now).
-   - Tag musica release that pins both MIEM (a known good tag) and MC at the new emissions-aware version.
+   - Add `musica::emissions::Translate(const mechanism_configuration::emissions::v1::types::EmissionsConfig&) -> std::vector<miem::Source>` under `musica/src/emissions/`, resolving named inventory / species-map references to concrete values.
+   - Add `musica::emissions::CreateEmissionsFromYAML(path, …)` that calls `emissions::v1::Parser::Parse` → `Translate` → `miem::EmissionsBuilder`.
+   - Host the YAML → flux integration tests in musica (their natural home).
+   - Tag a musica release pinning both a known-good MIEM tag and the new emissions-aware MC tag.
 
-5. **Delete MIEM's yaml-cpp surface.**
-   - Remove `find_package(yaml-cpp)` from MIEM's root `CMakeLists.txt`.
-   - Remove `yaml-cpp::yaml-cpp` from [`src/CMakeLists.txt:37`](../src/CMakeLists.txt).
-   - Delete `#include <yaml-cpp/yaml.h>` from `config.cpp`, `species_map.cpp`, `dataset_descriptor.cpp`.
-   - Delete the old path-taking `MIEMConfig::FromYAML`, `SpeciesMap(const std::string&)`, `DatasetDescriptor::FromYAML` declarations from the public headers.
-   - Delete MIEM's YAML-fixture-driven tests. Keep the programmatic-construction tests.
-   - Verify no transitive yaml-cpp link via `ldd` / `otool -L` on a `libmiem` consumer.
-   - Update [`CLAUDE.md`](../CLAUDE.md) and `README.md` to point users at musica for YAML-driven setup.
+The original plan's MIEM-side steps are obsolete: MIEM shipped the builder API
+directly (no struct/path or C API to add) and never carried a yaml-cpp surface
+to delete.
 
 ## 13. Contributor workflow across three repos
 
