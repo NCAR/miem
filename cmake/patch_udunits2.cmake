@@ -17,5 +17,11 @@ if(NOT _contents MATCHES "MIEM-patched")
     [[add_custom_target(${file}_doc ALL]]
     [[add_custom_target(${file}_doc]]
     _contents "${_contents}")
+  # (c) We only consume the library; udunits2's prog/ CLI uses getopt (absent
+  #     on MSVC). Drop it so the FetchContent fallback stays portable.
+  string(REPLACE
+    "ADD_SUBDIRECTORY (prog)"
+    "# ADD_SUBDIRECTORY (prog)  # MIEM-patched: library only"
+    _contents "${_contents}")
   file(WRITE "CMakeLists.txt" "${_contents}")
 endif()

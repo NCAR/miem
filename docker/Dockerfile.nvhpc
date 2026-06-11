@@ -8,6 +8,7 @@ RUN apt update \
         cmake-curses-gui \
         git \
         libnetcdf-dev \
+        libudunits2-dev \
         make \
     && apt clean
 

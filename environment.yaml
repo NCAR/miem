@@ -12,6 +12,10 @@ dependencies:
   # netcdf-c (which needs HDF5/curl this env doesn't provide and fails the RTD
   # build at configure time). libnetcdf pulls HDF5 in transitively.
   - libnetcdf
+  # udunits2 for the same reason: find_package(UDUNITS2) resolves from conda
+  # instead of FetchContent-building UDUNITS-2 (which needs EXPAT this env
+  # lacks). Ships the XML unit database udunits2 reads at runtime.
+  - udunits2
   - pip
   - pip:
       - -r docs/requirements.txt

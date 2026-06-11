@@ -28,8 +28,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install netCDF
-        run: brew install netcdf
+      - name: Install netCDF and udunits2
+        run: brew install netcdf udunits
 
       # Homebrew links netcdf into the main prefix (it is not keg-only), so
       # find_package(netCDF) resolves without an explicit CMAKE_PREFIX_PATH,

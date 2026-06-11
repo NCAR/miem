@@ -30,10 +30,10 @@ jobs:
 
       # MIEM links netCDF; ubuntu-latest's libnetcdf-dev ships netCDFConfig.cmake
       # so find_package(netCDF) resolves it (no FetchContent source build).
-      - name: Install netCDF
+      - name: Install netCDF and udunits2
         run: |
           sudo apt-get update
-          sudo apt-get install -y libnetcdf-dev
+          sudo apt-get install -y libnetcdf-dev libudunits2-dev
 
       - name: Run CMake
         run: >
@@ -60,10 +60,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install netCDF
+      - name: Install netCDF and udunits2
         run: |
           sudo apt-get update
-          sudo apt-get install -y libnetcdf-dev
+          sudo apt-get install -y libnetcdf-dev libudunits2-dev
 
       - name: Run CMake (MIEM_USE_DOUBLE=OFF)
         run: >
