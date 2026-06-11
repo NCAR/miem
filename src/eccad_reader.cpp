@@ -307,19 +307,23 @@ std::vector<double> ECCADReader::GetTimeValues() const
         "(set UDUNITS2_XML_PATH if udunits2 is not installed system-wide).");
   }
 
-  ut_unit* const file_unit  = ut_parse(system, units_str.c_str(), UT_ASCII);
-  ut_unit* const epoch_unit =
-      ut_parse(system, "seconds since 1970-01-01 00:00:00 UTC", UT_ASCII);
-  cv_converter* const to_epoch =
-      (file_unit != nullptr && epoch_unit != nullptr &&
-       ut_are_convertible(file_unit, epoch_unit) != 0)
-          ? ut_get_converter(file_unit, epoch_unit)
-          : nullptr;
+  // Own the udunits2 handles with unique_ptrs so they are released on every
+  // path (including the throw below). ut_free/cv_free ignore a null argument.
+  const std::unique_ptr<ut_unit, decltype(&ut_free)> file_unit{
+      ut_parse(system, units_str.c_str(), UT_ASCII), ut_free};
+  const std::unique_ptr<ut_unit, decltype(&ut_free)> epoch_unit{
+      ut_parse(system, "seconds since 1970-01-01 00:00:00 UTC", UT_ASCII),
+      ut_free};
 
-  if (to_epoch == nullptr)
+  const std::unique_ptr<cv_converter, decltype(&cv_free)> to_epoch{
+      (file_unit && epoch_unit &&
+       ut_are_convertible(file_unit.get(), epoch_unit.get()) != 0)
+          ? ut_get_converter(file_unit.get(), epoch_unit.get())
+          : nullptr,
+      cv_free};
+
+  if (!to_epoch)
   {
-    ut_free(file_unit);
-    ut_free(epoch_unit);
     throw MiemException(
         MIEM_ERROR_CATEGORY_IO, MIEM_IO_ERROR_CODE_INVALID_TIME_UNITS,
         "ECCADReader: invalid or non-temporal CF time units '" + units_str +
@@ -328,12 +332,8 @@ std::vector<double> ECCADReader::GetTimeValues() const
 
   for (auto& t : times)
   {
-    t = cv_convert_double(to_epoch, t);
+    t = cv_convert_double(to_epoch.get(), t);
   }
-
-  cv_free(to_epoch);
-  ut_free(file_unit);
-  ut_free(epoch_unit);
 
   return times;
 }
