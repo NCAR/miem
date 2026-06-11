@@ -814,8 +814,8 @@ six-step dance:
 
 1. **MechanismConfiguration (emissions subtree)**: add the field to `emissions::v1::types::SourceDescriptor`, extend the parser, add a fixture test. Open PR.
 2. Merge; tag a new MC release (e.g., `v1.3.0`).
-3. **musica**: bump the MechanismConfiguration pin to `v1.3.0`. Update `musica::emissions::Translate` to read the new field and write it through to `miem::SourceConfig`. Open PR.
-4. **MIEM**: add the corresponding field to `miem::SourceConfig` (if it isn't already there), wire it into runtime use (e.g., plume-rise calculation). Open PR.
+3. **musica**: bump the MechanismConfiguration pin to `v1.3.0`. Update `musica::emissions::Translate` to read the new field and write it through to `miem::Source`. Open PR.
+4. **MIEM**: add the corresponding field to `miem::Source` (if it isn't already there), wire it into runtime use (e.g., plume-rise calculation). Open PR.
 5. Merge MIEM and musica PRs. Tag both as needed.
 6. Hosts that use musica to load MIEM get the new capability by bumping their musica pin.
 
@@ -858,7 +858,7 @@ today, extended to cover MIEM.
   "a valid YAML produces correct flux" within its own CI — musica owns that
   test now. The trade is acceptable because the test surface doesn't
   disappear, it just moves one repo up. MIEM's own tests exercise "a valid
-  `MIEMConfig` struct produces correct flux", which is what the physics
+  set of `miem::Source`s produces correct flux", which is what the physics
   cares about.
 
 ## 14. Reference: relevant upstream files
