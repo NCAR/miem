@@ -67,9 +67,9 @@ EmissionsBuilder MinimalBuilder()
 }  // namespace
 
 // ---------------------------------------------------------------------
-// V1: regridding type must be None
+// Regridding type must be None
 // ---------------------------------------------------------------------
-TEST(EmissionsBuilderValidateTest, V1_RejectsRegriddingScrip)
+TEST(EmissionsBuilderValidateTest, RejectsRegriddingScrip)
 {
   Regridding regridding;
   regridding.type_ = RegriddingType::Scrip;
@@ -85,9 +85,9 @@ TEST(EmissionsBuilderValidateTest, V1_RejectsRegriddingScrip)
 }
 
 // ---------------------------------------------------------------------
-// V2: convention must be ECCAD (case-insensitive)
+// Convention must be ECCAD (case-insensitive)
 // ---------------------------------------------------------------------
-TEST(EmissionsBuilderValidateTest, V2_RejectsUnknownConvention)
+TEST(EmissionsBuilderValidateTest, RejectsUnknownConvention)
 {
   Source src = MakeMinimalSource();
   src.convention_ = "descriptor";  // not "eccad"
@@ -100,7 +100,7 @@ TEST(EmissionsBuilderValidateTest, V2_RejectsUnknownConvention)
                   MIEM_CONFIGURATION_ERROR_CODE_UNKNOWN_CONVENTION);
 }
 
-TEST(EmissionsBuilderValidateTest, V2_AcceptsCaseInsensitiveEccad)
+TEST(EmissionsBuilderValidateTest, AcceptsCaseInsensitiveEccad)
 {
   Source src = MakeMinimalSource();
   src.convention_ = "ECCAD";
@@ -112,9 +112,9 @@ TEST(EmissionsBuilderValidateTest, V2_AcceptsCaseInsensitiveEccad)
 }
 
 // ---------------------------------------------------------------------
-// V3: mode must be Offline
+// Mode must be Offline
 // ---------------------------------------------------------------------
-TEST(EmissionsBuilderValidateTest, V3_RejectsOnlineMode)
+TEST(EmissionsBuilderValidateTest, RejectsOnlineMode)
 {
   Source src = MakeMinimalSource();
   src.mode_ = SourceMode::Online;
@@ -128,9 +128,9 @@ TEST(EmissionsBuilderValidateTest, V3_RejectsOnlineMode)
 }
 
 // ---------------------------------------------------------------------
-// V4: vertical injection must be Surface
+// Vertical injection must be Surface
 // ---------------------------------------------------------------------
-TEST(EmissionsBuilderValidateTest, V4_RejectsPlumeInjection)
+TEST(EmissionsBuilderValidateTest, RejectsPlumeInjection)
 {
   Source src = MakeMinimalSource();
   src.vertical_injection_ = VerticalInjection::Plume;
@@ -144,9 +144,9 @@ TEST(EmissionsBuilderValidateTest, V4_RejectsPlumeInjection)
 }
 
 // ---------------------------------------------------------------------
-// V5: scaling-factor sum > 1.0 + 1e-6 rejected
+// Scaling-factor sum > 1.0 + 1e-6 rejected
 // ---------------------------------------------------------------------
-TEST(EmissionsBuilderValidateTest, V5_RejectsScalingSumOverOne)
+TEST(EmissionsBuilderValidateTest, RejectsScalingSumOverOne)
 {
   Source src = MakeMinimalSource();
   src.species_map_.AddMapping("NOx", "NO",  0.9);
@@ -161,7 +161,7 @@ TEST(EmissionsBuilderValidateTest, V5_RejectsScalingSumOverOne)
 }
 
 // Boundary test: 1.0 + 1e-7 is within tolerance (1e-6) — accepted.
-TEST(EmissionsBuilderValidateTest, V5_BoundaryAcceptsTinyOverhead)
+TEST(EmissionsBuilderValidateTest, BoundaryAcceptsTinyOverhead)
 {
   Source src = MakeMinimalSource();
   src.species_map_.AddMapping("NOx", "NO",
@@ -174,7 +174,7 @@ TEST(EmissionsBuilderValidateTest, V5_BoundaryAcceptsTinyOverhead)
 }
 
 // Boundary test: 1.0 + 1e-5 exceeds tolerance — rejected.
-TEST(EmissionsBuilderValidateTest, V5_BoundaryRejectsClearOverhead)
+TEST(EmissionsBuilderValidateTest, BoundaryRejectsClearOverhead)
 {
   Source src = MakeMinimalSource();
   src.species_map_.AddMapping("NOx", "NO",
@@ -207,16 +207,16 @@ TEST(EmissionsBuilderValidateTest, RejectsDuplicateCategoryHierarchy)
 }
 
 // ---------------------------------------------------------------------
-// V6: a minimal source builds successfully (positive case).
+// A minimal source builds successfully (positive case).
 // ---------------------------------------------------------------------
-TEST(EmissionsBuilderValidateTest, V6_AcceptsMinimalConfig)
+TEST(EmissionsBuilderValidateTest, AcceptsMinimalConfig)
 {
   EXPECT_NO_THROW(MinimalBuilder().Build());
 }
 
 // Throw-on-first: when a source fails several invariants at once (mode !=
 // Offline AND vertical != Surface), Build() throws on the first one it
-// checks — the V3 mode check (ONLINE_NOT_SUPPORTED) precedes the V4
+// checks — the mode check (ONLINE_NOT_SUPPORTED) precedes the
 // vertical-injection check.  (MICM-aligned exceptions abort on first
 // error; multi-error accumulation was intentionally dropped.)
 TEST(EmissionsBuilderValidateTest, ThrowsOnFirstInvariantOfMultiple)
@@ -243,7 +243,7 @@ TEST(EmissionsBuilderValidateTest, ErrorMessageIdentifiesOffendingSource)
 
   Source bad = MakeMinimalSource();
   bad.name_      = "bad_one";
-  bad.mode_      = SourceMode::Online;  // fails V3
+  bad.mode_      = SourceMode::Online;  // fails the mode invariant
   bad.category_  = 1;
 
   EmissionsBuilder builder;

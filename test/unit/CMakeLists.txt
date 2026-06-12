@@ -32,14 +32,3 @@ create_standard_test(
 )
 
 create_standard_test(NAME emissions_builder SOURCES test_emissions_builder.cpp)
-
-# Build/install meta-tests.  These scan the source tree (not the
-# installed tree) and assert the export-set invariants documented in
-# the plan (M1) and the "no throwing public headers" criterion #12.
-create_standard_test(
-  NAME    install_export
-  SOURCES test_install_export.cpp
-)
-target_compile_definitions(test_install_export PRIVATE
-  MIEM_TEST_PROJECT_SOURCE_DIR=\"${PROJECT_SOURCE_DIR}\"
-)

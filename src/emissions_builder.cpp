@@ -25,17 +25,17 @@ std::string ToLower(std::string s)
 
 }  // namespace
 
-// The v1 invariant checks, run once at Build() time.  Throws on the first
+// The invariant checks, run once at Build() time.  Throws on the first
 // violation (MICM-aligned: no multi-error accumulation).  Invariants:
-//   V1: regridding_.type_ == RegriddingType::None
-//   V2: each source convention_ == "eccad" (case-insensitive)
-//   V3: each source mode_       == SourceMode::Offline
-//   V4: each source vertical_injection_ == VerticalInjection::Surface
-//   V5: each source species_map_.Validate() succeeds (scaling <= 1.0)
-//   --: duplicate (category_, hierarchy_) across sources is rejected
+//   - regridding must be RegriddingType::None
+//   - each source's convention must be "eccad" (case-insensitive)
+//   - each source's mode must be SourceMode::Offline
+//   - each source's vertical injection must be VerticalInjection::Surface
+//   - each source's species map must validate (scaling sum <= 1.0)
+//   - (category, hierarchy) must be unique across sources
 void EmissionsBuilder::Validate() const
 {
-  // V1: regridding type must be None.
+  // Regridding type must be None.
   if (regridding_.type_ != RegriddingType::None)
   {
     throw MiemException(
@@ -49,7 +49,7 @@ void EmissionsBuilder::Validate() const
 
   for (const auto& src : sources_)
   {
-    // V2: convention must be ECCAD.
+    // Convention must be ECCAD.
     if (ToLower(src.convention_) != "eccad")
     {
       throw MiemException(
@@ -59,7 +59,7 @@ void EmissionsBuilder::Validate() const
           src.convention_ + "' — v1 supports only 'eccad'.");
     }
 
-    // V3: mode must be Offline.
+    // Mode must be Offline.
     if (src.mode_ != SourceMode::Offline)
     {
       throw MiemException(
@@ -69,7 +69,7 @@ void EmissionsBuilder::Validate() const
           "supported in v1.");
     }
 
-    // V4: vertical injection must be Surface.
+    // Vertical injection must be Surface.
     if (src.vertical_injection_ != VerticalInjection::Surface)
     {
       throw MiemException(
@@ -79,7 +79,7 @@ void EmissionsBuilder::Validate() const
           "VerticalInjection::Surface is supported in v1.");
     }
 
-    // V5: species map invariants (scaling sum <= 1.0).  Rethrow with the
+    // Species map invariants (scaling sum <= 1.0).  Rethrow with the
     // offending source name for context while preserving category/code.
     try
     {
