@@ -50,6 +50,11 @@ class TemporalInterpolator
   /// @brief True iff @p time lies inside the current bracket's interval.
   bool CoversTime(double time) const;
 
+  /// @brief True once a bracket has been set via @ref SetBracket. A set
+  ///        bracket always holds slice data, so this derives from it
+  ///        rather than tracking a separate flag.
+  bool HasBracket() const { return !data_left_.empty(); }
+
   /// @brief The active interpolation mode.
   InterpolationMode Mode()      const { return mode_; }
   /// @brief Left edge of the current bracket [s].
