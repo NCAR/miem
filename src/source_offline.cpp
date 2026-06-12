@@ -1,7 +1,7 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 
-#include "miem/source_offline.hpp"
+#include <miem/source_offline.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -12,8 +12,9 @@
 #include <string>
 
 #include "internal/eccad_reader.hpp"
-#include "miem/util/error.hpp"
-#include "miem/util/miem_exception.hpp"
+#include "internal/time_utils.hpp"
+#include <miem/util/error.hpp>
+#include <miem/util/miem_exception.hpp>
 
 namespace miem {
 
@@ -61,6 +62,10 @@ std::vector<std::string> OfflineEmissionSource::QuerySpecies() const
   return mechanism_species_;
 }
 
+// Expands date tokens (e.g. {YYYY}, {MM}, {DD}) in the configured file
+// pattern using the UTC calendar date of `time` (seconds since the Unix
+// epoch) and returns the path. A pattern with no tokens is returned
+// unchanged.
 std::string OfflineEmissionSource::ResolveFilePath(double time) const
 {
   std::string pattern = config_.file_pattern_;
@@ -71,8 +76,7 @@ std::string OfflineEmissionSource::ResolveFilePath(double time) const
   }
 
   auto time_t_val = static_cast<std::time_t>(time);
-  std::tm tm_val{};
-  gmtime_r(&time_t_val, &tm_val);
+  std::tm tm_val = UtcTmFromTime(time_t_val);
 
   auto replace_token = [&](const std::string& token, const std::string& value) {
     std::string::size_type pos;
@@ -131,8 +135,8 @@ void OfflineEmissionSource::LoadBrackets(double time_current,
         " cells but host expects " + std::to_string(n_cells) + ".");
   }
 
-  // Find the bracketing time indices.  Climatological wrap-around has
-  // been removed (plan §D5): out-of-range is a hard error.
+  // Find the time steps bracketing `time_current`. Times outside the
+  // file's range are a hard error (no climatological wrap-around).
   int  left_idx       = 0;
   int  right_idx      = std::min(1, n_times - 1);
   bool found_bracket  = (n_times == 1);
@@ -182,8 +186,6 @@ void OfflineEmissionSource::LoadBrackets(double time_current,
   const double time_right = (n_times > 1) ? times[right_idx] : time_left + 1.0;
 
   interpolator_.SetBracket(time_left, time_right, mapped_left, mapped_right);
-
-  brackets_loaded_ = true;
 }
 
 void OfflineEmissionSource::Update(
@@ -192,7 +194,7 @@ void OfflineEmissionSource::Update(
     std::vector<Real>&        flux_out,
     std::vector<std::string>& species_names_out)
 {
-  if (!brackets_loaded_ || !interpolator_.CoversTime(time_current))
+  if (!interpolator_.HasBracket() || !interpolator_.CoversTime(time_current))
   {
     LoadBrackets(time_current, n_cells);  // throws on failure
   }

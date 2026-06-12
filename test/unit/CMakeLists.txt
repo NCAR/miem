@@ -5,10 +5,11 @@ create_standard_test(NAME species_map SOURCES test_species_map.cpp)
 create_standard_test(NAME temporal_interpolator SOURCES test_temporal_interpolator.cpp)
 create_standard_test(NAME flux_converter SOURCES test_flux_converter.cpp)
 
-# ECCADReader lives in src/internal/ (kept off the install path because
-# its NetCDF surface throws).  The test links the synthetic NC helper
-# and the internal header lookup is wired via target_include_directories
-# below — there is no public-API way to reach the reader.
+# ECCADReader is internal: its header includes <netcdf.h>, so keeping it in
+# src/internal/ (off the install path) keeps NetCDF out of MIEM's public
+# headers and downstream consumers' include paths. The test reaches the
+# reader by adding src/ to its include path (below) and links the synthetic
+# NetCDF helper used to build fixtures.
 create_standard_test(
   NAME    eccad_reader
   SOURCES test_eccad_reader.cpp
@@ -17,7 +18,6 @@ create_standard_test(
 target_include_directories(test_eccad_reader PRIVATE
   ${PROJECT_SOURCE_DIR}/src
 )
-target_link_libraries(test_eccad_reader PRIVATE netCDF::netcdf_normalized)
 
 create_standard_test(
   NAME    source_offline

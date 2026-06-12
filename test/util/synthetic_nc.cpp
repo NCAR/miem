@@ -1,15 +1,15 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 
 #include "synthetic_nc.hpp"
 
 #include <netcdf.h>
-#include <unistd.h>     // mkdtemp on POSIX
-#include <stdlib.h>     // mkdtemp on some libcs
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -30,22 +30,30 @@ void NcCheck(int status, const std::string& where)
 
 TempDir::TempDir()
 {
-  char tmpl[] = "/tmp/miem_test_XXXXXX";
-  const char* result = mkdtemp(tmpl);
-  if (!result)
+  namespace fs = std::filesystem;
+  // Portable unique temp directory (no POSIX mkdtemp / hardcoded /tmp).
+  std::random_device rd;
+  for (int attempt = 0; attempt < 100; ++attempt)
   {
-    throw std::runtime_error("mkdtemp failed");
+    const fs::path candidate =
+        fs::temp_directory_path() / ("miem_test_" + std::to_string(rd()));
+    std::error_code ec;
+    if (fs::create_directory(candidate, ec))
+    {
+      path_ = candidate.string();
+      return;
+    }
   }
-  path_ = result;
+  throw std::runtime_error("TempDir: could not create a unique temp directory");
 }
 
 TempDir::~TempDir()
 {
   if (!path_.empty())
   {
-    // Best-effort cleanup; ignore return code so destructors never throw.
-    const std::string cmd = "rm -rf '" + path_ + "'";
-    std::system(cmd.c_str());
+    // Best-effort cleanup; ignore errors so destructors never throw.
+    std::error_code ec;
+    std::filesystem::remove_all(path_, ec);
   }
 }
 

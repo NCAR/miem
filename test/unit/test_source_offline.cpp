@@ -1,9 +1,9 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
-// Unit tests for `OfflineEmissionSource`.  Covers temporal blend,
-// nearest-mode pick, climatology-kill regression (D5 / O2, O3),
-// cell-count mismatch, and file-pattern token substitution.
+// Unit tests for `OfflineEmissionSource`: temporal blend, nearest-mode
+// pick, out-of-range time handling, cell-count mismatch, and file-pattern
+// token substitution.
 
 #include "synthetic_nc.hpp"
 
@@ -17,6 +17,7 @@
 
 #include <cmath>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 using miem::MiemException;
@@ -28,26 +29,29 @@ using miem_test::CreateTestNetCDF;
 using miem_test::SyntheticNcOptions;
 using miem_test::TempDir;
 
-// Assert that `stmt` throws a miem::MiemException carrying (cat, code).
-#define EXPECT_MIEM_THROW(stmt, cat, code)                          \
-  do {                                                              \
-    try {                                                           \
-      stmt;                                                         \
-      ADD_FAILURE() << "expected miem::MiemException, none thrown"; \
-    } catch (const ::miem::MiemException& e) {                      \
-      EXPECT_STREQ(e.Category(), (cat));                            \
-      EXPECT_EQ(e.Code(), (code));                                  \
-    }                                                               \
-  } while (0)
+// Assert that `action` throws a miem::MiemException carrying (cat, code).
+// gtest's EXPECT_THROW can't inspect the thrown object, so this helper
+// runs the gtest assertions on the caught exception's category and code.
+template <typename Action, typename Code>
+void ExpectMiemThrow(Action&& action, const char* cat, Code code)
+{
+  try
+  {
+    action();
+    ADD_FAILURE() << "expected miem::MiemException, none thrown";
+  }
+  catch (const ::miem::MiemException& e)
+  {
+    EXPECT_STREQ(e.Category(), cat);
+    EXPECT_EQ(e.Code(), code);
+  }
+}
 
 namespace {
 
 // Precision-aware tolerance.
-#ifdef MIEM_USE_DOUBLE
-constexpr double kFluxTol = 1.0e-22;
-#else
-constexpr double kFluxTol = 1.0e-15;
-#endif
+constexpr double kFluxTol =
+    std::is_same_v<Real, double> ? 1.0e-22 : 1.0e-15;
 
 // Two-time-step synthetic file at t=0 and t=3600, n_cells=3, single NOx
 // species; flux row-major [t, cell].
@@ -136,7 +140,7 @@ TEST(OfflineEmissionSourceTest, NearestPicksCloserEnd)
 }
 
 // ---------------------------------------------------------------------
-// Climatology kill (D5): time_current > times[n-1] -> TimeOutOfRange
+// time_current after the last sample -> TimeOutOfRange
 // ---------------------------------------------------------------------
 TEST(OfflineEmissionSourceTest, TimeAfterRangeReturnsTimeOutOfRange)
 {
@@ -149,9 +153,9 @@ TEST(OfflineEmissionSourceTest, TimeAfterRangeReturnsTimeOutOfRange)
 
   std::vector<Real> out;
   std::vector<std::string> names;
-  EXPECT_MIEM_THROW(src.Update(/*time_current=*/9999999.0, 3, out, names),
-                    MIEM_ERROR_CATEGORY_IO,
-                    MIEM_IO_ERROR_CODE_TIME_OUT_OF_RANGE);
+  ExpectMiemThrow([&] { src.Update(/*time_current=*/9999999.0, 3, out, names); },
+                  MIEM_ERROR_CATEGORY_IO,
+                  MIEM_IO_ERROR_CODE_TIME_OUT_OF_RANGE);
 }
 
 TEST(OfflineEmissionSourceTest, TimeBeforeRangeReturnsTimeOutOfRange)
@@ -165,9 +169,9 @@ TEST(OfflineEmissionSourceTest, TimeBeforeRangeReturnsTimeOutOfRange)
 
   std::vector<Real> out;
   std::vector<std::string> names;
-  EXPECT_MIEM_THROW(src.Update(/*time_current=*/-1.0, 3, out, names),
-                    MIEM_ERROR_CATEGORY_IO,
-                    MIEM_IO_ERROR_CODE_TIME_OUT_OF_RANGE);
+  ExpectMiemThrow([&] { src.Update(/*time_current=*/-1.0, 3, out, names); },
+                  MIEM_ERROR_CATEGORY_IO,
+                  MIEM_IO_ERROR_CODE_TIME_OUT_OF_RANGE);
 }
 
 // ---------------------------------------------------------------------
@@ -184,9 +188,9 @@ TEST(OfflineEmissionSourceTest, CellCountMismatchBetweenFileAndCaller)
 
   std::vector<Real> out;
   std::vector<std::string> names;
-  EXPECT_MIEM_THROW(src.Update(1800.0, /*n_cells=*/5, out, names),
-                    MIEM_ERROR_CATEGORY_VALIDATION,
-                    MIEM_VALIDATION_ERROR_CODE_CELL_COUNT_MISMATCH);
+  ExpectMiemThrow([&] { src.Update(1800.0, /*n_cells=*/5, out, names); },
+                  MIEM_ERROR_CATEGORY_VALIDATION,
+                  MIEM_VALIDATION_ERROR_CODE_CELL_COUNT_MISMATCH);
 }
 
 // ---------------------------------------------------------------------

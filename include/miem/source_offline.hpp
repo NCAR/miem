@@ -1,27 +1,25 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
 // Offline emission source: reads pre-regridded ECCAD NetCDF data, applies
 // the species map, and temporally interpolates between bracketing slices.
-//
-// Out-of-range times are a hard error (`TimeOutOfRange`) — the
-// climatological wrap-around behavior present in `feature/scaffolding`
-// has been removed (plan §D5, user decision 1).
+// Times outside the file's range are a hard error (`TimeOutOfRange`);
+// there is no climatological wrap-around.
 #pragma once
 
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "miem/source_types.hpp"
-#include "miem/source.hpp"
-#include "miem/species_map.hpp"
-#include "miem/temporal_interpolator.hpp"
+#include <miem/source_types.hpp>
+#include <miem/source.hpp>
+#include <miem/species_map.hpp>
+#include <miem/temporal_interpolator.hpp>
 
 namespace miem {
 
-// Forward declaration — `ECCADReader` lives in src/internal/ so its
-// throwing IO surface stays out of the installed public header set.
+// Forward-declared (defined in src/internal/) to keep NetCDF out of this
+// public header.
 class ECCADReader;
 
 class OfflineEmissionSource : public EmissionSource
@@ -52,8 +50,6 @@ class OfflineEmissionSource : public EmissionSource
 
   std::vector<std::string> inventory_species_;
   std::vector<std::string> mechanism_species_;
-
-  bool brackets_loaded_ = false;
 
   void         LoadBrackets(double time_current, int n_cells);
   std::string  ResolveFilePath(double time) const;

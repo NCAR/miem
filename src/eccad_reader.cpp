@@ -1,19 +1,20 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 
 #include "internal/eccad_reader.hpp"
+#include "internal/time_utils.hpp"
 
 #include <netcdf.h>
 
 #include <algorithm>
+#include <charconv>
+#include <chrono>
 #include <cstring>
-#include <ctime>
-#include <regex>
 #include <set>
 #include <string>
 
-#include "miem/util/error.hpp"
-#include "miem/util/miem_exception.hpp"
+#include <miem/util/error.hpp>
+#include <miem/util/miem_exception.hpp>
 
 #define MIEM_NC_CHECK(call)                                                    \
   do {                                                                         \
@@ -30,8 +31,8 @@ namespace miem {
 
 namespace {
 
-// Accept any of these calendars (or missing).  Anything else is a hard
-// `UnsupportedCalendar` error per plan / user decision 5.
+// Accept any of these calendars (or missing). Anything else is a hard
+// UnsupportedCalendar error.
 bool IsAcceptedCalendar(const std::string& cal)
 {
   return cal.empty() ||
@@ -44,22 +45,15 @@ bool ParseCFTimeUnits(const std::string& units_str,
                       double&            multiplier,
                       double&            ref_epoch)
 {
-  static const std::regex kCfPattern(
-      R"((\w+)\s+since\s+(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?)");
-  std::smatch match;
-  if (!std::regex_search(units_str, match, kCfPattern))
+  // CF time units are "<unit> since <ISO-8601 datetime>",
+  // e.g. "seconds since 2012-01-01 00:00:00".
+  const std::string::size_type since = units_str.find(" since ");
+  if (since == std::string::npos)
   {
     return false;
   }
 
-  const std::string unit  = match[1].str();
-  const int         year  = std::stoi(match[2].str());
-  const int         month = std::stoi(match[3].str());
-  const int         day   = std::stoi(match[4].str());
-  const int         hour  = match[5].matched ? std::stoi(match[5].str()) : 0;
-  const int         minute= match[6].matched ? std::stoi(match[6].str()) : 0;
-  const int         second= match[7].matched ? std::stoi(match[7].str()) : 0;
-
+  const std::string unit = units_str.substr(0, since);
   if (unit == "seconds" || unit == "second" || unit == "s")
   {
     multiplier = 1.0;
@@ -81,14 +75,161 @@ bool ParseCFTimeUnits(const std::string& units_str,
     return false;
   }
 
-  std::tm ref_tm{};
-  ref_tm.tm_year = year - 1900;
-  ref_tm.tm_mon  = month - 1;
-  ref_tm.tm_mday = day;
-  ref_tm.tm_hour = hour;
-  ref_tm.tm_min  = minute;
-  ref_tm.tm_sec  = second;
-  ref_epoch      = static_cast<double>(timegm(&ref_tm));
+  // Parse the reference datetime: a "YYYY-MM-DD" date, an optional
+  // "[ T]HH:MM[:SS]" time, an optional fractional second, and an optional
+  // UTC offset -- e.g. "2012-01-01", "...00:00:00", "...00:00:00.5",
+  // "...00:00:00 +01:00", or both. UDUNITS/CF permit the fraction and the
+  // offset, so we honour them instead of silently dropping them; anything
+  // left unconsumed at the end is treated as malformed. (std::chrono::parse
+  // would be tidier but isn't available across all of our toolchains yet.)
+  const std::string when   = units_str.substr(since + 7);
+  const char*       cursor = when.data();
+  const char* const end    = when.data() + when.size();
+
+  // Read an integer, then require/consume `delim` (unless delim == '\0').
+  const auto take = [&](int& out, char delim) -> bool {
+    const auto [next, ec] = std::from_chars(cursor, end, out);
+    if (ec != std::errc{})
+    {
+      return false;
+    }
+    cursor = next;
+    if (delim != '\0')
+    {
+      if (cursor == end || *cursor != delim)
+      {
+        return false;
+      }
+      ++cursor;
+    }
+    return true;
+  };
+
+  int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
+  if (!take(year, '-') || !take(month, '-') || !take(day, '\0'))
+  {
+    return false;
+  }
+
+  double frac_seconds   = 0.0;
+  double offset_seconds = 0.0;
+
+  if (cursor != end && (*cursor == ' ' || *cursor == 'T'))
+  {
+    ++cursor;
+    if (!take(hour, ':') || !take(minute, '\0'))
+    {
+      return false;
+    }
+    if (cursor != end && *cursor == ':')
+    {
+      ++cursor;
+      if (!take(second, '\0'))
+      {
+        return false;
+      }
+    }
+
+    // Optional fractional second (".5", ".250", ...). Accumulated as a
+    // double so it survives into ref_epoch.
+    if (cursor != end && *cursor == '.')
+    {
+      ++cursor;
+      double scale = 0.1;
+      bool   any   = false;
+      for (; cursor != end && *cursor >= '0' && *cursor <= '9'; ++cursor)
+      {
+        frac_seconds += (*cursor - '0') * scale;
+        scale *= 0.1;
+        any = true;
+      }
+      if (!any)  // a lone '.' with no digits
+      {
+        return false;
+      }
+    }
+
+    // Optional UTC offset: "Z", or a signed offset in any of the three
+    // accepted forms -- "+HH:MM", "+HHMM" (compact), or "+HH" (and the
+    // negative forms). A reference given at an offset is that many hours
+    // ahead of UTC, so we subtract it below.
+    if (cursor != end && *cursor == ' ')
+    {
+      ++cursor;
+    }
+    if (cursor != end && (*cursor == 'Z' || *cursor == 'z'))
+    {
+      ++cursor;  // explicit UTC; offset stays zero
+    }
+    else if (cursor != end && (*cursor == '+' || *cursor == '-'))
+    {
+      const int sign = (*cursor == '-') ? -1 : 1;
+      ++cursor;
+
+      // Parse the digit groups explicitly: from_chars is greedy, so "0130"
+      // would read as 130 rather than 01h30m. Count the leading run instead.
+      const char* const digits_begin = cursor;
+      while (cursor != end && *cursor >= '0' && *cursor <= '9')
+      {
+        ++cursor;
+      }
+      const auto n_digits = cursor - digits_begin;
+
+      int off_hour = 0, off_min = 0;
+      if (cursor != end && *cursor == ':')
+      {
+        // "HH:MM": 1-2 hour digits, then exactly two minute digits.
+        if (n_digits < 1 || n_digits > 2)
+        {
+          return false;
+        }
+        std::from_chars(digits_begin, cursor, off_hour);
+        ++cursor;  // consume ':'
+        const char* const min_begin = cursor;
+        while (cursor != end && *cursor >= '0' && *cursor <= '9')
+        {
+          ++cursor;
+        }
+        if (cursor - min_begin != 2)
+        {
+          return false;
+        }
+        std::from_chars(min_begin, cursor, off_min);
+      }
+      else if (n_digits == 4)
+      {
+        std::from_chars(digits_begin, digits_begin + 2, off_hour);  // "HHMM"
+        std::from_chars(digits_begin + 2, cursor, off_min);
+      }
+      else if (n_digits == 1 || n_digits == 2)
+      {
+        std::from_chars(digits_begin, cursor, off_hour);  // "HH"
+      }
+      else
+      {
+        return false;  // e.g. 3 digits, or no digits -- unrecognized
+      }
+      offset_seconds = sign * (off_hour * 3600.0 + off_min * 60.0);
+    }
+  }
+
+  // Reject anything we could not account for rather than silently ignoring
+  // a malformed or unsupported units string.
+  for (; cursor != end && *cursor == ' '; ++cursor)
+  {
+  }
+  if (cursor != end)
+  {
+    return false;
+  }
+
+  // UTC reference instant = the calendar fields, less the offset, plus any
+  // fractional second. ref_epoch is a double, so sub-second precision is
+  // preserved.
+  const std::chrono::sys_seconds tp =
+      UtcTimePoint(year, month, day, hour, minute, second);
+  ref_epoch = static_cast<double>(tp.time_since_epoch().count()) +
+              frac_seconds - offset_seconds;
   return true;
 }
 
@@ -100,12 +241,41 @@ std::string ReadTextAttribute(int ncid, int varid, const std::string& name)
   {
     return {};
   }
-  std::vector<char> buf(att_len + 1, '\0');
-  if (nc_get_att_text(ncid, varid, name.c_str(), buf.data()) != NC_NOERR)
+  std::string value(att_len, '\0');
+  if (nc_get_att_text(ncid, varid, name.c_str(), value.data()) != NC_NOERR)
   {
     return {};
   }
-  return std::string(buf.data(), att_len);
+  return value;
+}
+
+// Type-dispatched NetCDF readers so the `Real` element type selects the
+// matching call via overload resolution, without preprocessor branching.
+int NcGetVara(int ncid, int varid, const std::size_t* start,
+              const std::size_t* count, double* out)
+{
+  return nc_get_vara_double(ncid, varid, start, count, out);
+}
+int NcGetVara(int ncid, int varid, const std::size_t* start,
+              const std::size_t* count, float* out)
+{
+  return nc_get_vara_float(ncid, varid, start, count, out);
+}
+int NcGetVar(int ncid, int varid, double* out)
+{
+  return nc_get_var_double(ncid, varid, out);
+}
+int NcGetVar(int ncid, int varid, float* out)
+{
+  return nc_get_var_float(ncid, varid, out);
+}
+int NcGetAttFill(int ncid, int varid, const char* name, double* out)
+{
+  return nc_get_att_double(ncid, varid, name, out);
+}
+int NcGetAttFill(int ncid, int varid, const char* name, float* out)
+{
+  return nc_get_att_float(ncid, varid, name, out);
 }
 
 }  // namespace
@@ -173,11 +343,9 @@ void ECCADReader::Close()
 
 void ECCADReader::DetectFormat()
 {
-  // ECCAD compliance via `eccad_version` (preferred) or legacy
-  // `ses_version` global attribute.  Either is acceptable in this port;
-  // file producers can migrate at their own pace.  Neither present
-  // means the file is not ECCAD/SES-conformant -- refuse rather than
-  // guess (S4 from review).
+  // ECCAD compliance is signalled by the `eccad_version` (preferred) or
+  // legacy `ses_version` global attribute. If neither is present the file
+  // is not ECCAD/SES-conformant, so refuse rather than guess.
   eccad_version_ = ReadTextAttribute(ncid_, NC_GLOBAL, "eccad_version");
   if (eccad_version_.empty())
   {
@@ -228,6 +396,8 @@ void ECCADReader::DiscoverSpecies()
   int n_vars;
   MIEM_NC_CHECK(nc_inq_nvars(ncid_, &n_vars));
 
+  // ECCAD names each emission variable "emi_<species>" (e.g. emi_co);
+  // strip the prefix to recover the species name.
   static const std::string kPrefix = "emi_";
   std::set<std::string> seen;
   for (int varid = 0; varid < n_vars; ++varid)
@@ -262,10 +432,9 @@ std::vector<double> ECCADReader::GetTimeValues() const
   if (status != NC_NOERR)
   {
     // A single-snapshot file (no `time` dimension, n_time_steps_ == 1)
-    // legitimately may omit the `time` variable -- treat as t = 0.
+    // may legitimately omit the `time` variable -- treat as t = 0.
     // Anything else is a malformed file: refuse to silently fabricate
-    // zero-valued times.  (S2 from review -- complements the wrap-
-    // around-fabrication kill.)
+    // zero-valued times.
     if (n_time_steps_ > 1)
     {
       throw MiemException(
@@ -355,19 +524,11 @@ void ECCADReader::ReadFlux(int                             time_index,
     {
       const std::size_t start[2] = { static_cast<std::size_t>(time_index), 0 };
       const std::size_t count[2] = { 1, static_cast<std::size_t>(n_cells_) };
-#ifdef MIEM_USE_DOUBLE
-      MIEM_NC_CHECK(nc_get_vara_double(ncid_, varid, start, count, raw.data()));
-#else
-      MIEM_NC_CHECK(nc_get_vara_float (ncid_, varid, start, count, raw.data()));
-#endif
+      MIEM_NC_CHECK(NcGetVara(ncid_, varid, start, count, raw.data()));
     }
     else if (ndims == 1)
     {
-#ifdef MIEM_USE_DOUBLE
-      MIEM_NC_CHECK(nc_get_var_double(ncid_, varid, raw.data()));
-#else
-      MIEM_NC_CHECK(nc_get_var_float (ncid_, varid, raw.data()));
-#endif
+      MIEM_NC_CHECK(NcGetVar(ncid_, varid, raw.data()));
     }
     else
     {
@@ -376,21 +537,12 @@ void ECCADReader::ReadFlux(int                             time_index,
 
     Real fill_value = Real{ 0 };
     bool has_fill   = false;
-#ifdef MIEM_USE_DOUBLE
-    double fv;
-    if (nc_get_att_double(ncid_, varid, "_FillValue", &fv) == NC_NOERR)
+    Real fv{};
+    if (NcGetAttFill(ncid_, varid, "_FillValue", &fv) == NC_NOERR)
     {
-      fill_value = static_cast<Real>(fv);
+      fill_value = fv;
       has_fill   = true;
     }
-#else
-    float fv;
-    if (nc_get_att_float(ncid_, varid, "_FillValue", &fv) == NC_NOERR)
-    {
-      fill_value = static_cast<Real>(fv);
-      has_fill   = true;
-    }
-#endif
 
     for (int ic = 0; ic < n_cells_; ++ic)
     {

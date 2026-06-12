@@ -1,22 +1,23 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
-// Unit tests for the internal `ECCADReader` (src/internal/) — CF time-
-// units decoding, calendar enforcement, S2 missing-time-variable
-// promotion, S4 empty-version-sentinel rejection.  This test compiles
-// against the internal header; it is *not* exposed through any
-// installed surface.
+// Unit tests for the internal `ECCADReader` (src/internal/): CF time-units
+// decoding, calendar enforcement, missing-time-variable handling, and
+// rejection of files with no version attribute. Compiles against the
+// internal header, which is not part of the installed surface.
 
 #include "internal/eccad_reader.hpp"
 #include "synthetic_nc.hpp"
 
 #include <miem/util/miem_exception.hpp>
+#include <miem/util/types.hpp>
 
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 using miem::ECCADReader;
@@ -28,11 +29,8 @@ using miem_test::TempDir;
 namespace {
 
 // Precision-aware tolerance: tight under double, relaxed under float.
-#ifdef MIEM_USE_DOUBLE
-constexpr double kFluxTol = 1.0e-22;
-#else
-constexpr double kFluxTol = 1.0e-15;
-#endif
+constexpr double kFluxTol =
+    std::is_same_v<miem::Real, double> ? 1.0e-22 : 1.0e-15;
 
 // Helper: build a single-species file with one flux value per cell.
 void WriteSimpleFile(const std::string&                       path,
@@ -114,6 +112,138 @@ TEST(ECCADReaderTimeTest, HoursSinceMid1990)
 }
 
 // ---------------------------------------------------------------------
+// A reference time carrying a UTC offset (e.g. "+01:00") is shifted back
+// to UTC. 2012-01-01T00:00:00Z is 1325376000 s since the Unix epoch; a
+// +01:00 reference names an instant one hour earlier in UTC.
+// ---------------------------------------------------------------------
+TEST(ECCADReaderTimeTest, ReferenceTimezoneOffsetShiftsToUtc)
+{
+  TempDir dir;
+  const std::string path = dir.File("tzoffset.nc");
+  SyntheticNcOptions opts;
+  opts.time_units = "seconds since 2012-01-01 00:00:00 +01:00";
+  WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
+
+  ECCADReader r;
+  r.Open(path);
+  const auto times = r.GetTimeValues();
+  ASSERT_EQ(times.size(), 2u);
+  EXPECT_NEAR(times[0], 1325376000.0 - 3600.0,          1.0e-3);
+  EXPECT_NEAR(times[1], 1325376000.0 - 3600.0 + 3600.0, 1.0e-3);
+}
+
+// ---------------------------------------------------------------------
+// A fractional second in the reference ("...00.5") is retained in the
+// decoded times rather than truncated.
+// ---------------------------------------------------------------------
+TEST(ECCADReaderTimeTest, ReferenceFractionalSecondsRetained)
+{
+  TempDir dir;
+  const std::string path = dir.File("frac.nc");
+  SyntheticNcOptions opts;
+  opts.time_units = "seconds since 2012-01-01 00:00:00.5";
+  WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
+
+  ECCADReader r;
+  r.Open(path);
+  const auto times = r.GetTimeValues();
+  ASSERT_EQ(times.size(), 2u);
+  EXPECT_NEAR(times[0], 1325376000.5,          1.0e-3);
+  EXPECT_NEAR(times[1], 1325376000.5 + 3600.0, 1.0e-3);
+}
+
+// ---------------------------------------------------------------------
+// Fractional seconds and a UTC offset together are both applied.
+// ---------------------------------------------------------------------
+TEST(ECCADReaderTimeTest, ReferenceFractionalSecondsAndOffset)
+{
+  TempDir dir;
+  const std::string path = dir.File("fractz.nc");
+  SyntheticNcOptions opts;
+  opts.time_units = "seconds since 2012-01-01 00:00:00.5 +01:00";
+  WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
+
+  ECCADReader r;
+  r.Open(path);
+  const auto times = r.GetTimeValues();
+  ASSERT_EQ(times.size(), 2u);
+  EXPECT_NEAR(times[0], 1325376000.5 - 3600.0,          1.0e-3);
+  EXPECT_NEAR(times[1], 1325376000.5 - 3600.0 + 3600.0, 1.0e-3);
+}
+
+// ---------------------------------------------------------------------
+// UTC offset, compact form (+/-[hh][mm], e.g. "+0130"). 1h30m ahead of UTC
+// shifts the reference back by 5400 s -- not the 130 h a greedy parse gives.
+// ---------------------------------------------------------------------
+TEST(ECCADReaderTimeTest, ReferenceUtcOffsetCompactForm)
+{
+  TempDir dir;
+  const std::string path = dir.File("tzcompact.nc");
+  SyntheticNcOptions opts;
+  opts.time_units = "seconds since 2012-01-01 00:00:00 +0130";
+  WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
+
+  ECCADReader r;
+  r.Open(path);
+  const auto times = r.GetTimeValues();
+  ASSERT_EQ(times.size(), 2u);
+  EXPECT_NEAR(times[0], 1325376000.0 - 5400.0,          1.0e-3);
+  EXPECT_NEAR(times[1], 1325376000.0 - 5400.0 + 3600.0, 1.0e-3);
+}
+
+// ---------------------------------------------------------------------
+// UTC offset, hours-only form (+/-[hh], e.g. "+01"). 1h ahead of UTC.
+// ---------------------------------------------------------------------
+TEST(ECCADReaderTimeTest, ReferenceUtcOffsetHoursOnly)
+{
+  TempDir dir;
+  const std::string path = dir.File("tzhours.nc");
+  SyntheticNcOptions opts;
+  opts.time_units = "seconds since 2012-01-01 00:00:00 +01";
+  WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
+
+  ECCADReader r;
+  r.Open(path);
+  const auto times = r.GetTimeValues();
+  ASSERT_EQ(times.size(), 2u);
+  EXPECT_NEAR(times[0], 1325376000.0 - 3600.0,          1.0e-3);
+  EXPECT_NEAR(times[1], 1325376000.0 - 3600.0 + 3600.0, 1.0e-3);
+}
+
+// ---------------------------------------------------------------------
+// A 3-digit offset (matches no accepted form) is rejected, not parsed.
+// ---------------------------------------------------------------------
+TEST(ECCADReaderTimeTest, ReferenceThreeDigitOffsetRejected)
+{
+  TempDir dir;
+  const std::string path = dir.File("tz3.nc");
+  SyntheticNcOptions opts;
+  opts.time_units = "seconds since 2012-01-01 00:00:00 +013";
+  WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
+
+  ECCADReader r;
+  r.Open(path);
+  EXPECT_THROW(r.GetTimeValues(), MiemException);
+}
+
+// ---------------------------------------------------------------------
+// A units string we cannot fully account for (here a garbled offset) is
+// rejected outright rather than silently truncated to the part we parsed.
+// ---------------------------------------------------------------------
+TEST(ECCADReaderTimeTest, MalformedReferenceOffsetRejected)
+{
+  TempDir dir;
+  const std::string path = dir.File("badoffset.nc");
+  SyntheticNcOptions opts;
+  opts.time_units = "seconds since 2012-01-01 00:00:00 +bananas";
+  WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
+
+  ECCADReader r;
+  r.Open(path);
+  EXPECT_THROW(r.GetTimeValues(), MiemException);
+}
+
+// ---------------------------------------------------------------------
 // calendar = "noleap" rejected with UnsupportedCalendar (MiemException)
 // ---------------------------------------------------------------------
 TEST(ECCADReaderCalendarTest, NoLeapRejected)
@@ -165,11 +295,10 @@ TEST(ECCADReaderTimeTest, MissingUnitsAttributeRejected)
 }
 
 // ---------------------------------------------------------------------
-// S2 regression: time dim of length > 1 but no `time` variable -> hard
-// error (climatology kill complement).  Synthesize via
-// SyntheticNcOptions::omit_time_variable.
+// A time dimension of length > 1 with no `time` variable is a hard error
+// (synthesized via SyntheticNcOptions::omit_time_variable).
 // ---------------------------------------------------------------------
-TEST(ECCADReaderTimeTest, S2_MissingTimeVariableForMultipleStepsIsError)
+TEST(ECCADReaderTimeTest, MissingTimeVariableForMultipleStepsIsError)
 {
   TempDir dir;
   const std::string path = dir.File("notimevar.nc");
@@ -202,10 +331,10 @@ TEST(ECCADReaderTimeTest, MissingTimeVariableForSingleSnapshotAccepted)
 }
 
 // ---------------------------------------------------------------------
-// S4 regression: file with neither eccad_version nor ses_version global
-// attribute -> hard error on Open (refused, not silently accepted).
+// A file with neither `eccad_version` nor `ses_version` is refused on
+// Open (a hard error, not silently accepted).
 // ---------------------------------------------------------------------
-TEST(ECCADReaderVersionTest, S4_NeitherVersionAttributeRejected)
+TEST(ECCADReaderVersionTest, NeitherVersionAttributeRejected)
 {
   TempDir dir;
   const std::string path = dir.File("noversion.nc");
