@@ -1,10 +1,11 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
-// EmissionsBuilder::Build() validation tests.  The builder folds all v1
-// invariant checks into Build() (MICM-style: domain objects carry no
-// Validate()).  Each invariant (V1-V5 from the plan plus the cross-source
-// DuplicateCategoryHierarchy rule) is exercised in isolation.
+// EmissionsBuilder::Build() validation tests.  The builder folds every v1
+// invariant check into Build() (MICM-style: domain objects carry no
+// Validate()).  Each invariant -- the five per-source rules plus the
+// cross-source duplicate (category, hierarchy) rule -- is exercised in
+// isolation.
 //
 // Build() is file-free for these cases: a rejected config throws before any
 // source is constructed, and OfflineEmissionSource defers all NetCDF I/O to
@@ -24,17 +25,23 @@
 
 using namespace miem;
 
-// Assert that `stmt` throws a miem::MiemException carrying (cat, code).
-#define EXPECT_MIEM_THROW(stmt, cat, code)                          \
-  do {                                                              \
-    try {                                                           \
-      stmt;                                                         \
-      ADD_FAILURE() << "expected miem::MiemException, none thrown"; \
-    } catch (const ::miem::MiemException& e) {                      \
-      EXPECT_STREQ(e.Category(), (cat));                            \
-      EXPECT_EQ(e.Code(), (code));                                  \
-    }                                                               \
-  } while (0)
+// Assert that `action` throws a miem::MiemException carrying (cat, code).
+// gtest's EXPECT_THROW can't inspect the thrown object, so this helper
+// runs the gtest assertions on the caught exception's category and code.
+template <typename Action, typename Code>
+void ExpectMiemThrow(Action&& action, const char* cat, Code code)
+{
+  try
+  {
+    action();
+    ADD_FAILURE() << "expected miem::MiemException, none thrown";
+  }
+  catch (const ::miem::MiemException& e)
+  {
+    EXPECT_STREQ(e.Category(), cat);
+    EXPECT_EQ(e.Code(), code);
+  }
+}
 
 namespace {
 
@@ -72,9 +79,9 @@ TEST(EmissionsBuilderValidateTest, V1_RejectsRegriddingScrip)
          .SetRegridding(regridding)
          .AddSource(MakeMinimalSource());
 
-  EXPECT_MIEM_THROW(builder.Build(),
-                    MIEM_ERROR_CATEGORY_CONFIGURATION,
-                    MIEM_CONFIGURATION_ERROR_CODE_UNSUPPORTED_REGRIDDING);
+  ExpectMiemThrow([&] { builder.Build(); },
+                  MIEM_ERROR_CATEGORY_CONFIGURATION,
+                  MIEM_CONFIGURATION_ERROR_CODE_UNSUPPORTED_REGRIDDING);
 }
 
 // ---------------------------------------------------------------------
@@ -88,9 +95,9 @@ TEST(EmissionsBuilderValidateTest, V2_RejectsUnknownConvention)
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(src);
 
-  EXPECT_MIEM_THROW(builder.Build(),
-                    MIEM_ERROR_CATEGORY_CONFIGURATION,
-                    MIEM_CONFIGURATION_ERROR_CODE_UNKNOWN_CONVENTION);
+  ExpectMiemThrow([&] { builder.Build(); },
+                  MIEM_ERROR_CATEGORY_CONFIGURATION,
+                  MIEM_CONFIGURATION_ERROR_CODE_UNKNOWN_CONVENTION);
 }
 
 TEST(EmissionsBuilderValidateTest, V2_AcceptsCaseInsensitiveEccad)
@@ -115,9 +122,9 @@ TEST(EmissionsBuilderValidateTest, V3_RejectsOnlineMode)
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(src);
 
-  EXPECT_MIEM_THROW(builder.Build(),
-                    MIEM_ERROR_CATEGORY_CONFIGURATION,
-                    MIEM_CONFIGURATION_ERROR_CODE_ONLINE_NOT_SUPPORTED);
+  ExpectMiemThrow([&] { builder.Build(); },
+                  MIEM_ERROR_CATEGORY_CONFIGURATION,
+                  MIEM_CONFIGURATION_ERROR_CODE_ONLINE_NOT_SUPPORTED);
 }
 
 // ---------------------------------------------------------------------
@@ -131,9 +138,9 @@ TEST(EmissionsBuilderValidateTest, V4_RejectsPlumeInjection)
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(src);
 
-  EXPECT_MIEM_THROW(builder.Build(),
-                    MIEM_ERROR_CATEGORY_CONFIGURATION,
-                    MIEM_CONFIGURATION_ERROR_CODE_UNSUPPORTED_VERTICAL_INJECTION);
+  ExpectMiemThrow([&] { builder.Build(); },
+                  MIEM_ERROR_CATEGORY_CONFIGURATION,
+                  MIEM_CONFIGURATION_ERROR_CODE_UNSUPPORTED_VERTICAL_INJECTION);
 }
 
 // ---------------------------------------------------------------------
@@ -148,9 +155,9 @@ TEST(EmissionsBuilderValidateTest, V5_RejectsScalingSumOverOne)
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(src);
 
-  EXPECT_MIEM_THROW(builder.Build(),
-                    MIEM_ERROR_CATEGORY_SPECIES,
-                    MIEM_SPECIES_ERROR_CODE_SCALING_EXCEEDS_ONE);
+  ExpectMiemThrow([&] { builder.Build(); },
+                  MIEM_ERROR_CATEGORY_SPECIES,
+                  MIEM_SPECIES_ERROR_CODE_SCALING_EXCEEDS_ONE);
 }
 
 // Boundary test: 1.0 + 1e-7 is within tolerance (1e-6) — accepted.
@@ -176,9 +183,9 @@ TEST(EmissionsBuilderValidateTest, V5_BoundaryRejectsClearOverhead)
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(src);
 
-  EXPECT_MIEM_THROW(builder.Build(),
-                    MIEM_ERROR_CATEGORY_SPECIES,
-                    MIEM_SPECIES_ERROR_CODE_SCALING_EXCEEDS_ONE);
+  ExpectMiemThrow([&] { builder.Build(); },
+                  MIEM_ERROR_CATEGORY_SPECIES,
+                  MIEM_SPECIES_ERROR_CODE_SCALING_EXCEEDS_ONE);
 }
 
 // ---------------------------------------------------------------------
@@ -194,9 +201,9 @@ TEST(EmissionsBuilderValidateTest, RejectsDuplicateCategoryHierarchy)
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(a).AddSource(b);
 
-  EXPECT_MIEM_THROW(builder.Build(),
-                    MIEM_ERROR_CATEGORY_CONFIGURATION,
-                    MIEM_CONFIGURATION_ERROR_CODE_DUPLICATE_CATEGORY_HIERARCHY);
+  ExpectMiemThrow([&] { builder.Build(); },
+                  MIEM_ERROR_CATEGORY_CONFIGURATION,
+                  MIEM_CONFIGURATION_ERROR_CODE_DUPLICATE_CATEGORY_HIERARCHY);
 }
 
 // ---------------------------------------------------------------------
@@ -221,9 +228,9 @@ TEST(EmissionsBuilderValidateTest, ThrowsOnFirstInvariantOfMultiple)
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(src);
 
-  EXPECT_MIEM_THROW(builder.Build(),
-                    MIEM_ERROR_CATEGORY_CONFIGURATION,
-                    MIEM_CONFIGURATION_ERROR_CODE_ONLINE_NOT_SUPPORTED);
+  ExpectMiemThrow([&] { builder.Build(); },
+                  MIEM_ERROR_CATEGORY_CONFIGURATION,
+                  MIEM_CONFIGURATION_ERROR_CODE_ONLINE_NOT_SUPPORTED);
 }
 
 // When one source in a multi-source build is invalid, the error message

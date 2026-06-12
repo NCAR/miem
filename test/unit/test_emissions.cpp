@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
 // Emissions runtime tests: HEMCO category/hierarchy aggregation,
@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <string>
+#include <type_traits>
 #include <vector>
 
 using namespace miem;
@@ -25,12 +26,9 @@ using miem_test::TempDir;
 
 namespace {
 
-// Precision-aware tolerance.
-#ifdef MIEM_USE_DOUBLE
-constexpr double kFluxTol = 1.0e-22;
-#else
-constexpr double kFluxTol = 1.0e-15;
-#endif
+// Precision-aware tolerance: tight under double, relaxed under float.
+constexpr double kFluxTol =
+    std::is_same_v<miem::Real, double> ? 1.0e-22 : 1.0e-15;
 
 // Helper: write a single-species two-time-step file (constant in time).
 std::string MakeFile(const TempDir& dir, const std::string& name,

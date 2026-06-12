@@ -1,7 +1,7 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 
-#include "miem/emissions.hpp"
+#include <miem/emissions.hpp>
 
 #include <algorithm>
 #include <map>
@@ -10,9 +10,9 @@
 #include <string>
 #include <utility>
 
-#include "miem/flux_converter.hpp"
-#include "miem/source_factory.hpp"
-#include "miem/util/miem_exception.hpp"
+#include <miem/flux_converter.hpp>
+#include <miem/source_factory.hpp>
+#include <miem/util/miem_exception.hpp>
 
 namespace miem {
 

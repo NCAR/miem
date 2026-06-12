@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
 // `EmissionsBuilder` assembles a set of `Source` descriptions into a
@@ -17,8 +17,8 @@
 #include <utility>
 #include <vector>
 
-#include "miem/source_types.hpp"
-#include "miem/emissions.hpp"
+#include <miem/source_types.hpp>
+#include <miem/emissions.hpp>
 
 namespace miem {
 

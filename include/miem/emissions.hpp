@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
 // `Emissions` is the runtime entry point for MIEM.  You do not construct
@@ -18,10 +18,10 @@
 #include <string>
 #include <vector>
 
-#include "miem/source_types.hpp"
-#include "miem/emissions_state.hpp"
-#include "miem/source.hpp"
-#include "miem/util/types.hpp"
+#include <miem/source_types.hpp>
+#include <miem/emissions_state.hpp>
+#include <miem/source.hpp>
+#include <miem/util/types.hpp>
 
 namespace miem {
 

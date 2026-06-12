@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2026 University Corporation for Atmospheric Research
+// Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 //
 // End-to-end integration test — the issue #6 vehicle.
@@ -32,6 +32,7 @@
 
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 using namespace miem;
@@ -48,13 +49,10 @@ constexpr double kO3Flux     = 5.0e-10;  // kg/m^2/s
 // Precision-aware tolerance: at 1e-9 magnitude the double round-off is
 // ~1e-25; for float32 it's ~1e-16.  Use ~1e-15 for float so sum-of-
 // products noise is absorbed without losing algorithmic-drift catch.
-#ifdef MIEM_USE_DOUBLE
-constexpr double kFluxTol = 1.0e-22;
-constexpr double kTendTol = 1.0e-25;
-#else
-constexpr double kFluxTol = 1.0e-15;
-constexpr double kTendTol = 1.0e-18;
-#endif
+constexpr double kFluxTol =
+    std::is_same_v<miem::Real, double> ? 1.0e-22 : 1.0e-15;
+constexpr double kTendTol =
+    std::is_same_v<miem::Real, double> ? 1.0e-25 : 1.0e-18;
 
 // Build the test NetCDF.  Two time steps so the linear blend at the
 // midpoint gives the same flux back (constant-in-time inventory).
