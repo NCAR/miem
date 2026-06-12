@@ -172,6 +172,61 @@ TEST(ECCADReaderTimeTest, ReferenceFractionalSecondsAndOffset)
 }
 
 // ---------------------------------------------------------------------
+// UTC offset, compact form (+/-[hh][mm], e.g. "+0130"). 1h30m ahead of UTC
+// shifts the reference back by 5400 s -- not the 130 h a greedy parse gives.
+// ---------------------------------------------------------------------
+TEST(ECCADReaderTimeTest, ReferenceUtcOffsetCompactForm)
+{
+  TempDir dir;
+  const std::string path = dir.File("tzcompact.nc");
+  SyntheticNcOptions opts;
+  opts.time_units = "seconds since 2012-01-01 00:00:00 +0130";
+  WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
+
+  ECCADReader r;
+  r.Open(path);
+  const auto times = r.GetTimeValues();
+  ASSERT_EQ(times.size(), 2u);
+  EXPECT_NEAR(times[0], 1325376000.0 - 5400.0,          1.0e-3);
+  EXPECT_NEAR(times[1], 1325376000.0 - 5400.0 + 3600.0, 1.0e-3);
+}
+
+// ---------------------------------------------------------------------
+// UTC offset, hours-only form (+/-[hh], e.g. "+01"). 1h ahead of UTC.
+// ---------------------------------------------------------------------
+TEST(ECCADReaderTimeTest, ReferenceUtcOffsetHoursOnly)
+{
+  TempDir dir;
+  const std::string path = dir.File("tzhours.nc");
+  SyntheticNcOptions opts;
+  opts.time_units = "seconds since 2012-01-01 00:00:00 +01";
+  WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
+
+  ECCADReader r;
+  r.Open(path);
+  const auto times = r.GetTimeValues();
+  ASSERT_EQ(times.size(), 2u);
+  EXPECT_NEAR(times[0], 1325376000.0 - 3600.0,          1.0e-3);
+  EXPECT_NEAR(times[1], 1325376000.0 - 3600.0 + 3600.0, 1.0e-3);
+}
+
+// ---------------------------------------------------------------------
+// A 3-digit offset (matches no accepted form) is rejected, not parsed.
+// ---------------------------------------------------------------------
+TEST(ECCADReaderTimeTest, ReferenceThreeDigitOffsetRejected)
+{
+  TempDir dir;
+  const std::string path = dir.File("tz3.nc");
+  SyntheticNcOptions opts;
+  opts.time_units = "seconds since 2012-01-01 00:00:00 +013";
+  WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
+
+  ECCADReader r;
+  r.Open(path);
+  EXPECT_THROW(r.GetTimeValues(), MiemException);
+}
+
+// ---------------------------------------------------------------------
 // A units string we cannot fully account for (here a garbled offset) is
 // rejected outright rather than silently truncated to the part we parsed.
 // ---------------------------------------------------------------------

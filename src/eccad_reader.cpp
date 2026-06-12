@@ -149,7 +149,8 @@ bool ParseCFTimeUnits(const std::string& units_str,
       }
     }
 
-    // Optional UTC offset: "Z", or a signed "+HH" / "+HH:MM" (and the
+    // Optional UTC offset: "Z", or a signed offset in any of the three
+    // accepted forms -- "+HH:MM", "+HHMM" (compact), or "+HH" (and the
     // negative forms). A reference given at an offset is that many hours
     // ahead of UTC, so we subtract it below.
     if (cursor != end && *cursor == ' ')
@@ -164,18 +165,49 @@ bool ParseCFTimeUnits(const std::string& units_str,
     {
       const int sign = (*cursor == '-') ? -1 : 1;
       ++cursor;
-      int off_hour = 0, off_min = 0;
-      if (!take(off_hour, '\0'))
-      {
-        return false;
-      }
-      if (cursor != end && *cursor == ':')
+
+      // Parse the digit groups explicitly: from_chars is greedy, so "0130"
+      // would read as 130 rather than 01h30m. Count the leading run instead.
+      const char* const digits_begin = cursor;
+      while (cursor != end && *cursor >= '0' && *cursor <= '9')
       {
         ++cursor;
-        if (!take(off_min, '\0'))
+      }
+      const auto n_digits = cursor - digits_begin;
+
+      int off_hour = 0, off_min = 0;
+      if (cursor != end && *cursor == ':')
+      {
+        // "HH:MM": 1-2 hour digits, then exactly two minute digits.
+        if (n_digits < 1 || n_digits > 2)
         {
           return false;
         }
+        std::from_chars(digits_begin, cursor, off_hour);
+        ++cursor;  // consume ':'
+        const char* const min_begin = cursor;
+        while (cursor != end && *cursor >= '0' && *cursor <= '9')
+        {
+          ++cursor;
+        }
+        if (cursor - min_begin != 2)
+        {
+          return false;
+        }
+        std::from_chars(min_begin, cursor, off_min);
+      }
+      else if (n_digits == 4)
+      {
+        std::from_chars(digits_begin, digits_begin + 2, off_hour);  // "HHMM"
+        std::from_chars(digits_begin + 2, cursor, off_min);
+      }
+      else if (n_digits == 1 || n_digits == 2)
+      {
+        std::from_chars(digits_begin, cursor, off_hour);  // "HH"
+      }
+      else
+      {
+        return false;  // e.g. 3 digits, or no digits -- unrecognized
       }
       offset_seconds = sign * (off_hour * 3600.0 + off_min * 60.0);
     }
