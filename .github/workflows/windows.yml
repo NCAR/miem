@@ -26,13 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # netCDF via vcpkg. EXPAT too: udunits2 has no vcpkg port, so it is
-      # FetchContent-built here and needs an EXPAT library. This job stays
-      # continue-on-error, so a udunits2/MSVC hiccup does not block the PR.
-      - name: Install netCDF and EXPAT (vcpkg)
-        run: |
-          vcpkg install netcdf-c:x64-windows
-          vcpkg install expat:x64-windows
+      - name: Install netCDF (vcpkg)
+        run: vcpkg install netcdf-c:x64-windows
 
       - name: Run CMake
         run: >

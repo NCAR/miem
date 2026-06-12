@@ -11,7 +11,6 @@ RUN dnf -y update \
         make \
         netcdf-devel \
         tree \
-        udunits2-devel \
     && dnf clean all
 
 COPY . miem

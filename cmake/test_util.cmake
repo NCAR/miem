@@ -3,13 +3,7 @@
 
 if(MIEM_ENABLE_MEMCHECK)
   find_program(MEMORYCHECK_COMMAND "valgrind")
-  # udunits2 (and the EXPAT it parses its XML database with) intern one-time
-  # tables we don't own; suppress leaks originating inside those libraries so
-  # they don't fail the leak check. See test/valgrind/third_party.supp.
-  set(MEMORYCHECK_COMMAND_OPTIONS
-      "--error-exitcode=1" "--trace-children=yes" "--leak-check=full"
-      "--gen-suppressions=all"
-      "--suppressions=${PROJECT_SOURCE_DIR}/test/valgrind/third_party.supp")
+  set(MEMORYCHECK_COMMAND_OPTIONS "--error-exitcode=1" "--trace-children=yes" "--leak-check=full" "--gen-suppressions=all")
 endif()
 
 ################################################################################

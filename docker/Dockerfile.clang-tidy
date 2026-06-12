@@ -9,5 +9,4 @@ RUN dnf -y update \
         git \
         make \
         netcdf-devel \
-        udunits2-devel \
     && dnf clean all

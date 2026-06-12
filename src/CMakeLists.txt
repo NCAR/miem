@@ -23,7 +23,7 @@ target_sources(miem PRIVATE
   eccad_reader.cpp
 )
 
-target_link_libraries(miem PRIVATE netCDF::netcdf_normalized UDUNITS2::udunits2)
+target_link_libraries(miem PRIVATE netCDF::netcdf_normalized)
 
 target_include_directories(miem
   PUBLIC

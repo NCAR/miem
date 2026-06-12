@@ -24,11 +24,3 @@ create_standard_test(
   SOURCES test_source_offline.cpp
   LIBRARIES miem_test_synthetic_nc
 )
-
-# When udunits2 is FetchContent-built (no system install), point the tests that
-# decode CF time units at its in-tree XML database. A system udunits2 supplies
-# its own default path and needs no hint.
-if(MIEM_UDUNITS2_XML_PATH)
-  set_tests_properties(eccad_reader source_offline PROPERTIES
-    ENVIRONMENT "UDUNITS2_XML_PATH=${MIEM_UDUNITS2_XML_PATH}")
-endif()
