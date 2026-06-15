@@ -8,10 +8,10 @@
 
 #include "synthetic_nc.hpp"
 
-#include <miem/source_types.hpp>
-#include <miem/emissions_state.hpp>
 #include <miem/emissions.hpp>
 #include <miem/emissions_builder.hpp>
+#include <miem/emissions_state.hpp>
+#include <miem/source_types.hpp>
 #include <miem/util/types.hpp>
 
 #include <gtest/gtest.h>
@@ -24,42 +24,47 @@ using namespace miem;
 using miem_test::CreateTestNetCDF;
 using miem_test::TempDir;
 
-namespace {
-
-// Precision-aware tolerance: tight under double, relaxed under float.
-constexpr double kFluxTol =
-    std::is_same_v<miem::Real, double> ? 1.0e-22 : 1.0e-15;
-
-// Helper: write a single-species two-time-step file (constant in time).
-std::string MakeFile(const TempDir& dir, const std::string& name,
-                     int n_cells, double flux_value,
-                     const std::string& species = "NOx")
+namespace
 {
-  const std::string path = dir.File(name);
-  std::vector<double> data(2 * n_cells, flux_value);
-  CreateTestNetCDF(path, /*n_times=*/2, n_cells,
-                   /*time_values=*/{ 0.0, 3600.0 },
-                   /*species=*/{ species }, /*flux_data=*/{ data });
-  return path;
-}
 
-Source MakeSource(const std::string& name,
-                  const std::string& path,
-                  int category, int hierarchy,
-                  const std::string& sector = "",
-                  double scaling = 1.0)
-{
-  Source src;
-  src.name_           = name;
-  src.file_pattern_   = path;
-  src.convention_     = "eccad";
-  src.category_       = category;
-  src.hierarchy_      = hierarchy;
-  src.sector_         = sector;
-  src.scaling_factor_ = static_cast<Real>(scaling);
-  src.species_map_.AddMapping("NOx", "NOx", 1.0);
-  return src;
-}
+  // Precision-aware tolerance: tight under double, relaxed under float.
+  constexpr double kFluxTol = std::is_same_v<miem::Real, double> ? 1.0e-22 : 1.0e-15;
+
+  // Helper: write a single-species two-time-step file (constant in time).
+  std::string
+  MakeFile(const TempDir& dir, const std::string& name, int n_cells, double flux_value, const std::string& species = "NOx")
+  {
+    const std::string path = dir.File(name);
+    std::vector<double> data(2 * n_cells, flux_value);
+    CreateTestNetCDF(
+        path,
+        /*n_times=*/2,
+        n_cells,
+        /*time_values=*/{ 0.0, 3600.0 },
+        /*species=*/{ species },
+        /*flux_data=*/{ data });
+    return path;
+  }
+
+  Source MakeSource(
+      const std::string& name,
+      const std::string& path,
+      int category,
+      int hierarchy,
+      const std::string& sector = "",
+      double scaling = 1.0)
+  {
+    Source src;
+    src.name_ = name;
+    src.file_pattern_ = path;
+    src.convention_ = "eccad";
+    src.category_ = category;
+    src.hierarchy_ = hierarchy;
+    src.sector_ = sector;
+    src.scaling_factor_ = static_cast<Real>(scaling);
+    src.species_map_.AddMapping("NOx", "NOx", 1.0);
+    return src;
+  }
 
 }  // namespace
 
@@ -83,8 +88,7 @@ TEST(EmissionsTest, DifferentCategoriesSum)
 
   for (int ic = 0; ic < n_cells; ++ic)
   {
-    EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")),
-                3.0e-9, kFluxTol);
+    EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")), 3.0e-9, kFluxTol);
   }
 }
 
@@ -95,12 +99,12 @@ TEST(EmissionsTest, SameCategoryHigherHierarchyShadows)
 {
   TempDir dir;
   const int n_cells = 4;
-  const std::string p_low  = MakeFile(dir, "low.nc",  n_cells, 5.0e-9);
+  const std::string p_low = MakeFile(dir, "low.nc", n_cells, 5.0e-9);
   const std::string p_high = MakeFile(dir, "high.nc", n_cells, 9.0e-9);
 
   Emissions module = EmissionsBuilder()
                          .SetGridDimensions(n_cells, /*n_vl=*/2)
-                         .AddSource(MakeSource("low",  p_low,  /*cat=*/0, /*hier=*/1))
+                         .AddSource(MakeSource("low", p_low, /*cat=*/0, /*hier=*/1))
                          .AddSource(MakeSource("high", p_high, /*cat=*/0, /*hier=*/2))
                          .Build();
 
@@ -108,8 +112,7 @@ TEST(EmissionsTest, SameCategoryHigherHierarchyShadows)
 
   for (int ic = 0; ic < n_cells; ++ic)
   {
-    EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")),
-                9.0e-9, kFluxTol);  // high wins; low does NOT add
+    EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")), 9.0e-9, kFluxTol);  // high wins; low does NOT add
   }
 }
 
@@ -120,12 +123,12 @@ TEST(EmissionsTest, FallThroughWhenHigherHierarchyIsBitExactZero)
 {
   TempDir dir;
   const int n_cells = 4;
-  const std::string p_low  = MakeFile(dir, "low.nc",  n_cells, 5.0e-9);
+  const std::string p_low = MakeFile(dir, "low.nc", n_cells, 5.0e-9);
   const std::string p_high = MakeFile(dir, "high.nc", n_cells, 0.0);  // bit-exact
 
   Emissions module = EmissionsBuilder()
                          .SetGridDimensions(n_cells, /*n_vl=*/2)
-                         .AddSource(MakeSource("low",  p_low,  /*cat=*/0, /*hier=*/1))
+                         .AddSource(MakeSource("low", p_low, /*cat=*/0, /*hier=*/1))
                          .AddSource(MakeSource("high", p_high, /*cat=*/0, /*hier=*/2))
                          .Build();
 
@@ -133,8 +136,7 @@ TEST(EmissionsTest, FallThroughWhenHigherHierarchyIsBitExactZero)
 
   for (int ic = 0; ic < n_cells; ++ic)
   {
-    EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")),
-                5.0e-9, kFluxTol);
+    EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")), 5.0e-9, kFluxTol);
   }
 }
 
@@ -148,18 +150,16 @@ TEST(EmissionsTest, PerSourceScalingAppliedBeforeHierarchy)
   const int n_cells = 4;
   const std::string path = MakeFile(dir, "a.nc", n_cells, 2.0e-9);
 
-  Emissions module =
-      EmissionsBuilder()
-          .SetGridDimensions(n_cells, 2)
-          .AddSource(MakeSource("A", path, 0, 1, /*sector=*/"", /*scaling=*/0.5))
-          .Build();
+  Emissions module = EmissionsBuilder()
+                         .SetGridDimensions(n_cells, 2)
+                         .AddSource(MakeSource("A", path, 0, 1, /*sector=*/"", /*scaling=*/0.5))
+                         .Build();
 
   const auto state = module.Run(1800.0, 60.0);
 
   for (int ic = 0; ic < n_cells; ++ic)
   {
-    EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")),
-                1.0e-9, kFluxTol);
+    EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")), 1.0e-9, kFluxTol);
   }
 }
 
@@ -172,23 +172,21 @@ TEST(EmissionsTest, SectorFluxesPreHierarchy)
 {
   TempDir dir;
   const int n_cells = 3;
-  const std::string p_low  = MakeFile(dir, "low.nc",  n_cells, 1.0e-9);
+  const std::string p_low = MakeFile(dir, "low.nc", n_cells, 1.0e-9);
   const std::string p_high = MakeFile(dir, "high.nc", n_cells, 7.0e-9);
 
-  Emissions module =
-      EmissionsBuilder()
-          .SetGridDimensions(n_cells, 2)
-          .AddSource(MakeSource("low",  p_low,  0, 1, /*sector=*/"anthropogenic"))
-          .AddSource(MakeSource("high", p_high, 0, 2, /*sector=*/"anthropogenic"))
-          .Build();
+  Emissions module = EmissionsBuilder()
+                         .SetGridDimensions(n_cells, 2)
+                         .AddSource(MakeSource("low", p_low, 0, 1, /*sector=*/"anthropogenic"))
+                         .AddSource(MakeSource("high", p_high, 0, 2, /*sector=*/"anthropogenic"))
+                         .Build();
 
   const auto state = module.Run(1800.0, 60.0);
 
   // surface_flux_ reflects hierarchy winner (7e-9).
   for (int ic = 0; ic < n_cells; ++ic)
   {
-    EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")),
-                7.0e-9, kFluxTol);
+    EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")), 7.0e-9, kFluxTol);
   }
 
   // sector_fluxes_ aggregates both sources (1e-9 + 7e-9 = 8e-9).
@@ -196,8 +194,7 @@ TEST(EmissionsTest, SectorFluxesPreHierarchy)
   ASSERT_NE(anthro, nullptr);
   for (int ic = 0; ic < n_cells; ++ic)
   {
-    EXPECT_NEAR(static_cast<double>((*anthro)(ic, "NOx")),
-                8.0e-9, kFluxTol);
+    EXPECT_NEAR(static_cast<double>((*anthro)(ic, "NOx")), 8.0e-9, kFluxTol);
   }
 }
 
@@ -229,8 +226,7 @@ TEST(EmissionsTest, OrderingDoesNotAffectOutput)
 
   for (int ic = 0; ic < n_cells; ++ic)
   {
-    EXPECT_NEAR(static_cast<double>(s1.surface_flux_(ic, "NOx")),
-                static_cast<double>(s2.surface_flux_(ic, "NOx")),
-                kFluxTol);
+    EXPECT_NEAR(
+        static_cast<double>(s1.surface_flux_(ic, "NOx")), static_cast<double>(s2.surface_flux_(ic, "NOx")), kFluxTol);
   }
 }

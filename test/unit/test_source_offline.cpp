@@ -7,8 +7,8 @@
 
 #include "synthetic_nc.hpp"
 
-#include <miem/source_types.hpp>
 #include <miem/source_offline.hpp>
+#include <miem/source_types.hpp>
 #include <miem/util/error.hpp>
 #include <miem/util/miem_exception.hpp>
 #include <miem/util/types.hpp>
@@ -21,9 +21,9 @@
 #include <vector>
 
 using miem::MiemException;
+using miem::OfflineEmissionSource;
 using miem::Real;
 using miem::Source;
-using miem::OfflineEmissionSource;
 using miem::TemporalInterpolation;
 using miem_test::CreateTestNetCDF;
 using miem_test::SyntheticNcOptions;
@@ -32,7 +32,7 @@ using miem_test::TempDir;
 // Assert that `action` throws a miem::MiemException carrying (cat, code).
 // gtest's EXPECT_THROW can't inspect the thrown object, so this helper
 // runs the gtest assertions on the caught exception's category and code.
-template <typename Action, typename Code>
+template<typename Action, typename Code>
 void ExpectMiemThrow(Action&& action, const char* cat, Code code)
 {
   try
@@ -47,40 +47,39 @@ void ExpectMiemThrow(Action&& action, const char* cat, Code code)
   }
 }
 
-namespace {
-
-// Precision-aware tolerance.
-constexpr double kFluxTol =
-    std::is_same_v<Real, double> ? 1.0e-22 : 1.0e-15;
-
-// Two-time-step synthetic file at t=0 and t=3600, n_cells=3, single NOx
-// species; flux row-major [t, cell].
-std::string MakeTwoStepFile(const TempDir&            dir,
-                            const std::vector<double>& nox_flux,
-                            const std::string&         name = "test.nc")
+namespace
 {
-  const std::string path = dir.File(name);
-  CreateTestNetCDF(path, /*n_times=*/2, /*n_cells=*/3,
-                   /*time_values=*/{ 0.0, 3600.0 },
-                   /*species=*/{ "NOx" },
-                   /*flux_data=*/{ nox_flux });
-  return path;
-}
 
-// Identity species map: NOx -> NOx, scaling 1.0.  Keeps the test focused
-// on the temporal / out-of-range behaviour.
-Source MakeIdentitySource(const std::string&   path,
-                                TemporalInterpolation interp =
-                                    TemporalInterpolation::Linear)
-{
-  Source cfg;
-  cfg.name_                   = "test_source";
-  cfg.file_pattern_           = path;
-  cfg.convention_             = "eccad";
-  cfg.temporal_interpolation_ = interp;
-  cfg.species_map_.AddMapping("NOx", "NOx", 1.0);
-  return cfg;
-}
+  // Precision-aware tolerance.
+  constexpr double kFluxTol = std::is_same_v<Real, double> ? 1.0e-22 : 1.0e-15;
+
+  // Two-time-step synthetic file at t=0 and t=3600, n_cells=3, single NOx
+  // species; flux row-major [t, cell].
+  std::string MakeTwoStepFile(const TempDir& dir, const std::vector<double>& nox_flux, const std::string& name = "test.nc")
+  {
+    const std::string path = dir.File(name);
+    CreateTestNetCDF(
+        path,
+        /*n_times=*/2,
+        /*n_cells=*/3,
+        /*time_values=*/{ 0.0, 3600.0 },
+        /*species=*/{ "NOx" },
+        /*flux_data=*/{ nox_flux });
+    return path;
+  }
+
+  // Identity species map: NOx -> NOx, scaling 1.0.  Keeps the test focused
+  // on the temporal / out-of-range behaviour.
+  Source MakeIdentitySource(const std::string& path, TemporalInterpolation interp = TemporalInterpolation::Linear)
+  {
+    Source cfg;
+    cfg.name_ = "test_source";
+    cfg.file_pattern_ = path;
+    cfg.convention_ = "eccad";
+    cfg.temporal_interpolation_ = interp;
+    cfg.species_map_.AddMapping("NOx", "NOx", 1.0);
+    return cfg;
+  }
 
 }  // namespace
 
@@ -92,19 +91,17 @@ TEST(OfflineEmissionSourceTest, LinearMidpointBlend)
 {
   TempDir dir;
   std::vector<double> flux = {
-      1.0e-9, 1.0e-9, 1.0e-9,    // t=0
-      3.0e-9, 3.0e-9, 3.0e-9     // t=3600
+    1.0e-9, 1.0e-9, 1.0e-9,  // t=0
+    3.0e-9, 3.0e-9, 3.0e-9   // t=3600
   };
   const std::string path = MakeTwoStepFile(dir, flux);
 
-  Source cfg = MakeIdentitySource(path,
-                                        TemporalInterpolation::Linear);
+  Source cfg = MakeIdentitySource(path, TemporalInterpolation::Linear);
   OfflineEmissionSource src(cfg);
 
   std::vector<Real> out;
   std::vector<std::string> names;
-  ASSERT_NO_THROW(src.Update(/*time_current=*/1800.0, /*n_cells=*/3,
-                             out, names));
+  ASSERT_NO_THROW(src.Update(/*time_current=*/1800.0, /*n_cells=*/3, out, names));
 
   ASSERT_EQ(out.size(), 3u);
   for (auto v : out)
@@ -119,14 +116,10 @@ TEST(OfflineEmissionSourceTest, LinearMidpointBlend)
 TEST(OfflineEmissionSourceTest, NearestPicksCloserEnd)
 {
   TempDir dir;
-  std::vector<double> flux = {
-      1.0e-9, 1.0e-9, 1.0e-9,
-      3.0e-9, 3.0e-9, 3.0e-9
-  };
+  std::vector<double> flux = { 1.0e-9, 1.0e-9, 1.0e-9, 3.0e-9, 3.0e-9, 3.0e-9 };
   const std::string path = MakeTwoStepFile(dir, flux);
 
-  Source cfg = MakeIdentitySource(path,
-                                        TemporalInterpolation::Nearest);
+  Source cfg = MakeIdentitySource(path, TemporalInterpolation::Nearest);
   OfflineEmissionSource src(cfg);
 
   std::vector<Real> out;
@@ -153,9 +146,10 @@ TEST(OfflineEmissionSourceTest, TimeAfterRangeReturnsTimeOutOfRange)
 
   std::vector<Real> out;
   std::vector<std::string> names;
-  ExpectMiemThrow([&] { src.Update(/*time_current=*/9999999.0, 3, out, names); },
-                  MIEM_ERROR_CATEGORY_IO,
-                  MIEM_IO_ERROR_CODE_TIME_OUT_OF_RANGE);
+  ExpectMiemThrow(
+      [&] { src.Update(/*time_current=*/9999999.0, 3, out, names); },
+      MIEM_ERROR_CATEGORY_IO,
+      MIEM_IO_ERROR_CODE_TIME_OUT_OF_RANGE);
 }
 
 TEST(OfflineEmissionSourceTest, TimeBeforeRangeReturnsTimeOutOfRange)
@@ -169,9 +163,10 @@ TEST(OfflineEmissionSourceTest, TimeBeforeRangeReturnsTimeOutOfRange)
 
   std::vector<Real> out;
   std::vector<std::string> names;
-  ExpectMiemThrow([&] { src.Update(/*time_current=*/-1.0, 3, out, names); },
-                  MIEM_ERROR_CATEGORY_IO,
-                  MIEM_IO_ERROR_CODE_TIME_OUT_OF_RANGE);
+  ExpectMiemThrow(
+      [&] { src.Update(/*time_current=*/-1.0, 3, out, names); },
+      MIEM_ERROR_CATEGORY_IO,
+      MIEM_IO_ERROR_CODE_TIME_OUT_OF_RANGE);
 }
 
 // ---------------------------------------------------------------------
@@ -188,9 +183,10 @@ TEST(OfflineEmissionSourceTest, CellCountMismatchBetweenFileAndCaller)
 
   std::vector<Real> out;
   std::vector<std::string> names;
-  ExpectMiemThrow([&] { src.Update(1800.0, /*n_cells=*/5, out, names); },
-                  MIEM_ERROR_CATEGORY_VALIDATION,
-                  MIEM_VALIDATION_ERROR_CODE_CELL_COUNT_MISMATCH);
+  ExpectMiemThrow(
+      [&] { src.Update(1800.0, /*n_cells=*/5, out, names); },
+      MIEM_ERROR_CATEGORY_VALIDATION,
+      MIEM_VALIDATION_ERROR_CODE_CELL_COUNT_MISMATCH);
 }
 
 // ---------------------------------------------------------------------
@@ -204,15 +200,18 @@ TEST(OfflineEmissionSourceTest, FilePatternTokenSubstitution)
   std::vector<double> flux(6, 1.0e-9);
   // 2024-03-15T00:00:00Z = 1710460800 unix seconds.  Bracket times need
   // to surround it; use 2024-03-01 and 2024-03-31.
-  CreateTestNetCDF(dir.File("2024-03.nc"),
-                   /*n_times=*/2, /*n_cells=*/3,
-                   /*time_values=*/{ 1709251200.0, 1711843200.0 },
-                   /*species=*/{ "NOx" }, /*flux_data=*/{ flux });
+  CreateTestNetCDF(
+      dir.File("2024-03.nc"),
+      /*n_times=*/2,
+      /*n_cells=*/3,
+      /*time_values=*/{ 1709251200.0, 1711843200.0 },
+      /*species=*/{ "NOx" },
+      /*flux_data=*/{ flux });
 
   Source cfg;
-  cfg.name_                   = "monthly";
-  cfg.file_pattern_           = dir.Path() + "/{YYYY}-{MM}.nc";
-  cfg.convention_             = "eccad";
+  cfg.name_ = "monthly";
+  cfg.file_pattern_ = dir.Path() + "/{YYYY}-{MM}.nc";
+  cfg.convention_ = "eccad";
   cfg.temporal_interpolation_ = TemporalInterpolation::Linear;
   cfg.species_map_.AddMapping("NOx", "NOx", 1.0);
   OfflineEmissionSource src(cfg);

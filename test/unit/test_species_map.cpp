@@ -20,24 +20,26 @@
 
 using namespace miem;
 
-namespace {
+namespace
+{
 
-constexpr Real kFluxMagnitude = static_cast<Real>(1.0e-9);
+  constexpr Real kFluxMagnitude = static_cast<Real>(1.0e-9);
 // Tight under double (round-off ~1e-25); relaxed under float (~1e-16).
 #ifdef MIEM_USE_DOUBLE
-constexpr double kAbsTol = 1.0e-22;
+  constexpr double kAbsTol = 1.0e-22;
 #else
-constexpr double kAbsTol = 1.0e-15;
+  constexpr double kAbsTol = 1.0e-15;
 #endif
 
-int IndexOf(const std::vector<std::string>& names, const std::string& s)
-{
-  for (int i = 0; i < static_cast<int>(names.size()); ++i)
+  int IndexOf(const std::vector<std::string>& names, const std::string& s)
   {
-    if (names[i] == s) return i;
+    for (int i = 0; i < static_cast<int>(names.size()); ++i)
+    {
+      if (names[i] == s)
+        return i;
+    }
+    return -1;
   }
-  return -1;
-}
 
 }  // namespace
 
@@ -47,7 +49,7 @@ int IndexOf(const std::vector<std::string>& names, const std::string& s)
 TEST(SpeciesMapApplyTest, A1_NOxSplitSumsToOne)
 {
   SpeciesMap map;
-  map.AddMapping("NOx", "NO",  0.9);
+  map.AddMapping("NOx", "NO", 0.9);
   map.AddMapping("NOx", "NO2", 0.1);
 
   const int n_cells = 4;
@@ -57,16 +59,16 @@ TEST(SpeciesMapApplyTest, A1_NOxSplitSumsToOne)
   ASSERT_NO_THROW(map.Apply(inv_flux, { "NOx" }, mech_flux, n_cells));
 
   const auto names = map.MechanismSpecies();
-  const int  i_no  = IndexOf(names, "NO");
-  const int  i_no2 = IndexOf(names, "NO2");
-  ASSERT_GE(i_no,  0);
+  const int i_no = IndexOf(names, "NO");
+  const int i_no2 = IndexOf(names, "NO2");
+  ASSERT_GE(i_no, 0);
   ASSERT_GE(i_no2, 0);
 
   for (int ic = 0; ic < n_cells; ++ic)
   {
-    const Real no   = mech_flux[i_no  * n_cells + ic];
-    const Real no2  = mech_flux[i_no2 * n_cells + ic];
-    EXPECT_NEAR(no,  static_cast<Real>(0.9) * kFluxMagnitude, kAbsTol);
+    const Real no = mech_flux[i_no * n_cells + ic];
+    const Real no2 = mech_flux[i_no2 * n_cells + ic];
+    EXPECT_NEAR(no, static_cast<Real>(0.9) * kFluxMagnitude, kAbsTol);
     EXPECT_NEAR(no2, static_cast<Real>(0.1) * kFluxMagnitude, kAbsTol);
     // Sum equals input (mass conservation): exact equality since
     // 0.9*x + 0.1*x algebraically equals x for the IEEE rep used here.
@@ -83,9 +85,7 @@ TEST(SpeciesMapApplyTest, A2_IdentityMappingPreservesInput)
   map.AddMapping("CO", "CO", 1.0);
 
   const int n_cells = 3;
-  std::vector<Real> inv_flux = {
-      kFluxMagnitude * 1.0, kFluxMagnitude * 2.0, kFluxMagnitude * 3.0
-  };
+  std::vector<Real> inv_flux = { kFluxMagnitude * 1.0, kFluxMagnitude * 2.0, kFluxMagnitude * 3.0 };
 
   std::vector<Real> mech_flux;
   ASSERT_NO_THROW(map.Apply(inv_flux, { "CO" }, mech_flux, n_cells));
@@ -114,8 +114,7 @@ TEST(SpeciesMapApplyTest, A3_UnderUnitySumDropsRemainder)
 
   for (int ic = 0; ic < n_cells; ++ic)
   {
-    EXPECT_NEAR(mech_flux[ic], static_cast<Real>(0.5) * kFluxMagnitude,
-                kAbsTol);
+    EXPECT_NEAR(mech_flux[ic], static_cast<Real>(0.5) * kFluxMagnitude, kAbsTol);
   }
 }
 
@@ -136,7 +135,8 @@ TEST(SpeciesMapApplyTest, A4_UnknownInventorySpeciesSilentlyDropped)
   std::vector<Real> mech_flux;
   ASSERT_NO_THROW(map.Apply(inv_flux, { "SO2" }, mech_flux, n_cells));
 
-  for (auto v : mech_flux) EXPECT_EQ(v, Real{ 0 });
+  for (auto v : mech_flux)
+    EXPECT_EQ(v, Real{ 0 });
 }
 
 // ---------------------------------------------------------------------
@@ -179,8 +179,10 @@ TEST(SpeciesMapApplyTest, A6_DistinctInventoryToSameMechanismSums)
   const int n_cells = 2;
   // Two rows in inventory frame: NOx (first), HNO3 (second).
   std::vector<Real> inv_flux = {
-      kFluxMagnitude * 2.0, kFluxMagnitude * 2.0,   // NOx
-      kFluxMagnitude * 3.0, kFluxMagnitude * 3.0    // HNO3
+    kFluxMagnitude * 2.0,
+    kFluxMagnitude * 2.0,  // NOx
+    kFluxMagnitude * 3.0,
+    kFluxMagnitude * 3.0  // HNO3
   };
 
   std::vector<Real> mech_flux;
@@ -188,12 +190,11 @@ TEST(SpeciesMapApplyTest, A6_DistinctInventoryToSameMechanismSums)
 
   // Both inventory rows route to NO -> NO row should equal NOx + HNO3.
   const auto names = map.MechanismSpecies();
-  const int  i_no  = IndexOf(names, "NO");
+  const int i_no = IndexOf(names, "NO");
   ASSERT_GE(i_no, 0);
   for (int ic = 0; ic < n_cells; ++ic)
   {
-    EXPECT_NEAR(mech_flux[i_no * n_cells + ic],
-                static_cast<Real>(5.0) * kFluxMagnitude, kAbsTol);
+    EXPECT_NEAR(mech_flux[i_no * n_cells + ic], static_cast<Real>(5.0) * kFluxMagnitude, kAbsTol);
   }
 }
 
@@ -204,16 +205,14 @@ TEST(SpeciesMapApplyTest, A6_DistinctInventoryToSameMechanismSums)
 TEST(SpeciesMapValidateTest, BoundaryAcceptsOnePlus1e7)
 {
   SpeciesMap map;
-  map.AddMapping("NOx", "NO",
-                 static_cast<Real>(1.0) + static_cast<Real>(1e-7));
+  map.AddMapping("NOx", "NO", static_cast<Real>(1.0) + static_cast<Real>(1e-7));
   EXPECT_NO_THROW(map.Validate());
 }
 
 TEST(SpeciesMapValidateTest, BoundaryRejectsOnePlus1e5)
 {
   SpeciesMap map;
-  map.AddMapping("NOx", "NO",
-                 static_cast<Real>(1.0) + static_cast<Real>(1e-5));
+  map.AddMapping("NOx", "NO", static_cast<Real>(1.0) + static_cast<Real>(1e-5));
   EXPECT_THROW(
       {
         try
@@ -234,9 +233,9 @@ TEST(SpeciesMapValidateTest, BoundaryRejectsOnePlus1e5)
 TEST(SpeciesMapTest, MechanismSpeciesDeduplicates)
 {
   SpeciesMap map;
-  map.AddMapping("NOx",  "NO",  0.9);
-  map.AddMapping("NOx",  "NO2", 0.1);
-  map.AddMapping("HNO3", "NO",  1.0);  // same mechanism species
+  map.AddMapping("NOx", "NO", 0.9);
+  map.AddMapping("NOx", "NO2", 0.1);
+  map.AddMapping("HNO3", "NO", 1.0);  // same mechanism species
 
   auto names = map.MechanismSpecies();
   std::sort(names.begin(), names.end());

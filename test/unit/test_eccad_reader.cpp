@@ -26,25 +26,24 @@ using miem_test::CreateTestNetCDF;
 using miem_test::SyntheticNcOptions;
 using miem_test::TempDir;
 
-namespace {
-
-// Precision-aware tolerance: tight under double, relaxed under float.
-constexpr double kFluxTol =
-    std::is_same_v<miem::Real, double> ? 1.0e-22 : 1.0e-15;
-
-// Helper: build a single-species file with one flux value per cell.
-void WriteSimpleFile(const std::string&                       path,
-                     int                                      n_times,
-                     int                                      n_cells,
-                     const std::vector<double>&               times,
-                     double                                   flux_value,
-                     const SyntheticNcOptions&                opts = {})
+namespace
 {
-  std::vector<double> data(static_cast<std::size_t>(n_times) * n_cells,
-                           flux_value);
-  CreateTestNetCDF(path, n_times, n_cells, times, { "NOx" },
-                   { data }, opts);
-}
+
+  // Precision-aware tolerance: tight under double, relaxed under float.
+  constexpr double kFluxTol = std::is_same_v<miem::Real, double> ? 1.0e-22 : 1.0e-15;
+
+  // Helper: build a single-species file with one flux value per cell.
+  void WriteSimpleFile(
+      const std::string& path,
+      int n_times,
+      int n_cells,
+      const std::vector<double>& times,
+      double flux_value,
+      const SyntheticNcOptions& opts = {})
+  {
+    std::vector<double> data(static_cast<std::size_t>(n_times) * n_cells, flux_value);
+    CreateTestNetCDF(path, n_times, n_cells, times, { "NOx" }, { data }, opts);
+  }
 
 }  // namespace
 
@@ -61,7 +60,7 @@ TEST(ECCADReaderTimeTest, SecondsSinceEpoch)
   r.Open(path);
   const auto times = r.GetTimeValues();
   ASSERT_EQ(times.size(), 2u);
-  EXPECT_NEAR(times[0], 0.0,    1.0e-3);   // 1 ms tolerance
+  EXPECT_NEAR(times[0], 0.0, 1.0e-3);  // 1 ms tolerance
   EXPECT_NEAR(times[1], 3600.0, 1.0e-3);
 }
 
@@ -107,8 +106,8 @@ TEST(ECCADReaderTimeTest, HoursSinceMid1990)
   ASSERT_EQ(times.size(), 2u);
 
   // 1990-06-15T12:00:00Z = 645408000 unix seconds.
-  EXPECT_NEAR(times[0], 645451200.0,            1.0e-3);
-  EXPECT_NEAR(times[1], 645451200.0 + 86400.0,  1.0e-3);
+  EXPECT_NEAR(times[0], 645451200.0, 1.0e-3);
+  EXPECT_NEAR(times[1], 645451200.0 + 86400.0, 1.0e-3);
 }
 
 // ---------------------------------------------------------------------
@@ -128,7 +127,7 @@ TEST(ECCADReaderTimeTest, ReferenceTimezoneOffsetShiftsToUtc)
   r.Open(path);
   const auto times = r.GetTimeValues();
   ASSERT_EQ(times.size(), 2u);
-  EXPECT_NEAR(times[0], 1325376000.0 - 3600.0,          1.0e-3);
+  EXPECT_NEAR(times[0], 1325376000.0 - 3600.0, 1.0e-3);
   EXPECT_NEAR(times[1], 1325376000.0 - 3600.0 + 3600.0, 1.0e-3);
 }
 
@@ -148,7 +147,7 @@ TEST(ECCADReaderTimeTest, ReferenceFractionalSecondsRetained)
   r.Open(path);
   const auto times = r.GetTimeValues();
   ASSERT_EQ(times.size(), 2u);
-  EXPECT_NEAR(times[0], 1325376000.5,          1.0e-3);
+  EXPECT_NEAR(times[0], 1325376000.5, 1.0e-3);
   EXPECT_NEAR(times[1], 1325376000.5 + 3600.0, 1.0e-3);
 }
 
@@ -167,7 +166,7 @@ TEST(ECCADReaderTimeTest, ReferenceFractionalSecondsAndOffset)
   r.Open(path);
   const auto times = r.GetTimeValues();
   ASSERT_EQ(times.size(), 2u);
-  EXPECT_NEAR(times[0], 1325376000.5 - 3600.0,          1.0e-3);
+  EXPECT_NEAR(times[0], 1325376000.5 - 3600.0, 1.0e-3);
   EXPECT_NEAR(times[1], 1325376000.5 - 3600.0 + 3600.0, 1.0e-3);
 }
 
@@ -187,7 +186,7 @@ TEST(ECCADReaderTimeTest, ReferenceUtcOffsetCompactForm)
   r.Open(path);
   const auto times = r.GetTimeValues();
   ASSERT_EQ(times.size(), 2u);
-  EXPECT_NEAR(times[0], 1325376000.0 - 5400.0,          1.0e-3);
+  EXPECT_NEAR(times[0], 1325376000.0 - 5400.0, 1.0e-3);
   EXPECT_NEAR(times[1], 1325376000.0 - 5400.0 + 3600.0, 1.0e-3);
 }
 
@@ -206,7 +205,7 @@ TEST(ECCADReaderTimeTest, ReferenceUtcOffsetHoursOnly)
   r.Open(path);
   const auto times = r.GetTimeValues();
   ASSERT_EQ(times.size(), 2u);
-  EXPECT_NEAR(times[0], 1325376000.0 - 3600.0,          1.0e-3);
+  EXPECT_NEAR(times[0], 1325376000.0 - 3600.0, 1.0e-3);
   EXPECT_NEAR(times[1], 1325376000.0 - 3600.0 + 3600.0, 1.0e-3);
 }
 
@@ -286,7 +285,7 @@ TEST(ECCADReaderTimeTest, MissingUnitsAttributeRejected)
   TempDir dir;
   const std::string path = dir.File("nounits.nc");
   SyntheticNcOptions opts;
-  opts.time_units = "";   // suppress
+  opts.time_units = "";  // suppress
   WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
 
   ECCADReader r;
@@ -340,7 +339,7 @@ TEST(ECCADReaderVersionTest, NeitherVersionAttributeRejected)
   const std::string path = dir.File("noversion.nc");
   SyntheticNcOptions opts;
   opts.eccad_version = "";
-  opts.ses_version   = "";
+  opts.ses_version = "";
   WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
 
   ECCADReader r;
@@ -353,7 +352,7 @@ TEST(ECCADReaderVersionTest, LegacySesVersionAccepted)
   const std::string path = dir.File("sesonly.nc");
   SyntheticNcOptions opts;
   opts.eccad_version = "";
-  opts.ses_version   = "1.0";
+  opts.ses_version = "1.0";
   WriteSimpleFile(path, 2, 3, { 0.0, 3600.0 }, 1.0e-9, opts);
 
   ECCADReader r;
@@ -370,8 +369,7 @@ TEST(ECCADReaderTest, DiscoverSpecies)
   const std::string path = dir.File("multi.nc");
 
   std::vector<double> data(2 * 3, 1.0e-9);
-  CreateTestNetCDF(path, 2, 3, { 0.0, 3600.0 },
-                   { "NOx", "SO2" }, { data, data });
+  CreateTestNetCDF(path, 2, 3, { 0.0, 3600.0 }, { "NOx", "SO2" }, { data, data });
 
   ECCADReader r;
   r.Open(path);
@@ -392,11 +390,9 @@ TEST(ECCADReaderTest, ReadFluxRoundTrip)
   //   t=0: 1e-9, 2e-9, 3e-9
   //   t=1: 4e-9, 5e-9, 6e-9
   std::vector<double> data = {
-      1.0e-9, 2.0e-9, 3.0e-9,
-      4.0e-9, 5.0e-9, 6.0e-9,
+    1.0e-9, 2.0e-9, 3.0e-9, 4.0e-9, 5.0e-9, 6.0e-9,
   };
-  CreateTestNetCDF(path, 2, 3, { 0.0, 3600.0 },
-                   { "NOx" }, { data });
+  CreateTestNetCDF(path, 2, 3, { 0.0, 3600.0 }, { "NOx" }, { data });
 
   ECCADReader r;
   r.Open(path);

@@ -7,52 +7,54 @@
 // there is no climatological wrap-around.
 #pragma once
 
+#include <miem/source.hpp>
+#include <miem/source_types.hpp>
+#include <miem/species_map.hpp>
+#include <miem/temporal_interpolator.hpp>
+
 #include <memory>
 #include <string>
 #include <vector>
 
-#include <miem/source_types.hpp>
-#include <miem/source.hpp>
-#include <miem/species_map.hpp>
-#include <miem/temporal_interpolator.hpp>
-
-namespace miem {
-
-// Forward-declared (defined in src/internal/) to keep NetCDF out of this
-// public header.
-class ECCADReader;
-
-class OfflineEmissionSource : public EmissionSource
+namespace miem
 {
- public:
-  OfflineEmissionSource();
-  explicit OfflineEmissionSource(const Source& config);
-  ~OfflineEmissionSource() override;
 
-  OfflineEmissionSource(OfflineEmissionSource&&) noexcept;
-  OfflineEmissionSource& operator=(OfflineEmissionSource&&) noexcept;
+  // Forward-declared (defined in src/internal/) to keep NetCDF out of this
+  // public header.
+  class ECCADReader;
 
-  std::vector<std::string> QuerySpecies() const override;
-  void Update(double                    time_current,
-              int                       n_cells,
-              std::vector<Real>&        flux_out,
-              std::vector<std::string>& species_names_out) override;
-  const std::string& Name() const override { return name_; }
+  class OfflineEmissionSource : public EmissionSource
+  {
+   public:
+    OfflineEmissionSource();
+    explicit OfflineEmissionSource(const Source& config);
+    ~OfflineEmissionSource() override;
 
- private:
-  std::string                  name_;
-  Source                 config_;
-  // Held by unique_ptr so the public header only needs a forward
-  // declaration of the internal ECCADReader type.
-  std::unique_ptr<ECCADReader> reader_;
-  SpeciesMap                   species_map_;
-  TemporalInterpolator         interpolator_;
+    OfflineEmissionSource(OfflineEmissionSource&&) noexcept;
+    OfflineEmissionSource& operator=(OfflineEmissionSource&&) noexcept;
 
-  std::vector<std::string> inventory_species_;
-  std::vector<std::string> mechanism_species_;
+    std::vector<std::string> QuerySpecies() const override;
+    void Update(double time_current, int n_cells, std::vector<Real>& flux_out, std::vector<std::string>& species_names_out)
+        override;
+    const std::string& Name() const override
+    {
+      return name_;
+    }
 
-  void         LoadBrackets(double time_current, int n_cells);
-  std::string  ResolveFilePath(double time) const;
-};
+   private:
+    std::string name_;
+    Source config_;
+    // Held by unique_ptr so the public header only needs a forward
+    // declaration of the internal ECCADReader type.
+    std::unique_ptr<ECCADReader> reader_;
+    SpeciesMap species_map_;
+    TemporalInterpolator interpolator_;
+
+    std::vector<std::string> inventory_species_;
+    std::vector<std::string> mechanism_species_;
+
+    void LoadBrackets(double time_current, int n_cells);
+    std::string ResolveFilePath(double time) const;
+  };
 
 }  // namespace miem
