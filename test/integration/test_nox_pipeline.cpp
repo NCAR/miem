@@ -84,6 +84,9 @@ TEST(NoxPipelineIntegrationTest, NOxSplitAndO3Passthrough)
   src.convention_             = "eccad";
   src.temporal_interpolation_ = TemporalInterpolation::Linear;
   src.vertical_injection_     = VerticalInjection::Surface;
+  // HEMCO aggregation indices (open-ended ints): with a single source these
+  // don't matter; across sources, categories sum and the higher hierarchy
+  // wins per cell.
   src.category_               = 0;
   src.hierarchy_              = 1;
   src.sector_                 = "anthropogenic";
