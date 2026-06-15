@@ -6,7 +6,37 @@ scaffolding port — see **Update (2026-06-09)** below.
 **Scope:** where the MIEM config schema and its parser live, how MIEM consumes the
 parsed result, and the boundary between load-time and runtime concerns.
 **Non-goals:** ECCAD (the NetCDF *input file* convention in [`docs/eccad.md`](./eccad.md))
-is unrelated and stays in MIEM unchanged.
+is unrelated and stays in MIEM unchanged. *(Superseded — see the 2026-06-15 update
+below: what the MVP reads is an on-mesh layout currently mislabelled `eccad`.)*
+
+---
+
+## Update (2026-06-15) — MIEM runtime shipped; `convention` naming and regridding clarified
+
+PRs #10–#14 have merged, so the MIEM runtime sketched in the 2026-06-09 update is
+now built (`miem::Source`, `EmissionsBuilder`, `ECCADReader`, `TemporalInterpolator`,
+`FluxConverter`). Three clarifications below supersede the original design record
+where they conflict; the MC/musica YAML-pipeline design itself is unchanged.
+
+- **The `convention` is an on-mesh layout, not ECCAD.** What the MVP actually reads
+  is data **already on the model mesh** — MPAS-mesh-flat `(Time, nCells)` arrays
+  produced by an offline remap (UPTEMPO). The `convention_` string still defaults to
+  `"eccad"` in code, but that label is a misnomer for this layout: the real files are
+  `bc_anth_<sector>` / `xtime`, not ECCAD-conforming lat/lon. Renaming it to name the
+  on-mesh layout honestly — and likely adding a **second reader** for it, distinct
+  from a future true-ECCAD reader — is tracked in #6 (the MVP's species and files)
+  and #16 (reader support). Read the `convention: eccad` in §6 and the convention
+  check in §7 as *"the on-mesh convention, currently labelled `eccad`."*
+- **ECCAD-proper (lat/lon) belongs to the regridding phase, not the MVP.** Enforcing
+  the ECCAD format only makes sense once lat/lon inventories are remapped to the model
+  mesh. The MVP does not remap — it consumes pre-remapped on-mesh data — so it needs
+  no ECCAD conformance. The Non-goals note at the top ("ECCAD … stays in MIEM
+  unchanged") is superseded accordingly.
+- **`Regridding` stays a `None`-only guard.** `Regridding` / `RegriddingType` remain
+  as shipped: v1 accepts only `None` and rejects `Scrip` at `Build()` — the
+  reject-don't-drop guard already in §6's "not in the MVP" table. MIEM does not remap
+  at runtime; remapping is a separate, offline, model-agnostic preprocessing step. The
+  `Regrid` node in §4's pipeline is a v1 no-op passthrough.
 
 ---
 
