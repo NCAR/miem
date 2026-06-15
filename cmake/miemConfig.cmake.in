@@ -1,5 +1,30 @@
 @PACKAGE_INIT@
 
-include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@_Exports.cmake")
+include(CMakeFindDependencyMacro)
 
-check_required_components("@PROJECT_NAME@")
+# Allow downstream to use our shipped FindnetCDF.cmake fallback.
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
+
+find_dependency(netCDF)
+
+# Reconstruct the `netCDF::netcdf_normalized` INTERFACE target that the
+# installed `miemTargets.cmake` references — same logic as
+# `cmake/dependencies.cmake`.
+if(NOT TARGET netCDF::netcdf_normalized)
+  add_library(netCDF::netcdf_normalized INTERFACE IMPORTED)
+  if(TARGET netCDF::netCDF)
+    target_link_libraries(netCDF::netcdf_normalized INTERFACE netCDF::netCDF)
+  elseif(TARGET netCDF::netcdf)
+    target_link_libraries(netCDF::netcdf_normalized INTERFACE netCDF::netcdf)
+  elseif(TARGET netcdf)
+    target_link_libraries(netCDF::netcdf_normalized INTERFACE netcdf)
+  else()
+    message(FATAL_ERROR
+      "miemConfig: NetCDF was found via find_dependency but no known "
+      "imported target exists (tried netCDF::netCDF, netCDF::netcdf, netcdf).")
+  endif()
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/miemTargets.cmake")
+
+check_required_components(miem)

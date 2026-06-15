@@ -14,8 +14,18 @@ else()
 endif()
 
 target_sources(miem PRIVATE
-  util/error.cpp
+  emissions.cpp
+  emissions_builder.cpp
+  emissions_state.cpp
+  source_offline.cpp
+  source_factory.cpp
+  species_map.cpp
+  temporal_interpolator.cpp
+  flux_converter.cpp
+  eccad_reader.cpp
 )
+
+target_link_libraries(miem PRIVATE netCDF::netcdf_normalized)
 
 target_include_directories(miem
   PUBLIC
@@ -28,6 +38,10 @@ target_compile_features(miem PUBLIC cxx_std_20)
 
 if(MIEM_USE_DOUBLE)
   target_compile_definitions(miem PUBLIC MIEM_USE_DOUBLE)
+endif()
+
+if(MIEM_CHECK_MASS_CONSERVATION)
+  target_compile_definitions(miem PRIVATE MIEM_CHECK_MASS_CONSERVATION)
 endif()
 
 add_library(musica::miem ALIAS miem)

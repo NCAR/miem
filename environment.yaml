@@ -7,6 +7,11 @@ dependencies:
   - make
   - cxx-compiler
   - doxygen
+  # netCDF so the docs `cmake` configure resolves find_package(netCDF) from the
+  # conda env instead of falling back to a from-source FetchContent build of
+  # netcdf-c (which needs HDF5/curl this env doesn't provide and fails the RTD
+  # build at configure time). libnetcdf pulls HDF5 in transitively.
+  - libnetcdf
   - pip
   - pip:
       - -r docs/requirements.txt

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" role="img" aria-label="User guide">
+  <rect x="8" y="8" width="224" height="164" rx="16" fill="#eaf6f0"/>
+  <path d="M64 56 q56 -16 56 8 v56 q-56 -16 -56 8 z" fill="#1f9d6b"/>
+  <path d="M176 56 q-56 -16 -56 8 v56 q56 -16 56 8 z" fill="#2bbd84"/>
+  <line x1="120" y1="64" x2="120" y2="128" stroke="#ffffff" stroke-width="3"/>
+  <text x="120" y="156" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="#176849">User guide</text>
+</svg>

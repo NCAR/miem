@@ -9,6 +9,7 @@ RUN dnf -y update \
         gdb \
         git \
         make \
+        netcdf-devel \
         tree \
     && dnf clean all
 
@@ -18,6 +19,7 @@ RUN cd miem \
     && cmake -S . \
              -B build \
              -D CMAKE_BUILD_TYPE=${BUILD_TYPE} \
+             -D MIEM_ENABLE_TESTS=ON \
     && cd build \
     && make -j 8
 

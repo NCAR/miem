@@ -12,44 +12,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  mingw:
+  # Best-effort and non-blocking (continue-on-error): netCDF on Windows is
+  # supplied via vcpkg (preinstalled on the runner). MICM's Windows jobs are
+  # likewise continue-on-error. Promote to a required check once proven stable.
+  msvc2022:
     runs-on: windows-latest
+    continue-on-error: true
     strategy:
+      fail-fast: false
       matrix:
         build_type: [Release]
         architecture: [x64]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up MinGW
-        uses: egor-tensin/setup-mingw@v2
-        with:
-          platform: ${{ matrix.architecture }}
-          version: 12.2.0
+      - name: Install netCDF (vcpkg)
+        run: vcpkg install netcdf-c:x64-windows
 
       - name: Run CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -G "MinGW Makefiles"
-
-      - name: Build
-        run: cmake --build build --config ${{ matrix.build_type }} --parallel 10
-
-      - name: Run tests
-        run: |
-          cd build
-          ctest -C ${{ matrix.build_type }} --rerun-failed --output-on-failure . --verbose
-
-  msvc2022:
-    runs-on: windows-latest
-    continue-on-error: true
-    strategy:
-      matrix:
-        build_type: [Release]
-        architecture: [Win32, x64]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run CMake
-        run: cmake -S . -B build -D CMAKE_BUILD_TYPE=${{ matrix.build_type }} -A ${{ matrix.architecture }}
+        run: >
+          cmake -S . -B build
+          -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -A ${{ matrix.architecture }}
+          -D MIEM_ENABLE_TESTS=ON
+          -D CMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake"
 
       - name: Build
         run: cmake --build build --config ${{ matrix.build_type }} --parallel 10

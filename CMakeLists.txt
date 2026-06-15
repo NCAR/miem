@@ -29,6 +29,18 @@ option(MIEM_BUILD_DOCS                "Build the documentation"           OFF)
 option(MIEM_USE_DOUBLE                "Use double-precision Real type"    ON)
 option(MIEM_BUILD_SHARED_LIBS         "Build shared libraries"            OFF)
 
+# Mass-conservation runtime check in FluxConverter: default ON in Debug,
+# OFF in Release.
+if(NOT DEFINED MIEM_CHECK_MASS_CONSERVATION)
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(MIEM_CHECK_MASS_CONSERVATION ON CACHE BOOL
+        "Runtime mass-conservation check in FluxConverter (debug default ON)")
+  else()
+    set(MIEM_CHECK_MASS_CONSERVATION OFF CACHE BOOL
+        "Runtime mass-conservation check in FluxConverter (release default OFF)")
+  endif()
+endif()
+
 ################################################################################
 # Dependencies
 #
@@ -38,6 +50,25 @@ option(MIEM_BUILD_SHARED_LIBS         "Build shared libraries"            OFF)
 # online in PR 4 (data layer).
 
 include(dependencies)
+
+################################################################################
+# Code coverage instrumentation
+#
+# Apply the coverage compiler flags BEFORE the library and test targets are
+# defined, so both the compiled library (src/) and the tests are instrumented
+# and emit .gcno files.  (micm calls append_coverage_compiler_flags() the same
+# way, but micm is header-only; MIEM has a compiled library, so the flags must
+# precede add_subdirectory(src).)  The `coverage` make-target itself is defined
+# after the tests, below.
+
+if(MIEM_ENABLE_TESTS AND MIEM_ENABLE_COVERAGE)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    include(CodeCoverage)
+    append_coverage_compiler_flags()
+  else()
+    message(FATAL_ERROR "Coverage is only supported with GCC or Clang")
+  endif()
+endif()
 
 ################################################################################
 # MIEM library (foundation slice)
