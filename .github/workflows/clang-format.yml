@@ -6,19 +6,51 @@ on:
       - main
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
-  cancel-in-progress: true
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  clang-format:
+  format:
+    name: Run Clang-Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Install Clang-Format
+        run: sudo apt-get update && sudo apt-get install -y clang-format && clang-format --version
 
-      - name: Run clang-format
-        uses: jidicula/clang-format-action@v4.13.0
+      - name: Check out code
+        uses: actions/checkout@v4
         with:
-          clang-format-version: '18'
-          check-only: 'true'
-          exclude-regex: 'include/miem/version\.hpp'
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Format code
+        run: |
+          find include -type f \( -name '*.hpp' -o -name '*.h' \) ! -name 'version.hpp' \
+            -exec clang-format -i --style=file --verbose {} +
+          find src -type f \( -name '*.hpp' -o -name '*.h' -o -name '*.cpp' \) \
+            -exec clang-format -i --style=file --verbose {} +
+          find test -type f \( -name '*.hpp' -o -name '*.h' -o -name '*.cpp' \) \
+            -exec clang-format -i --style=file --verbose {} +
+
+      - name: Check for changes
+        id: check-changes
+        run: git diff --exit-code
+        continue-on-error: true
+
+      - name: Commit changes
+        # A failure of the check above means clang-format changed something.
+        if: steps.check-changes.outcome != 'success'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git commit -am "Auto-format code using Clang-Format" || echo "No changes to commit"
+
+      - name: Open a formatting pull request
+        if: steps.check-changes.outcome != 'success'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Auto-format code using Clang-Format"
+          title: "Auto-format code changes"
+          body: "Automated pull request to apply Clang-Format."
+          branch: "main-formatting"

@@ -24,3 +24,11 @@ create_standard_test(
   SOURCES test_source_offline.cpp
   LIBRARIES miem_test_synthetic_nc
 )
+
+create_standard_test(
+  NAME    emissions
+  SOURCES test_emissions.cpp
+  LIBRARIES miem_test_synthetic_nc
+)
+
+create_standard_test(NAME emissions_builder SOURCES test_emissions_builder.cpp)

@@ -14,6 +14,8 @@ else()
 endif()
 
 target_sources(miem PRIVATE
+  emissions.cpp
+  emissions_builder.cpp
   emissions_state.cpp
   source_offline.cpp
   source_factory.cpp
