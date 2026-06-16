@@ -28,6 +28,11 @@ function(create_standard_test)
   target_compile_definitions(test_${TEST_NAME} PRIVATE
     MIEM_TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/test/data")
 
+  # Let tests reach the internal headers in src/ (e.g. the file readers,
+  # whose headers stay off the public install surface) without per-test
+  # wiring.
+  target_include_directories(test_${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src)
+
   if(NOT DEFINED TEST_WORKING_DIRECTORY)
     set(TEST_WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
   endif()
