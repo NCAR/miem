@@ -23,6 +23,8 @@ target_sources(miem PRIVATE
   temporal_interpolator.cpp
   flux_converter.cpp
   eccad_reader.cpp
+  uptempo_reader.cpp
+  reader_factory.cpp
 )
 
 target_link_libraries(miem PRIVATE netCDF::netcdf_normalized)

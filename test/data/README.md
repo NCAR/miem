@@ -7,8 +7,8 @@ they live in plain git (no LFS).
 
 A heavily-reduced but **real** slice of the CAMS-GLOB-ANT v6.2 black-carbon
 emissions for 2012, in the MPAS-regridded ("UPTEMPO output") layout that MIEM's
-`"eccad"`-convention reader consumes — i.e. flux laid out flat on the MPAS mesh
-(`Time`, `nCells`), not the raw ECCAD lat/lon grid.
+`"uptempo"`-convention reader consumes — i.e. flux laid out flat on the MPAS
+mesh (`Time`, `nCells`), not the raw ECCAD lat/lon grid.
 
 | | |
 | --- | --- |
@@ -22,12 +22,14 @@ mesh is not spatially ordered, so striding keeps a worldwide land/ocean mix
 (≈39k of the 49k cell-months carry nonzero emissions) instead of one local
 patch.
 
-### Why it's here before there's a reader
+### How it's used
 
-This file is committed by the `Source`-schema PR, which has no file reader yet —
-it answers a reviewer request to have real data on hand and pre-positions the
-fixture so the ECCAD-reader PR can wire a read test against it without
-re-sourcing data.
+MIEM's `"uptempo"`-convention reader (`UptempoReader`) reads this file directly:
+the `uptempo_reader` unit test checks variable discovery, `xtime` decoding, and
+NaN-masked-cell handling against it, and the `bc_pipeline` integration test runs
+the full pipeline (`bc_anth_sum` → `BC`) through to per-cell surface flux. The
+fixture was first committed ahead of the reader, to answer a reviewer request
+for real data on hand.
 
 ### Regenerating
 

@@ -19,6 +19,21 @@ target_include_directories(test_eccad_reader PRIVATE
   ${PROJECT_SOURCE_DIR}/src
 )
 
+# The UPTEMPO reader test reaches the internal reader (src/ on its include
+# path) and reads both synthetic fixtures and the committed real subset,
+# located via MIEM_TEST_DATA_DIR.
+create_standard_test(
+  NAME    uptempo_reader
+  SOURCES test_uptempo_reader.cpp
+  LIBRARIES miem_test_synthetic_nc
+)
+target_include_directories(test_uptempo_reader PRIVATE
+  ${PROJECT_SOURCE_DIR}/src
+)
+target_compile_definitions(test_uptempo_reader PRIVATE
+  MIEM_TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/test/data"
+)
+
 create_standard_test(
   NAME    source_offline
   SOURCES test_source_offline.cpp

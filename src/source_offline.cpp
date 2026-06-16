@@ -11,7 +11,8 @@
 #include <sstream>
 #include <string>
 
-#include "internal/eccad_reader.hpp"
+#include "internal/emission_file_reader.hpp"
+#include "internal/reader_factory.hpp"
 #include "internal/time_utils.hpp"
 #include <miem/util/error.hpp>
 #include <miem/util/miem_exception.hpp>
@@ -34,14 +35,16 @@ InterpolationMode AsInterpolationMode(TemporalInterpolation t)
 }  // namespace
 
 OfflineEmissionSource::OfflineEmissionSource()
-    : reader_(std::make_unique<ECCADReader>())
+    : reader_(MakeEmissionFileReader("eccad"))
 {
 }
 
 OfflineEmissionSource::OfflineEmissionSource(const Source& config)
     : name_(config.name_),
       config_(config),
-      reader_(std::make_unique<ECCADReader>()),
+      // The convention picks the reader; an unsupported one throws
+      // MiemException (Configuration / UnknownConvention) here.
+      reader_(MakeEmissionFileReader(config.convention_)),
       species_map_(config.species_map_),
       interpolator_(AsInterpolationMode(config.temporal_interpolation_))
 {
@@ -49,8 +52,8 @@ OfflineEmissionSource::OfflineEmissionSource(const Source& config)
 }
 
 // Out-of-line special members so the public header only needs a
-// forward declaration of ECCADReader.  Defined here (where the type is
-// complete) per the standard PIMPL idiom.
+// forward declaration of EmissionFileReader.  Defined here (where the type
+// is complete) per the standard PIMPL idiom.
 OfflineEmissionSource::~OfflineEmissionSource() = default;
 OfflineEmissionSource::OfflineEmissionSource(OfflineEmissionSource&&) noexcept
     = default;
@@ -108,7 +111,7 @@ void OfflineEmissionSource::LoadBrackets(double time_current,
 {
   const std::string file_path = ResolveFilePath(time_current);
 
-  // ECCADReader throws MiemException (IO) on open/IO failures; it
+  // The reader throws MiemException (IO) on open/IO failures; it
   // propagates to the caller (Emissions::Run / the C boundary).
   reader_->Open(file_path);
   inventory_species_ = reader_->QuerySpecies();

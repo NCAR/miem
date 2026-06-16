@@ -120,6 +120,48 @@ find_package(miem CONFIG REQUIRED)
 target_link_libraries(my_app PRIVATE musica::miem)
 ```
 
+### Reading a real on-mesh inventory
+
+The example above is configuration-only.  To read real data, point a source at a NetCDF inventory already remapped onto your model mesh and call `Run()`.  The repository ships a small, real fixture — a black-carbon slice of CAMS-GLOB-ANT remapped to the MPAS mesh by UPTEMPO — at `test/data/CAMS-GLOB-ANT_2012_MPAS_bc_subset.nc`.
+
+```cpp
+#include <miem/miem.hpp>
+
+#include <iostream>
+
+using namespace miem;
+
+int main()
+{
+  Source cams_bc;
+  cams_bc.name_         = "CAMS black carbon";
+  cams_bc.mode_         = SourceMode::Offline;
+  cams_bc.type_         = SourceType::Anthropogenic;
+  cams_bc.file_pattern_ = "test/data/CAMS-GLOB-ANT_2012_MPAS_bc_subset.nc";
+  cams_bc.convention_   = "uptempo";  // MPAS-mesh layout: bc_anth_* + xtime
+
+  // The file carries 11 BC sectors plus a precomputed bc_anth_sum; map the
+  // summed total onto the mechanism's black-carbon species (identity).
+  cams_bc.species_map_.AddMapping("bc_anth_sum", "BC", 1.0);
+
+  Emissions emissions = EmissionsBuilder()
+                            .SetGridDimensions(/*n_cells=*/4097,
+                                               /*n_vert_levels=*/1)
+                            .AddSource(cams_bc)
+                            .Build();
+
+  // 2012-01-01 00:00:00 UTC, the first time step in the file.
+  const auto state =
+      emissions.Run(/*sim_time_sec=*/1325376000.0, /*dt_sec=*/3600.0);
+
+  std::cout << "BC surface flux, cell 0: "
+            << state.surface_flux_(0, "BC") << " kg m-2 s-1\n";
+  return 0;
+}
+```
+
+Run it from the repository root so the relative fixture path resolves.  This is the same path exercised by the `bc_pipeline` integration test.
+
 ## Community and contributions
 
 We welcome contributions and feedback from anyone, everything from updating the content or appearance of the documentation to new and cutting-edge science.
