@@ -5,15 +5,16 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace miem {
+namespace miem
+{
 
 // Real-precision typedef.  Default ON via the MIEM_USE_DOUBLE cmake option.
 #ifdef MIEM_USE_DOUBLE
-using Real = double;
+  using Real = double;
 #else
-using Real = float;
+  using Real = float;
 #endif
 
-using Index = std::size_t;
+  using Index = std::size_t;
 
 }  // namespace miem

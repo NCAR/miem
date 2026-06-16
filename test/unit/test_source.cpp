@@ -22,16 +22,16 @@ using namespace miem;
 TEST(SourceDefaultsTest, BareSourceDefaultsMatchHeader)
 {
   Source src;
-  src.name_         = "defaults_audit";
+  src.name_ = "defaults_audit";
   src.file_pattern_ = "/tmp/dummy.nc";
 
-  EXPECT_EQ(src.mode_,                   SourceMode::Offline);
-  EXPECT_EQ(src.type_,                   SourceType::Anthropogenic);
-  EXPECT_EQ(src.convention_,             "eccad");
+  EXPECT_EQ(src.mode_, SourceMode::Offline);
+  EXPECT_EQ(src.type_, SourceType::Anthropogenic);
+  EXPECT_EQ(src.convention_, "eccad");
   EXPECT_EQ(src.temporal_interpolation_, TemporalInterpolation::Linear);
-  EXPECT_EQ(src.vertical_injection_,     VerticalInjection::Surface);
-  EXPECT_EQ(src.category_,               0);
-  EXPECT_EQ(src.hierarchy_,              1);
+  EXPECT_EQ(src.vertical_injection_, VerticalInjection::Surface);
+  EXPECT_EQ(src.category_, 0);
+  EXPECT_EQ(src.hierarchy_, 1);
   EXPECT_DOUBLE_EQ(static_cast<double>(src.scaling_factor_), 1.0);
   EXPECT_TRUE(src.sector_.empty());
   EXPECT_TRUE(src.species_map_.Mappings().empty());
@@ -51,7 +51,7 @@ TEST(SourceDefaultsTest, BareRegriddingDefaultsMatchHeader)
 TEST(SourceDefaultsTest, SpeciesMapIsMutableInPlace)
 {
   Source src;
-  src.species_map_.AddMapping("NOx", "NO",  0.9);
+  src.species_map_.AddMapping("NOx", "NO", 0.9);
   src.species_map_.AddMapping("NOx", "NO2", 0.1);
 
   EXPECT_EQ(src.species_map_.Mappings().size(), 2u);

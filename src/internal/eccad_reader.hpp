@@ -14,71 +14,88 @@
 // NetCDF dependency is private to the .cpp.
 #pragma once
 
+#include <miem/util/types.hpp>
+
 #include <string>
 #include <vector>
 
-#include <miem/util/types.hpp>
-
-namespace miem {
-
-class ECCADReader
+namespace miem
 {
- public:
-  ECCADReader() = default;
-  ~ECCADReader() { Close(); }
 
-  ECCADReader(const ECCADReader&)             = delete;
-  ECCADReader& operator=(const ECCADReader&)  = delete;
-  ECCADReader(ECCADReader&&) noexcept;
-  ECCADReader& operator=(ECCADReader&&) noexcept;
+  class ECCADReader
+  {
+   public:
+    ECCADReader() = default;
+    ~ECCADReader()
+    {
+      Close();
+    }
 
-  // Open a NetCDF file.  Throws MiemException (IO) on failure (caught at
-  // the Emissions boundary).
-  void Open(const std::string& file_path);
+    ECCADReader(const ECCADReader&) = delete;
+    ECCADReader& operator=(const ECCADReader&) = delete;
+    ECCADReader(ECCADReader&&) noexcept;
+    ECCADReader& operator=(ECCADReader&&) noexcept;
 
-  void Close();
+    // Open a NetCDF file.  Throws MiemException (IO) on failure (caught at
+    // the Emissions boundary).
+    void Open(const std::string& file_path);
 
-  bool IsOpen() const { return ncid_ >= 0; }
+    void Close();
 
-  // Number of time steps in the file.
-  int NumTimeSteps() const { return n_time_steps_; }
+    bool IsOpen() const
+    {
+      return ncid_ >= 0;
+    }
 
-  // Number of grid cells in the file.
-  int NumCells() const { return n_cells_; }
+    // Number of time steps in the file.
+    int NumTimeSteps() const
+    {
+      return n_time_steps_;
+    }
 
-  // Available species names (ECCAD `emi_<species>` variables minus the
-  // prefix).
-  std::vector<std::string> QuerySpecies() const;
+    // Number of grid cells in the file.
+    int NumCells() const
+    {
+      return n_cells_;
+    }
 
-  // Time values, converted to seconds-since-Unix-epoch via the CF
-  // `units` attribute.  Throws MiemException (IO) on missing units /
-  // unsupported calendar.
-  std::vector<double> GetTimeValues() const;
+    // Available species names (ECCAD `emi_<species>` variables minus the
+    // prefix).
+    std::vector<std::string> QuerySpecies() const;
 
-  // Read flux at `time_index` for the requested species into
-  // `flux_out` (resized to species_names.size() * n_cells).  Throws
-  // MiemException (IO) on NetCDF failure.
-  void ReadFlux(int                            time_index,
-                const std::vector<std::string>& species_names,
-                std::vector<Real>&              flux_out,
-                int&                            n_cells_out) const;
+    // Time values, converted to seconds-since-Unix-epoch via the CF
+    // `units` attribute.  Throws MiemException (IO) on missing units /
+    // unsupported calendar.
+    std::vector<double> GetTimeValues() const;
 
-  // ECCAD format version, populated from the `eccad_version` global
-  // attribute (legacy `ses_version` is also accepted for one release
-  // but yields a warning in this header's documentation only — the
-  // attribute name change is intentional and lands in this port).
-  const std::string& EccadVersion() const { return eccad_version_; }
+    // Read flux at `time_index` for the requested species into
+    // `flux_out` (resized to species_names.size() * n_cells).  Throws
+    // MiemException (IO) on NetCDF failure.
+    void ReadFlux(
+        int time_index,
+        const std::vector<std::string>& species_names,
+        std::vector<Real>& flux_out,
+        int& n_cells_out) const;
 
- private:
-  int          ncid_       = -1;
-  std::string  file_path_;
-  std::string  eccad_version_;
-  int          n_time_steps_ = 0;
-  int          n_cells_      = 0;
-  std::vector<std::string> available_species_;
+    // ECCAD format version, populated from the `eccad_version` global
+    // attribute (legacy `ses_version` is also accepted for one release
+    // but yields a warning in this header's documentation only — the
+    // attribute name change is intentional and lands in this port).
+    const std::string& EccadVersion() const
+    {
+      return eccad_version_;
+    }
 
-  void DetectFormat();
-  void DiscoverSpecies();
-};
+   private:
+    int ncid_ = -1;
+    std::string file_path_;
+    std::string eccad_version_;
+    int n_time_steps_ = 0;
+    int n_cells_ = 0;
+    std::vector<std::string> available_species_;
+
+    void DetectFormat();
+    void DiscoverSpecies();
+  };
 
 }  // namespace miem

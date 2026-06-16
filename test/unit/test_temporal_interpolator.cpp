@@ -16,10 +16,11 @@
 
 using namespace miem;
 
-namespace {
+namespace
+{
 
-const std::vector<Real> kLeft  = { Real{ 1.0 } };
-const std::vector<Real> kRight = { Real{ 3.0 } };
+  const std::vector<Real> kLeft = { Real{ 1.0 } };
+  const std::vector<Real> kRight = { Real{ 3.0 } };
 
 }  // namespace
 
@@ -59,10 +60,10 @@ TEST(TemporalInterpolatorTest, LinearClampsOutsideBracket)
   ASSERT_NO_THROW(t.SetBracket(0.0, 100.0, kLeft, kRight));
 
   std::vector<Real> out;
-  t.Interpolate(-50.0, out);   // below left
+  t.Interpolate(-50.0, out);  // below left
   EXPECT_DOUBLE_EQ(static_cast<double>(out[0]), 1.0);
 
-  t.Interpolate(200.0, out);   // beyond right
+  t.Interpolate(200.0, out);  // beyond right
   EXPECT_DOUBLE_EQ(static_cast<double>(out[0]), 3.0);
 }
 
@@ -76,7 +77,7 @@ TEST(TemporalInterpolatorTest, NearestModeLeftBiasAtMidpoint)
 
   std::vector<Real> out;
   t.Interpolate(50.0, out);
-  EXPECT_DOUBLE_EQ(static_cast<double>(out[0]), 1.0);   // left wins ties
+  EXPECT_DOUBLE_EQ(static_cast<double>(out[0]), 1.0);  // left wins ties
 
   t.Interpolate(75.0, out);
   EXPECT_DOUBLE_EQ(static_cast<double>(out[0]), 3.0);
@@ -121,7 +122,7 @@ TEST(TemporalInterpolatorTest, DegenerateBracketReturnsLeft)
 TEST(TemporalInterpolatorTest, SetBracketSizeMismatchThrows)
 {
   TemporalInterpolator t(InterpolationMode::kLinear);
-  std::vector<Real> left  = { Real{ 1 }, Real{ 2 } };
+  std::vector<Real> left = { Real{ 1 }, Real{ 2 } };
   std::vector<Real> right = { Real{ 3 } };
   EXPECT_THROW(
       {
@@ -152,6 +153,6 @@ TEST(TemporalInterpolatorTest, CoversTimeAccessor)
   EXPECT_TRUE(t.CoversTime(20.0));
   EXPECT_FALSE(t.CoversTime(9.999));
   EXPECT_FALSE(t.CoversTime(20.001));
-  EXPECT_DOUBLE_EQ(t.TimeLeft(),  10.0);
+  EXPECT_DOUBLE_EQ(t.TimeLeft(), 10.0);
   EXPECT_DOUBLE_EQ(t.TimeRight(), 20.0);
 }

@@ -11,9 +11,9 @@
 // source is constructed, and OfflineEmissionSource defers all NetCDF I/O to
 // Run(), so an accepted config builds without touching disk.
 
-#include <miem/source_types.hpp>
 #include <miem/emissions.hpp>
 #include <miem/emissions_builder.hpp>
+#include <miem/source_types.hpp>
 #include <miem/species_map.hpp>
 #include <miem/util/error.hpp>
 #include <miem/util/miem_exception.hpp>
@@ -28,7 +28,7 @@ using namespace miem;
 // Assert that `action` throws a miem::MiemException carrying (cat, code).
 // gtest's EXPECT_THROW can't inspect the thrown object, so this helper
 // runs the gtest assertions on the caught exception's category and code.
-template <typename Action, typename Code>
+template<typename Action, typename Code>
 void ExpectMiemThrow(Action&& action, const char* cat, Code code)
 {
   try
@@ -43,26 +43,26 @@ void ExpectMiemThrow(Action&& action, const char* cat, Code code)
   }
 }
 
-namespace {
-
-// A minimal-but-valid source: one offline ECCAD source, no species
-// mappings, default category/hierarchy.  Build() never opens the file.
-Source MakeMinimalSource()
+namespace
 {
-  Source src;
-  src.name_         = "test";
-  src.file_pattern_ = "/tmp/does_not_exist.nc";
-  return src;
-}
 
-// Builder seeded with grid dimensions and a single minimal source.
-EmissionsBuilder MinimalBuilder()
-{
-  EmissionsBuilder builder;
-  builder.SetGridDimensions(/*n_cells=*/4, /*n_vert_levels=*/2)
-         .AddSource(MakeMinimalSource());
-  return builder;
-}
+  // A minimal-but-valid source: one offline ECCAD source, no species
+  // mappings, default category/hierarchy.  Build() never opens the file.
+  Source MakeMinimalSource()
+  {
+    Source src;
+    src.name_ = "test";
+    src.file_pattern_ = "/tmp/does_not_exist.nc";
+    return src;
+  }
+
+  // Builder seeded with grid dimensions and a single minimal source.
+  EmissionsBuilder MinimalBuilder()
+  {
+    EmissionsBuilder builder;
+    builder.SetGridDimensions(/*n_cells=*/4, /*n_vert_levels=*/2).AddSource(MakeMinimalSource());
+    return builder;
+  }
 
 }  // namespace
 
@@ -75,13 +75,10 @@ TEST(EmissionsBuilderValidateTest, RejectsRegriddingScrip)
   regridding.type_ = RegriddingType::Scrip;
 
   EmissionsBuilder builder;
-  builder.SetGridDimensions(4, 2)
-         .SetRegridding(regridding)
-         .AddSource(MakeMinimalSource());
+  builder.SetGridDimensions(4, 2).SetRegridding(regridding).AddSource(MakeMinimalSource());
 
-  ExpectMiemThrow([&] { builder.Build(); },
-                  MIEM_ERROR_CATEGORY_CONFIGURATION,
-                  MIEM_CONFIGURATION_ERROR_CODE_UNSUPPORTED_REGRIDDING);
+  ExpectMiemThrow(
+      [&] { builder.Build(); }, MIEM_ERROR_CATEGORY_CONFIGURATION, MIEM_CONFIGURATION_ERROR_CODE_UNSUPPORTED_REGRIDDING);
 }
 
 // ---------------------------------------------------------------------
@@ -95,9 +92,8 @@ TEST(EmissionsBuilderValidateTest, RejectsUnknownConvention)
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(src);
 
-  ExpectMiemThrow([&] { builder.Build(); },
-                  MIEM_ERROR_CATEGORY_CONFIGURATION,
-                  MIEM_CONFIGURATION_ERROR_CODE_UNKNOWN_CONVENTION);
+  ExpectMiemThrow(
+      [&] { builder.Build(); }, MIEM_ERROR_CATEGORY_CONFIGURATION, MIEM_CONFIGURATION_ERROR_CODE_UNKNOWN_CONVENTION);
 }
 
 TEST(EmissionsBuilderValidateTest, AcceptsCaseInsensitiveEccad)
@@ -122,9 +118,8 @@ TEST(EmissionsBuilderValidateTest, RejectsOnlineMode)
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(src);
 
-  ExpectMiemThrow([&] { builder.Build(); },
-                  MIEM_ERROR_CATEGORY_CONFIGURATION,
-                  MIEM_CONFIGURATION_ERROR_CODE_ONLINE_NOT_SUPPORTED);
+  ExpectMiemThrow(
+      [&] { builder.Build(); }, MIEM_ERROR_CATEGORY_CONFIGURATION, MIEM_CONFIGURATION_ERROR_CODE_ONLINE_NOT_SUPPORTED);
 }
 
 // ---------------------------------------------------------------------
@@ -138,9 +133,10 @@ TEST(EmissionsBuilderValidateTest, RejectsPlumeInjection)
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(src);
 
-  ExpectMiemThrow([&] { builder.Build(); },
-                  MIEM_ERROR_CATEGORY_CONFIGURATION,
-                  MIEM_CONFIGURATION_ERROR_CODE_UNSUPPORTED_VERTICAL_INJECTION);
+  ExpectMiemThrow(
+      [&] { builder.Build(); },
+      MIEM_ERROR_CATEGORY_CONFIGURATION,
+      MIEM_CONFIGURATION_ERROR_CODE_UNSUPPORTED_VERTICAL_INJECTION);
 }
 
 // ---------------------------------------------------------------------
@@ -149,23 +145,20 @@ TEST(EmissionsBuilderValidateTest, RejectsPlumeInjection)
 TEST(EmissionsBuilderValidateTest, RejectsScalingSumOverOne)
 {
   Source src = MakeMinimalSource();
-  src.species_map_.AddMapping("NOx", "NO",  0.9);
+  src.species_map_.AddMapping("NOx", "NO", 0.9);
   src.species_map_.AddMapping("NOx", "NO2", 0.2);  // sum = 1.1
 
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(src);
 
-  ExpectMiemThrow([&] { builder.Build(); },
-                  MIEM_ERROR_CATEGORY_SPECIES,
-                  MIEM_SPECIES_ERROR_CODE_SCALING_EXCEEDS_ONE);
+  ExpectMiemThrow([&] { builder.Build(); }, MIEM_ERROR_CATEGORY_SPECIES, MIEM_SPECIES_ERROR_CODE_SCALING_EXCEEDS_ONE);
 }
 
 // Boundary test: 1.0 + 1e-7 is within tolerance (1e-6) — accepted.
 TEST(EmissionsBuilderValidateTest, BoundaryAcceptsTinyOverhead)
 {
   Source src = MakeMinimalSource();
-  src.species_map_.AddMapping("NOx", "NO",
-      static_cast<Real>(1.0) + static_cast<Real>(1e-7));
+  src.species_map_.AddMapping("NOx", "NO", static_cast<Real>(1.0) + static_cast<Real>(1e-7));
 
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(src);
@@ -177,15 +170,12 @@ TEST(EmissionsBuilderValidateTest, BoundaryAcceptsTinyOverhead)
 TEST(EmissionsBuilderValidateTest, BoundaryRejectsClearOverhead)
 {
   Source src = MakeMinimalSource();
-  src.species_map_.AddMapping("NOx", "NO",
-      static_cast<Real>(1.0) + static_cast<Real>(1e-5));
+  src.species_map_.AddMapping("NOx", "NO", static_cast<Real>(1.0) + static_cast<Real>(1e-5));
 
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(src);
 
-  ExpectMiemThrow([&] { builder.Build(); },
-                  MIEM_ERROR_CATEGORY_SPECIES,
-                  MIEM_SPECIES_ERROR_CODE_SCALING_EXCEEDS_ONE);
+  ExpectMiemThrow([&] { builder.Build(); }, MIEM_ERROR_CATEGORY_SPECIES, MIEM_SPECIES_ERROR_CODE_SCALING_EXCEEDS_ONE);
 }
 
 // ---------------------------------------------------------------------
@@ -201,9 +191,10 @@ TEST(EmissionsBuilderValidateTest, RejectsDuplicateCategoryHierarchy)
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(a).AddSource(b);
 
-  ExpectMiemThrow([&] { builder.Build(); },
-                  MIEM_ERROR_CATEGORY_CONFIGURATION,
-                  MIEM_CONFIGURATION_ERROR_CODE_DUPLICATE_CATEGORY_HIERARCHY);
+  ExpectMiemThrow(
+      [&] { builder.Build(); },
+      MIEM_ERROR_CATEGORY_CONFIGURATION,
+      MIEM_CONFIGURATION_ERROR_CODE_DUPLICATE_CATEGORY_HIERARCHY);
 }
 
 // ---------------------------------------------------------------------
@@ -222,15 +213,14 @@ TEST(EmissionsBuilderValidateTest, AcceptsMinimalConfig)
 TEST(EmissionsBuilderValidateTest, ThrowsOnFirstInvariantOfMultiple)
 {
   Source src = MakeMinimalSource();
-  src.mode_               = SourceMode::Online;
+  src.mode_ = SourceMode::Online;
   src.vertical_injection_ = VerticalInjection::Plume;
 
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(src);
 
-  ExpectMiemThrow([&] { builder.Build(); },
-                  MIEM_ERROR_CATEGORY_CONFIGURATION,
-                  MIEM_CONFIGURATION_ERROR_CODE_ONLINE_NOT_SUPPORTED);
+  ExpectMiemThrow(
+      [&] { builder.Build(); }, MIEM_ERROR_CATEGORY_CONFIGURATION, MIEM_CONFIGURATION_ERROR_CODE_ONLINE_NOT_SUPPORTED);
 }
 
 // When one source in a multi-source build is invalid, the error message
@@ -238,13 +228,13 @@ TEST(EmissionsBuilderValidateTest, ThrowsOnFirstInvariantOfMultiple)
 TEST(EmissionsBuilderValidateTest, ErrorMessageIdentifiesOffendingSource)
 {
   Source good = MakeMinimalSource();
-  good.name_     = "good_one";
+  good.name_ = "good_one";
   good.category_ = 0;
 
   Source bad = MakeMinimalSource();
-  bad.name_      = "bad_one";
-  bad.mode_      = SourceMode::Online;  // fails the mode invariant
-  bad.category_  = 1;
+  bad.name_ = "bad_one";
+  bad.mode_ = SourceMode::Online;  // fails the mode invariant
+  bad.category_ = 1;
 
   EmissionsBuilder builder;
   builder.SetGridDimensions(4, 2).AddSource(good).AddSource(bad);

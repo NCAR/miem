@@ -1,6 +1,7 @@
 #include <miem/version.hpp>
 
 #include <gtest/gtest.h>
+
 #include <iostream>
 
 TEST(Version, FullVersion)
