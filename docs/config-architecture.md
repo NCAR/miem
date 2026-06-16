@@ -1,10 +1,85 @@
 # MIEM Config Architecture — Summary
 
-**Status:** design proposal · not yet implemented
+**Status:** design proposal for the MC/musica YAML pipeline (not yet implemented).
+The MIEM-side API it sketches has since been built differently during the
+scaffolding port — see **Update (2026-06-09)** below.
 **Scope:** where the MIEM config schema and its parser live, how MIEM consumes the
 parsed result, and the boundary between load-time and runtime concerns.
 **Non-goals:** ECCAD (the NetCDF *input file* convention in [`docs/eccad.md`](./eccad.md))
-is unrelated and stays in MIEM unchanged.
+is unrelated and stays in MIEM unchanged. *(Superseded — see the 2026-06-15 update
+below: what the MVP reads is an on-mesh layout currently mislabelled `eccad`.)*
+
+---
+
+## Update (2026-06-15) — MIEM runtime shipped; `convention` naming and regridding clarified
+
+PRs #10–#14 have merged, so the MIEM runtime sketched in the 2026-06-09 update is
+now built (`miem::Source`, `EmissionsBuilder`, `ECCADReader`, `TemporalInterpolator`,
+`FluxConverter`). Three clarifications below supersede the original design record
+where they conflict; the MC/musica YAML-pipeline design itself is unchanged.
+
+- **The `convention` is an on-mesh layout, not ECCAD.** What the MVP actually reads
+  is data **already on the model mesh** — MPAS-mesh-flat `(Time, nCells)` arrays
+  produced by an offline remap (UPTEMPO). The `convention_` string still defaults to
+  `"eccad"` in code, but that label is a misnomer for this layout: the real files are
+  `bc_anth_<sector>` / `xtime`, not ECCAD-conforming lat/lon. Renaming it to name the
+  on-mesh layout honestly — and likely adding a **second reader** for it, distinct
+  from a future true-ECCAD reader — is tracked in #6 (the MVP's species and files)
+  and #16 (reader support). Read the `convention: eccad` in §6 and the convention
+  check in §7 as *"the on-mesh convention, currently labelled `eccad`."*
+- **ECCAD-proper (lat/lon) belongs to the regridding phase, not the MVP.** Enforcing
+  the ECCAD format only makes sense once lat/lon inventories are remapped to the model
+  mesh. The MVP does not remap — it consumes pre-remapped on-mesh data — so it needs
+  no ECCAD conformance. The Non-goals note at the top ("ECCAD … stays in MIEM
+  unchanged") is superseded accordingly.
+- **`Regridding` stays a `None`-only guard.** `Regridding` / `RegriddingType` remain
+  as shipped: v1 accepts only `None` and rejects `Scrip` at `Build()` — the
+  reject-don't-drop guard already in §6's "not in the MVP" table. MIEM does not remap
+  at runtime; remapping is a separate, offline, model-agnostic preprocessing step. The
+  `Regrid` node in §4's pipeline is a v1 no-op passthrough.
+
+---
+
+## Update (2026-06-09) — current MIEM-side API
+
+This document predates the scaffolding port. The **MC and musica design below —
+the three-repo split, `kind:` dispatch, the yaml-cpp discipline, and the
+load-time vs runtime boundary — still stands.** But the MIEM-side specifics it
+sketches have changed; read the MIEM-side type and function names through these
+substitutions:
+
+- **No aggregate config type.** There is no `miem::MIEMConfig` / `miem::EmissionsConfig`.
+  Mirroring micm (which has no `Config` type), MIEM exposes the per-source
+  description `miem::Source` (the `micm::Process` analog) and a fluent
+  **`miem::EmissionsBuilder`**:
+
+  ```cpp
+  miem::Emissions emissions = miem::EmissionsBuilder()
+                                  .SetGridDimensions(n_cells, n_vert_levels)
+                                  .AddSource(src)        // src is a miem::Source
+                                  .Build();
+  ```
+
+  `Build()` returns an `Emissions` by value and **performs all validation**
+  (regridding / convention / mode / vertical injection, species-map scaling,
+  duplicate `(category, hierarchy)`), throwing on the first failure — exactly as
+  micm folds validation into its `CpuSolverBuilder::Build()`. There is no public
+  `Validate()` and no `Emissions::Create()`.
+- **Description types live in `include/miem/source_types.hpp`** (formerly
+  `config.hpp`; there is no `config.cpp`): the `Source` struct, the source enums,
+  and `Regridding` (now a builder setting, not an aggregate field).
+- **Runtime class is `miem::Emissions`** (not `EmissionsModule`), and it is
+  move-only, constructed only by `EmissionsBuilder`. The NetCDF reader is
+  **`ECCADReader`** (not `SESReader`), kept in `src/internal/`.
+- **No C API in MIEM.** MIEM is C++-only; the `extern "C"` / Fortran wrapper
+  layer lives in `NCAR/musica` (per the PR #9 review). So musica's translator
+  produces a `std::vector<miem::Source>` and drives `EmissionsBuilder` directly —
+  there is no `CreateMIEM(const char*)` or struct-taking C entry point in MIEM.
+- **Errors are exceptions.** MIEM throws `miem::MiemException(category, code,
+  msg)` (modeled on `micm::MicmException`); the `Result<T>` / `MIEMError`
+  scaffolding was removed. `musica::HandleErrors()` catches it at the C boundary.
+
+The sections below are kept as the original design record.
 
 ---
 
@@ -103,28 +178,28 @@ before version dispatch runs.
 | Repo | Owns |
 | --- | --- |
 | `NCAR/MechanismConfiguration` (existing, extended) | Chemistry schema (unchanged) AND new emissions schema under `mechanism_configuration::emissions::v1`. `UniversalParser` extended to dispatch on `kind:`. Shared primitives (`ParserResult`, `ConfigParseStatus`, `Version`, `validate_schema`). All load-time invariants for both schemas. Yaml-cpp lives *only* here. |
-| `NCAR/musica` (existing) | The translator. Consumes `mechanism_configuration::emissions::v1::types::EmissionsConfig`, resolves named references (`inventory: "cams global anthro"` → concrete `{directory, file_pattern, convention}`), produces `miem::MIEMConfig`. Calls MIEM's struct-based entry point. |
-| `NCAR/MIEM` | Pure-data struct definitions (`MIEMConfig`, `SourceConfig`, `SpeciesMap`, `DatasetDescriptor`); runtime computation (`EmissionsModule`, `SESReader`, `TemporalInterpolator`, `FluxConverter`); the C/Fortran API. No yaml-cpp. No dependency on MechanismConfiguration. |
+| `NCAR/musica` (existing) | The translator **and** the C/Fortran wrapper layer. Consumes `mechanism_configuration::emissions::v1::types::EmissionsConfig`, resolves named references (`inventory: "cams global anthro"` → concrete `{directory, file_pattern, convention}`), produces a `std::vector<miem::Source>`, and drives `miem::EmissionsBuilder` to build the runtime module. |
+| `NCAR/MIEM` | Pure-data description types (`Source`, `SpeciesMap`, `Regridding`); the `EmissionsBuilder` that validates and assembles them; runtime computation (`Emissions`, `SourceFactory`, `OfflineEmissionSource`, `ECCADReader`, `TemporalInterpolator`, `FluxConverter`). C++-only — no C/Fortran API (that lives in musica), no yaml-cpp, no dependency on MechanismConfiguration. |
 
 **What stays in MIEM, unchanged:**
 
 | Component | Why it stays |
 | --- | --- |
-| `EmisState`, `EmissionsModule`, `SourceFactory`, `OfflineEmissionSource` | Runtime computation, no YAML |
-| `SESReader` (and its future ECCAD rename) | NetCDF I/O; consumes a pre-parsed `DatasetDescriptor` struct |
+| `EmissionsState`, `Emissions`, `SourceFactory`, `OfflineEmissionSource` | Runtime computation, no YAML |
+| `ECCADReader` | NetCDF I/O; kept in `src/internal/` (its throwing surface stays off the public install set) |
 | `docs/eccad.md` | NetCDF input-file convention, not YAML schema |
 | `TemporalInterpolator`, `FluxConverter` | Runtime, no YAML |
-| `MIEMConfig`, `SourceConfig`, `SpeciesMap`, `DatasetDescriptor` struct **definitions** | MIEM owns its input types (MICM-precedent pattern); see §3 |
+| `Source`, `SpeciesMap`, `Regridding` description types + `EmissionsBuilder` | MIEM owns its input types and assembles them via a builder (MICM-precedent pattern); see §3 |
 
 **What is removed from MIEM:**
 
 | Symbol | Source of truth today | After split |
 | --- | --- | --- |
-| `MIEMConfig::FromYAML` ([src/config.cpp:9](../src/config.cpp)) | MIEM | Removed. Equivalent logic: MechanismConfiguration's emissions parser parses; musica resolves. |
+| `MIEMConfig::FromYAML` (the former `src/config.cpp`) | MIEM | Removed; `src/config.cpp` no longer exists. The description types now live in `include/miem/source_types.hpp`. Equivalent parse logic: MechanismConfiguration's emissions parser parses; musica resolves. |
 | `SpeciesMap(yaml_path)` ctor ([src/species_map.cpp:13](../src/species_map.cpp)) | MIEM | Removed. |
 | `DatasetDescriptor::FromYAML` ([src/dataset_descriptor.cpp:13](../src/dataset_descriptor.cpp)) | MIEM | Removed. |
 | `yaml-cpp::yaml-cpp` link ([src/CMakeLists.txt:37](../src/CMakeLists.txt)) | MIEM | Removed. MIEM has no yaml-cpp at any level. |
-| Path-taking C API entry points (`CreateMIEM(const char* config_path, …)`) | MIEM | Replaced by struct-taking entry points (`CreateMIEM(const miem::MIEMConfig&, …)`). Breaking change for direct callers; musica is the intended caller. |
+| The entire C API (`CreateMIEM`, opaque `miem_*_t` handles, Fortran ISO-C binding) | MIEM | Removed from MIEM altogether (PR #9 review): MIEM is C++-only and the C/Fortran wrapper layer lives in `NCAR/musica`. musica builds the module from C++ via `miem::EmissionsBuilder`; there is no path-taking *or* struct-taking C entry point in MIEM. |
 
 ## 3. Struct ownership — two types, one translator
 
@@ -152,50 +227,56 @@ struct EmissionsConfig : public ::mechanism_configuration::Mechanism {
 }
 ```
 
-**MIEM's root struct** (flat form, inlined — MIEM-owned, lives in
-`include/miem/config.hpp`):
+**MIEM's flat form** (MIEM-owned, lives in `include/miem/source_types.hpp`).
+There is **no aggregate struct** — mirroring micm, MIEM consumes a *collection*
+of per-source `Source` descriptions, assembled through `EmissionsBuilder`.
+Regridding is a builder setting, not an aggregate field:
 
 ```cpp
 namespace miem {
-struct MIEMConfig {
-  std::string version;
-  Regridding regridding;                               // MIEM-owned enum + optional weights path
-  std::vector<SourceConfig> sources;                   // sources hold RESOLVED paths
+struct Source {                  // the micm::Process analog; one per inventory
+  std::string name_;
+  std::string file_pattern_;                           // RESOLVED path (musica inlined it)
+  std::string convention_ = "eccad";
+  SpeciesMap  species_map_;                            // already exists; stays put
+  SourceMode  mode_ = SourceMode::Offline;
+  int         category_ = 0, hierarchy_ = 1;
+  Real        scaling_factor_ = 1.0;
+  std::string sector_;
+  // temporal_interpolation_, vertical_injection_ …
 };
-}  // SourceConfig / SpeciesMap / DatasetDescriptor already exist and stay put
+}
 ```
-
-Note that MIEM's form is almost exactly what's there today — the migration
-is mostly about removing the `FromYAML` methods, not reshaping the structs.
 
 **Musica's translator** (new code, in musica, not in MIEM):
 
 ```cpp
 // In musica/src/emissions/translate.cpp
-miem::MIEMConfig musica::emissions::Translate(
+std::vector<miem::Source> musica::emissions::Translate(
     const mechanism_configuration::emissions::v1::types::EmissionsConfig& in)
 {
-  miem::MIEMConfig out;
-  out.version = Format(in.version);
-  out.regridding = TranslateRegridding(in.regridding);
+  std::vector<miem::Source> out;
   for (const auto& src : in.sources) {
     const auto& inv = in.inventories.at(src.inventory);       // resolve
     const auto& smap = in.species_maps.at(src.species_map);
-    out.sources.push_back(miem::SourceConfig{
-      .name           = src.name,
-      .file_pattern   = inv.directory + "/" + inv.file_pattern,
-      .species_map    = TranslateSpeciesMap(smap),
-      .descriptor     = ResolveDescriptor(in.descriptors, inv),
-      .category       = src.category,
-      .hierarchy      = src.hierarchy,
-      .sector         = src.sector,
-      .scaling_factor = src.scaling_factor,
-      // …
-    });
+    miem::Source s;
+    s.name_           = src.name;
+    s.file_pattern_   = inv.directory + "/" + inv.file_pattern;
+    s.convention_     = inv.convention;
+    s.species_map_    = TranslateSpeciesMap(smap);
+    s.category_       = src.category;
+    s.hierarchy_      = src.hierarchy;
+    s.sector_         = src.sector;
+    s.scaling_factor_ = src.scaling_factor;
+    // …
+    out.push_back(std::move(s));
   }
   return out;
 }
 ```
+
+Musica then drives `miem::EmissionsBuilder` with the translated sources (and
+`in.regridding`, via `SetRegridding`) to obtain the runtime `miem::Emissions`.
 
 Musica is the only place that includes *both*
 `<mechanism_configuration/emissions/…>` and `<miem/…>`. MIEM never includes
@@ -244,25 +325,25 @@ about source lines.
 │      │   resolves inventory/species-map/descriptor names            │
 │      │   into concrete paths; flattens for MIEM's shape             │
 │      ▼                                                              │
-│   miem::MIEMConfig                                                  │
+│   std::vector<miem::Source>   (+ in.regridding)                     │
 │      │                                                              │
 │      ▼                                                              │
-│   CreateMIEM(const miem::MIEMConfig& cfg, n_cells, n_vert_levels)   │
+│   EmissionsBuilder().AddSource(src)... .Build()  ──▶  Emissions     │
 └─────────────────────────────────┬───────────────────────────────────┘
-                                  │  MIEM-owned struct, no deps
+                                  │  MIEM-owned C++ types, no deps
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                              MIEM                                   │
 │                                                                     │
-│   EmissionsModule(MIEMConfig, n_cells, n_vert_levels)               │
-│        │       │        │        │        │         │              │
-│        ▼       ▼        ▼        ▼        ▼         ▼              │
-│   SESReader  Source   Temporal  Regrid  SpeciesMap  EmisState       │
-│   (NetCDF)   Factory  Interp.   (SpMV)  (runtime)   (output)        │
+│   Emissions  (move-only; built by EmissionsBuilder)                 │
+│      │                                                              │
+│      ▼                                                              │
+│   ECCADReader · SourceFactory · TemporalInterpolator · Regrid ·     │
+│   SpeciesMap  ──▶  EmissionsState                                   │
 │                                                                     │
-│   Run() ──▶ EmisState { surface_flux, tendency, sector_fluxes }     │
+│   Run() ──▶ EmissionsState { surface_flux, tendency, sector_fluxes }│
 └─────────────────────────────────┬───────────────────────────────────┘
-                                  │  (C / Fortran iso_c_binding)
+                                  │  musica wraps Run for C / Fortran
                                   ▼
                             host model (MPAS, CAM, …)
 ```
@@ -274,15 +355,18 @@ types. MIEM has zero `#include <yaml-cpp/…>` and zero
 
 ## 5. Consumer API
 
-MIEM exposes a struct-based C++ API only. A C wrapper for Fortran exposure lives in MUSICA, not MIEM (see PR #9 review).
+MIEM exposes a builder-based C++ API only. A C wrapper for Fortran exposure lives in MUSICA, not MIEM (see PR #9 review).
 
 ```cpp
-// include/miem/emissions.hpp
+// include/miem/emissions_builder.hpp
 namespace miem {
-class Emissions {
+class EmissionsBuilder {
  public:
-  Emissions(const EmissionsConfig& cfg, int n_cells, int n_vert_levels);
-  // …
+  EmissionsBuilder& SetGridDimensions(int n_cells, int n_vert_levels);
+  EmissionsBuilder& SetRegridding(const Regridding&);
+  EmissionsBuilder& AddSource(const Source&);
+  EmissionsBuilder& SetSources(std::vector<Source>);
+  Emissions Build() const;   // validates + builds; throws miem::MiemException
 };
 }
 ```
@@ -296,12 +380,12 @@ Musica is the only caller that sees both types:
 ```cpp
 // In musica/src/emissions/create_miem_from_yaml.cpp
 #include <mechanism_configuration/emissions/v1/parser.hpp>        // rich form
-#include <miem/emissions_module.hpp>                    // flat form
+#include <miem/miem.hpp>                                 // flat form + builder
 #include "translate.hpp"                                // the translator
 
 musica::Result musica::emissions::CreateMIEMFromYAML(
     const std::string& config_path, int n_cells, int n_vert_levels,
-    std::unique_ptr<miem::EmissionsModule>& module_out)
+    std::unique_ptr<miem::Emissions>& module_out)
 {
   mechanism_configuration::emissions::v1::Parser parser;
   auto parsed = parser.Parse(config_path);
@@ -311,9 +395,17 @@ musica::Result musica::emissions::CreateMIEMFromYAML(
     }
     return musica::Result::kConfigLoadFailed;
   }
-  miem::MIEMConfig miem_cfg = musica::emissions::Translate(*parsed);
-  module_out = std::make_unique<miem::EmissionsModule>(
-      miem_cfg, n_cells, n_vert_levels);
+  std::vector<miem::Source> sources = musica::emissions::Translate(*parsed);
+  try {
+    module_out = std::make_unique<miem::Emissions>(
+        miem::EmissionsBuilder()
+            .SetGridDimensions(n_cells, n_vert_levels)
+            .SetSources(std::move(sources))
+            .Build());                       // throws miem::MiemException
+  } catch (const miem::MiemException& e) {
+    musica::ErrorBuffer::Push(e.Code(), e.what());        // category/code preserved
+    return musica::Result::kConfigLoadFailed;
+  }
   return musica::Result::kOk;
 }
 ```
@@ -492,7 +584,7 @@ sources:
 | `regridding.type: scrip` (and `weights file`) | Parser accepts only `type: none`; `type: scrip` is `UnsupportedRegriddingType` error |
 | `mode: online` on a source | `OnlineSourcesNotSupported` error |
 | `vertical injection: plume` | `UnsupportedVerticalInjection` error — no silent downgrade |
-| `sector` diagnostic output | Parsed, stored on `EmisState::sector_fluxes`, but no diagnostic reader tool yet (consumed by any host that asks) |
+| `sector` diagnostic output | Parsed, stored on `EmissionsState::sector_fluxes_`, but no diagnostic reader tool yet (consumed by any host that asks) |
 | Sector-templated `file pattern` (`{sector}`) | Parsed and substituted at read time; `finn fires` example omits it; `ceds legacy` uses it |
 
 **Policy:** every aspirational construct is a hard load-time error until its
@@ -526,7 +618,7 @@ validation at load; filesystem and numerical checks at runtime.
 | `mode` is one of the known strings; v1 accepts only `offline` | Config repo — `OnlineSourcesNotSupported` load-time error |
 | `inventories.*.directory` resolves to an existing directory | MIEM runtime (filesystem) |
 | `regridding.weights file` exists (when v1.1 lands `type: scrip`) | MIEM runtime |
-| NetCDF file matches ECCAD convention, species variables present | MIEM runtime (`SESReader::Open`) |
+| NetCDF file matches ECCAD convention, species variables present | MIEM runtime (`ECCADReader::Open`) |
 | Per-cell numerical sanity (NaN, negative flux) | MIEM runtime |
 
 ## 8. Versioning
@@ -571,8 +663,11 @@ UnsupportedRegriddingType /* v1 accepts only `none` */,
 UnsupportedVerticalInjection /* v1 accepts only `surface` */
 ```
 
-MIEM-side errors (runtime I/O, numerical) keep MIEM's existing `miem::Result`
-enum and `MIEMError*` C struct — unchanged.
+MIEM-side errors (runtime I/O, numerical) are raised as
+`miem::MiemException(category, code, msg)` (modeled on `micm::MicmException`);
+`musica::HandleErrors()` catches it at the C boundary and maps it to a MUSICA
+`Error` struct. The earlier `miem::Result` / `MIEMError` scaffolding was
+removed during the port.
 
 ## 10. Testing strategy
 
@@ -596,14 +691,15 @@ Whether to maintain JSON twins is deferred until someone asks for it. MIEM's
 integration tests don't exist on the MIEM side anymore; dropping dual-format
 discipline keeps fixture maintenance from doubling.
 
-**MIEM repo** keeps only one kind of test: programmatic. Construct
-`MIEMConfig` / `SourceConfig` / `SpeciesMap` directly in C++ (no YAML, no
-MechanismConfiguration types), exercise downstream logic. This is the "good"
-pattern already present in `test/unit/test_emis_state.cpp`,
-`Apply1To1Mapping`, `AddMappingProgrammatic`. Expand it. The YAML-fixture
-tests currently in `test_config.cpp` and `test_species_map.cpp::LoadFromYAML`
-are retired — their role is covered by MC (parse correctness) and musica
-(end-to-end integration).
+**MIEM repo** keeps only one kind of test: programmatic. Construct `Source`
+descriptions directly in C++ and assemble them with `EmissionsBuilder` (no
+YAML, no MechanismConfiguration types), then exercise downstream logic. This
+is the pattern in `test/unit/test_source.cpp` (description defaults),
+`test/unit/test_emissions_builder.cpp` (builder validation),
+`test/unit/test_emissions.cpp` (HEMCO aggregation), and the end-to-end
+`test/integration/test_nox_pipeline.cpp`. There are no YAML-fixture tests on
+the MIEM side — parse correctness is MC's job and full YAML-to-flux
+integration is musica's.
 
 **musica repo** owns the full-flow integration tests: parse a valid YAML via
 `mechanism_configuration::emissions::v1::Parser`, translate, invoke MIEM,
@@ -633,6 +729,13 @@ definition. MIEM does not consume this variable — it has no fixtures.
 
 ## 11. Open design questions (decisions needed before implementation)
 
+> **Status.** The MC/musica pipeline described here is still unbuilt design.
+> The MIEM side, however, has shipped: MIEM exposes `miem::Source` +
+> `EmissionsBuilder` (see **Update (2026-06-09)** at the top) — no aggregate
+> `MIEMConfig`, and no path-taking or C entry point (the C boundary lives in
+> musica). The MIEM-side specifics below have been updated to that shipped API,
+> and §12 reflects that MIEM's part is done — only the MC + musica work remains.
+
 1. **Sibling repo vs module inside MechanismConfiguration?** *Decided:* the
    schema lives *inside* MC under `mechanism_configuration::emissions::v1`.
    This deliberately accepts a mildly misleading repo name and coupled
@@ -645,10 +748,10 @@ definition. MIEM does not consume this variable — it has no fixtures.
 
 2. **Integration layer: musica, not MIEM.** *Decided.* Following MICM's
    precedent exactly — MIEM takes no dependency on MechanismConfiguration.
-   Musica FetchContent's both, owns the `Translate()` function, and invokes
-   MIEM via its struct-based C API. Consequences:
-   - MIEM's standalone testing loses a YAML-to-flux round-trip capability. MIEM integration tests construct `MIEMConfig` directly in C++; musica tests cover the full YAML → `MIEMConfig` → `EmisState` path.
-   - Any non-musica caller of MIEM (MPAS direct integration, ad-hoc tooling) also constructs `MIEMConfig` programmatically. The YAML-path convenience is musica-exclusive.
+   Musica FetchContent's both, owns the `Translate()` function, and drives
+   `miem::EmissionsBuilder` directly (no MIEM-side C API). Consequences:
+   - MIEM has no standalone YAML-to-flux round-trip: MIEM integration tests build `miem::Source`s and drive `EmissionsBuilder` directly in C++, while musica tests cover the full YAML → `std::vector<miem::Source>` → flux path.
+   - Any non-musica caller of MIEM (MPAS direct integration, ad-hoc tooling) builds `miem::Source`s and calls `EmissionsBuilder` programmatically. The YAML-path convenience is musica-exclusive.
    - Three repos coordinate on schema changes (see §13).
 
 3. **yaml-cpp leak — concrete discipline for the new emissions module in MC.**
@@ -684,16 +787,13 @@ definition. MIEM does not consume this variable — it has no fixtures.
    real user asks for one. Do not re-link yaml-cpp into MIEM under any
    circumstance.
 
-## 12. Migration sequence
+## 12. Build sequence — remaining MC + musica work
 
-Staged in five steps across three repos. Each step leaves all three repos
-buildable. Tests migrate alongside the code they verify.
-
-There is no signature-stability contract for MIEM's old path-based API —
-this migration breaks it deliberately. MIEM's direct callers (today: a
-small set of tests, possibly in-tree tooling) move to the struct-based API
-in Step 3. External hosts that loaded MIEM with a YAML path switch to
-calling the musica entry point from Step 4 onward.
+MIEM's side is **already shipped**: it exposes `miem::Source` +
+`EmissionsBuilder` (see the Update at top), links no yaml-cpp, and has no
+path-taking or C entry point — the C boundary lives in musica. So the original
+five-step migration reduces to the MC and musica work that remains. Each step
+leaves all repos buildable; tests live with the code they verify.
 
 1. **MC hygiene PR.** Open a PR on MechanismConfiguration demoting
    `yaml-cpp::yaml-cpp` to `PRIVATE` and moving leaking headers
@@ -712,27 +812,16 @@ calling the musica entry point from Step 4 onward.
    - CMake `install(DIRECTORY examples/emissions/v1 …)` and the `MechanismConfiguration_EMISSIONS_EXAMPLES_DIR` variable (see §10)
    - Ship a new MC tag (e.g., `v1.2.0`) that bundles this with the Step 1 hygiene change.
 
-3. **Add the struct-based entry point to MIEM (non-breaking addition).**
-   - Add `EmissionsModule(const MIEMConfig&, int n_cells, int n_vert_levels)` alongside the existing path-taking constructor.
-   - Add `CreateMIEM(const miem_config_t*, …)` C API alongside the existing `CreateMIEM(const char* config_path, …)`.
-   - Migrate MIEM's internal unit tests that can (e.g., `test_emis_state.cpp`) to construct `MIEMConfig` directly, confirming the new path works.
-   - The YAML-path path still exists and still uses yaml-cpp. Nothing in MIEM is deleted yet. MIEM still links yaml-cpp.
-
-4. **Wire musica to MC-emissions and MIEM's new API.**
+3. **Wire musica to MC-emissions and MIEM's builder.**
    - Bump musica's MechanismConfiguration pin in `cmake/dependencies.cmake` to the new MC tag from Step 2.
-   - Add `musica::emissions::Translate(const mechanism_configuration::emissions::v1::types::EmissionsConfig&) -> miem::MIEMConfig` under `musica/src/emissions/`.
-   - Add `musica::emissions::CreateMIEMFromYAML(path, …)` that calls `emissions::v1::Parser::Parse` → `Translate` → MIEM's struct-based constructor.
-   - Move MIEM's YAML → flux integration tests to musica (their natural home now).
-   - Tag musica release that pins both MIEM (a known good tag) and MC at the new emissions-aware version.
+   - Add `musica::emissions::Translate(const mechanism_configuration::emissions::v1::types::EmissionsConfig&) -> std::vector<miem::Source>` under `musica/src/emissions/`, resolving named inventory / species-map references to concrete values.
+   - Add `musica::emissions::CreateEmissionsFromYAML(path, …)` that calls `emissions::v1::Parser::Parse` → `Translate` → `miem::EmissionsBuilder`.
+   - Host the YAML → flux integration tests in musica (their natural home).
+   - Tag a musica release pinning both a known-good MIEM tag and the new emissions-aware MC tag.
 
-5. **Delete MIEM's yaml-cpp surface.**
-   - Remove `find_package(yaml-cpp)` from MIEM's root `CMakeLists.txt`.
-   - Remove `yaml-cpp::yaml-cpp` from [`src/CMakeLists.txt:37`](../src/CMakeLists.txt).
-   - Delete `#include <yaml-cpp/yaml.h>` from `config.cpp`, `species_map.cpp`, `dataset_descriptor.cpp`.
-   - Delete the old path-taking `MIEMConfig::FromYAML`, `SpeciesMap(const std::string&)`, `DatasetDescriptor::FromYAML` declarations from the public headers.
-   - Delete MIEM's YAML-fixture-driven tests. Keep the programmatic-construction tests.
-   - Verify no transitive yaml-cpp link via `ldd` / `otool -L` on a `libmiem` consumer.
-   - Update [`CLAUDE.md`](../CLAUDE.md) and `README.md` to point users at musica for YAML-driven setup.
+The original plan's MIEM-side steps are obsolete: MIEM shipped the builder API
+directly (no struct/path or C API to add) and never carried a yaml-cpp surface
+to delete.
 
 ## 13. Contributor workflow across three repos
 
@@ -741,8 +830,8 @@ six-step dance:
 
 1. **MechanismConfiguration (emissions subtree)**: add the field to `emissions::v1::types::SourceDescriptor`, extend the parser, add a fixture test. Open PR.
 2. Merge; tag a new MC release (e.g., `v1.3.0`).
-3. **musica**: bump the MechanismConfiguration pin to `v1.3.0`. Update `musica::emissions::Translate` to read the new field and write it through to `miem::SourceConfig`. Open PR.
-4. **MIEM**: add the corresponding field to `miem::SourceConfig` (if it isn't already there), wire it into runtime use (e.g., plume-rise calculation). Open PR.
+3. **musica**: bump the MechanismConfiguration pin to `v1.3.0`. Update `musica::emissions::Translate` to read the new field and write it through to `miem::Source`. Open PR.
+4. **MIEM**: add the corresponding field to `miem::Source` (if it isn't already there), wire it into runtime use (e.g., plume-rise calculation). Open PR.
 5. Merge MIEM and musica PRs. Tag both as needed.
 6. Hosts that use musica to load MIEM get the new capability by bumping their musica pin.
 
@@ -785,7 +874,7 @@ today, extended to cover MIEM.
   "a valid YAML produces correct flux" within its own CI — musica owns that
   test now. The trade is acceptable because the test surface doesn't
   disappear, it just moves one repo up. MIEM's own tests exercise "a valid
-  `MIEMConfig` struct produces correct flux", which is what the physics
+  set of `miem::Source`s produces correct flux", which is what the physics
   cares about.
 
 ## 14. Reference: relevant upstream files
