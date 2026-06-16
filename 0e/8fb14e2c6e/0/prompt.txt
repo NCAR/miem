@@ -1,0 +1,385 @@
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+you can rerequest the review for 15
+<system-reminder>Message sent at Tue 2026-06-16 02:51:52 UTC.</system-reminder>
+
+---
+
+lift the merge hold
+<system-reminder>Message sent at Tue 2026-06-16 02:59:20 UTC.</system-reminder>
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+<task-notification>
+<task-id>bb96xxb5y</task-id>
+<summary>Monitor event: "New K20shores activity on the active NCAR/miem PR (#14→#15)"</summary>
+<event>PR#15 K20shores review APPROVED @ 2026-06-16T13:10:34Z</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+[Durable cron — MIEM PR shepherd, AUTONOMOUS cross-session poll]
+
+Determine the ACTIVE PR = the lowest-numbered OPEN PR in the stack (#13, then #14, then #15): `gh pr list --repo NCAR/miem --state open --json number,headRefName`. Then `gh pr view <active> --repo NCAR/miem --json number,state,reviewDecision,reviews,comments`.
+
+Decide and act:
+1. No new K20shores activity since last check (still CHANGES_REQUESTED / no new comment) → END QUIETLY, no notification.
+2. New comments / change-requests → address non-destructively, reply in-thread/summary, PushNotification the user. If unsure about ANYTHING, ask (don't act).
+3. reviewDecision APPROVED by K20shores AND GitHub CI green (`gh pr checks <active> --repo NCAR/miem`) → AUTO-MERGE (merge commit, NO ask). Then the next PR auto-retargets to main; do the post-merge pass on it: reconcile via a NO-FORCE merge of origin/main into the branch (does NOT touch main; normal push) + cumulative convention sweep (angle-brackets, 2026 copyright, no #ifdef→if constexpr/overloads/C++20, human comments, gtest-native no custom macros, std::string>vector<char>, no bool-in-headers, reject-don't-drop) + get CI green → surface to the user WHAT CHANGED → push (normal commit push; force-push pre-approved ONLY if a true history rewrite is genuinely necessary, only once at cycle start) → AUTO-assign K20shores → continue.
+4. APPROVED but CI red/pending → PushNotification the user, do NOT merge.
+
+NEVER delete a branch/PR without asking. Worktrees live under .claude/worktrees/ (cascade-13=port/04-data-layer, cascade-14=port/05-runtime-integration, cascade-15=docs/config-architecture-refresh); recreate if missing. If no persistent Monitor is running this session, re-establish one on the active PR. Full policy + history in memory: [[autonomous-merge-cycle]], [[feedback-pre-review-sweep]], [[pr-iteration-workflow]], [[feedback_human_comments]], [[k20shores-ecosystem-parity]], [[project_session_handoff]].
+
+---
+
+run that reconciliation
+<system-reminder>Message sent at Tue 2026-06-16 14:36:42 UTC.</system-reminder>
