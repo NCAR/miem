@@ -32,18 +32,18 @@
 
 using namespace miem;
 
-namespace {
-
-// The real fixture committed at test/data/, located via the
-// MIEM_TEST_DATA_DIR compile definition set by CMake.
-std::string RealFixturePath()
+namespace
 {
-  return std::string(MIEM_TEST_DATA_DIR) +
-         "/CAMS-GLOB-ANT_2012_MPAS_bc_subset.nc";
-}
 
-constexpr int    kNCells          = 4097;        // cells in the subset
-constexpr double kEpoch20120101   = 1325376000.0;  // first xtime, UTC seconds
+  // The real fixture committed at test/data/, located via the
+  // MIEM_TEST_DATA_DIR compile definition set by CMake.
+  std::string RealFixturePath()
+  {
+    return std::string(MIEM_TEST_DATA_DIR) + "/CAMS-GLOB-ANT_2012_MPAS_bc_subset.nc";
+  }
+
+  constexpr int kNCells = 4097;                    // cells in the subset
+  constexpr double kEpoch20120101 = 1325376000.0;  // first xtime, UTC seconds
 
 }  // namespace
 
@@ -53,23 +53,20 @@ constexpr double kEpoch20120101   = 1325376000.0;  // first xtime, UTC seconds
 TEST(BcPipelineIntegrationTest, BlackCarbonSurfaceFluxFromRealSubset)
 {
   Source cams_bc;
-  cams_bc.name_                   = "CAMS black carbon";
-  cams_bc.mode_                   = SourceMode::Offline;
-  cams_bc.type_                   = SourceType::Anthropogenic;
-  cams_bc.file_pattern_           = RealFixturePath();
-  cams_bc.convention_             = "uptempo";
+  cams_bc.name_ = "CAMS black carbon";
+  cams_bc.mode_ = SourceMode::Offline;
+  cams_bc.type_ = SourceType::Anthropogenic;
+  cams_bc.file_pattern_ = RealFixturePath();
+  cams_bc.convention_ = "uptempo";
   cams_bc.temporal_interpolation_ = TemporalInterpolation::Linear;
-  cams_bc.vertical_injection_     = VerticalInjection::Surface;
-  cams_bc.sector_                 = "anthropogenic";
+  cams_bc.vertical_injection_ = VerticalInjection::Surface;
+  cams_bc.sector_ = "anthropogenic";
 
   // The file carries 11 BC sectors plus the precomputed bc_anth_sum; map
   // the summed total onto the mechanism's black-carbon species (identity).
   cams_bc.species_map_.AddMapping("bc_anth_sum", "BC", 1.0);
 
-  Emissions module = EmissionsBuilder()
-                         .SetGridDimensions(kNCells, /*n_vert_levels=*/1)
-                         .AddSource(cams_bc)
-                         .Build();
+  Emissions module = EmissionsBuilder().SetGridDimensions(kNCells, /*n_vert_levels=*/1).AddSource(cams_bc).Build();
 
   ASSERT_EQ(module.NumSpecies(), 1);
   const auto& names = module.SpeciesNames();

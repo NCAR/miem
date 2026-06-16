@@ -24,50 +24,65 @@
 // so it stays off MIEM's public install surface.
 #pragma once
 
+#include "emission_file_reader.hpp"
+
+#include <miem/util/types.hpp>
+
 #include <string>
 #include <vector>
 
-#include "emission_file_reader.hpp"
-#include <miem/util/types.hpp>
-
-namespace miem {
-
-class UptempoReader : public EmissionFileReader
+namespace miem
 {
- public:
-  UptempoReader() = default;
-  ~UptempoReader() override { Close(); }
 
-  UptempoReader(const UptempoReader&)            = delete;
-  UptempoReader& operator=(const UptempoReader&) = delete;
-  UptempoReader(UptempoReader&&) noexcept;
-  UptempoReader& operator=(UptempoReader&&) noexcept;
+  class UptempoReader : public EmissionFileReader
+  {
+   public:
+    UptempoReader() = default;
+    ~UptempoReader() override
+    {
+      Close();
+    }
 
-  void Open(const std::string& file_path) override;
-  void Close() override;
-  bool IsOpen() const override { return ncid_ >= 0; }
+    UptempoReader(const UptempoReader&) = delete;
+    UptempoReader& operator=(const UptempoReader&) = delete;
+    UptempoReader(UptempoReader&&) noexcept;
+    UptempoReader& operator=(UptempoReader&&) noexcept;
 
-  int NumTimeSteps() const override { return n_time_steps_; }
-  int NumCells() const override { return n_cells_; }
+    void Open(const std::string& file_path) override;
+    void Close() override;
+    bool IsOpen() const override
+    {
+      return ncid_ >= 0;
+    }
 
-  std::vector<std::string> QuerySpecies() const override;
-  std::vector<double>      GetTimeValues() const override;
-  void ReadFlux(int                             time_index,
-                const std::vector<std::string>& species_names,
-                std::vector<Real>&              flux_out,
-                int&                            n_cells_out) const override;
+    int NumTimeSteps() const override
+    {
+      return n_time_steps_;
+    }
+    int NumCells() const override
+    {
+      return n_cells_;
+    }
 
- private:
-  int         ncid_         = -1;
-  std::string file_path_;
-  int         n_time_steps_ = 0;
-  int         n_cells_      = 0;
-  int         time_dim_id_  = -1;  // -1 when the file is a single snapshot
-  int         cell_dim_id_  = -1;
-  std::vector<std::string> available_species_;
+    std::vector<std::string> QuerySpecies() const override;
+    std::vector<double> GetTimeValues() const override;
+    void ReadFlux(
+        int time_index,
+        const std::vector<std::string>& species_names,
+        std::vector<Real>& flux_out,
+        int& n_cells_out) const override;
 
-  void DetectDimensions();
-  void DiscoverSpecies();
-};
+   private:
+    int ncid_ = -1;
+    std::string file_path_;
+    int n_time_steps_ = 0;
+    int n_cells_ = 0;
+    int time_dim_id_ = -1;  // -1 when the file is a single snapshot
+    int cell_dim_id_ = -1;
+    std::vector<std::string> available_species_;
+
+    void DetectDimensions();
+    void DiscoverSpecies();
+  };
 
 }  // namespace miem

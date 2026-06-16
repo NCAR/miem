@@ -11,17 +11,17 @@
 #include <memory>
 #include <string>
 
-namespace miem {
+namespace miem
+{
 
-class EmissionFileReader;
+  class EmissionFileReader;
 
-// True if `convention` (case-insensitive) names a reader MIEM can build.
-bool IsSupportedConvention(const std::string& convention);
+  // True if `convention` (case-insensitive) names a reader MIEM can build.
+  bool IsSupportedConvention(const std::string& convention);
 
-// Construct the file reader for an inventory convention (case-insensitive).
-// Throws MiemException (Configuration / UnknownConvention) for an
-// unsupported convention.
-std::unique_ptr<EmissionFileReader> MakeEmissionFileReader(
-    const std::string& convention);
+  // Construct the file reader for an inventory convention (case-insensitive).
+  // Throws MiemException (Configuration / UnknownConvention) for an
+  // unsupported convention.
+  std::unique_ptr<EmissionFileReader> MakeEmissionFileReader(const std::string& convention);
 
 }  // namespace miem

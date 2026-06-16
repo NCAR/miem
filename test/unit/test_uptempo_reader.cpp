@@ -31,18 +31,18 @@ using miem_test::CreateUptempoTestNetCDF;
 using miem_test::TempDir;
 using miem_test::UptempoNcOptions;
 
-namespace {
-
-// The real fixture committed at test/data/, located via the
-// MIEM_TEST_DATA_DIR compile definition set by CMake.
-std::string RealFixturePath()
+namespace
 {
-  return std::string(MIEM_TEST_DATA_DIR) +
-         "/CAMS-GLOB-ANT_2012_MPAS_bc_subset.nc";
-}
 
-// 2012-01-01 00:00:00 UTC in seconds since the Unix epoch.
-constexpr double kEpoch20120101 = 1325376000.0;
+  // The real fixture committed at test/data/, located via the
+  // MIEM_TEST_DATA_DIR compile definition set by CMake.
+  std::string RealFixturePath()
+  {
+    return std::string(MIEM_TEST_DATA_DIR) + "/CAMS-GLOB-ANT_2012_MPAS_bc_subset.nc";
+  }
+
+  // 2012-01-01 00:00:00 UTC in seconds since the Unix epoch.
+  constexpr double kEpoch20120101 = 1325376000.0;
 
 }  // namespace
 
@@ -71,10 +71,8 @@ TEST(UptempoReaderRealFixtureTest, DiscoversAllFluxVariables)
   const auto species = r.QuerySpecies();
   // 11 anthropogenic BC sectors plus the precomputed bc_anth_sum.
   EXPECT_EQ(species.size(), 12u);
-  EXPECT_NE(std::find(species.begin(), species.end(), "bc_anth_sum"),
-            species.end());
-  EXPECT_NE(std::find(species.begin(), species.end(), "bc_anth_ene"),
-            species.end());
+  EXPECT_NE(std::find(species.begin(), species.end(), "bc_anth_sum"), species.end());
+  EXPECT_NE(std::find(species.begin(), species.end(), "bc_anth_ene"), species.end());
 }
 
 // ---------------------------------------------------------------------
@@ -105,7 +103,7 @@ TEST(UptempoReaderRealFixtureTest, ReadFluxIsFiniteAndNonNegative)
   r.Open(RealFixturePath());
 
   std::vector<Real> flux;
-  int               n_cells = 0;
+  int n_cells = 0;
   r.ReadFlux(/*time_index=*/0, { "bc_anth_sum" }, flux, n_cells);
 
   ASSERT_EQ(n_cells, 4097);
@@ -129,11 +127,9 @@ TEST(UptempoReaderSyntheticTest, XtimeDecodesToEpochSeconds)
   TempDir dir;
   const std::string path = dir.File("uptempo_xtime.nc");
 
-  const std::vector<std::string> stamps = { "2012-01-01_00:00:00",
-                                            "2012-01-01_06:00:00" };
+  const std::vector<std::string> stamps = { "2012-01-01_00:00:00", "2012-01-01_06:00:00" };
   std::vector<double> data(2 * 3, 1.0e-9);
-  CreateUptempoTestNetCDF(path, /*n_times=*/2, /*n_cells=*/3, stamps,
-                          { "bc_anth_sum" }, { data });
+  CreateUptempoTestNetCDF(path, /*n_times=*/2, /*n_cells=*/3, stamps, { "bc_anth_sum" }, { data });
 
   UptempoReader r;
   r.Open(path);
@@ -153,19 +149,16 @@ TEST(UptempoReaderSyntheticTest, DiscoversArbitraryVariableNames)
   const std::string path = dir.File("uptempo_generic.nc");
 
   const std::vector<std::string> vars = { "co_anth", "nox_emis_total" };
-  std::vector<double> co (3, 2.0e-9);
+  std::vector<double> co(3, 2.0e-9);
   std::vector<double> nox(3, 4.0e-9);
-  CreateUptempoTestNetCDF(path, /*n_times=*/1, /*n_cells=*/3,
-                          { "2012-01-01_00:00:00" }, vars, { co, nox });
+  CreateUptempoTestNetCDF(path, /*n_times=*/1, /*n_cells=*/3, { "2012-01-01_00:00:00" }, vars, { co, nox });
 
   UptempoReader r;
   r.Open(path);
   const auto species = r.QuerySpecies();
   EXPECT_EQ(species.size(), 2u);
-  EXPECT_NE(std::find(species.begin(), species.end(), "co_anth"),
-            species.end());
-  EXPECT_NE(std::find(species.begin(), species.end(), "nox_emis_total"),
-            species.end());
+  EXPECT_NE(std::find(species.begin(), species.end(), "co_anth"), species.end());
+  EXPECT_NE(std::find(species.begin(), species.end(), "nox_emis_total"), species.end());
 }
 
 // ---------------------------------------------------------------------
@@ -180,14 +173,12 @@ TEST(UptempoReaderSyntheticTest, NanMaskedCellsZeroed)
   std::vector<double> data = { 3.0e-9, std::nan(""), 5.0e-9 };
   UptempoNcOptions opts;
   opts.nan_fill = true;
-  CreateUptempoTestNetCDF(path, /*n_times=*/1, /*n_cells=*/3,
-                          { "2012-01-01_00:00:00" }, { "bc_anth_sum" },
-                          { data }, opts);
+  CreateUptempoTestNetCDF(path, /*n_times=*/1, /*n_cells=*/3, { "2012-01-01_00:00:00" }, { "bc_anth_sum" }, { data }, opts);
 
   UptempoReader r;
   r.Open(path);
   std::vector<Real> flux;
-  int               n_cells = 0;
+  int n_cells = 0;
   r.ReadFlux(0, { "bc_anth_sum" }, flux, n_cells);
 
   ASSERT_EQ(flux.size(), 3u);
@@ -209,8 +200,7 @@ TEST(UptempoReaderSyntheticTest, MissingXtimeMultiStepRejected)
   std::vector<double> data(2 * 3, 1.0e-9);
   UptempoNcOptions opts;
   opts.omit_xtime = true;
-  CreateUptempoTestNetCDF(path, /*n_times=*/2, /*n_cells=*/3, {},
-                          { "bc_anth_sum" }, { data }, opts);
+  CreateUptempoTestNetCDF(path, /*n_times=*/2, /*n_cells=*/3, {}, { "bc_anth_sum" }, { data }, opts);
 
   UptempoReader r;
   r.Open(path);
@@ -227,8 +217,7 @@ TEST(UptempoReaderSyntheticTest, RejectsEccadLayoutFile)
   const std::string path = dir.File("eccad_layout.nc");
 
   std::vector<double> data(2 * 3, 1.0e-9);
-  CreateTestNetCDF(path, /*n_times=*/2, /*n_cells=*/3, { 0.0, 3600.0 },
-                   { "NOx" }, { data });
+  CreateTestNetCDF(path, /*n_times=*/2, /*n_cells=*/3, { 0.0, 3600.0 }, { "NOx" }, { data });
 
   UptempoReader r;
   EXPECT_THROW(r.Open(path), MiemException);

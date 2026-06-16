@@ -6,19 +6,20 @@
 // supported.
 #pragma once
 
+#include <miem/source.hpp>
+#include <miem/source_types.hpp>
+
 #include <memory>
 
-#include <miem/source_types.hpp>
-#include <miem/source.hpp>
-
-namespace miem {
-
-class SourceFactory
+namespace miem
 {
- public:
-  // Returns the constructed source, or throws MiemException (Configuration)
-  // for an unsupported mode / convention.
-  static std::unique_ptr<EmissionSource> Create(const Source& cfg);
-};
+
+  class SourceFactory
+  {
+   public:
+    // Returns the constructed source, or throws MiemException (Configuration)
+    // for an unsupported mode / convention.
+    static std::unique_ptr<EmissionSource> Create(const Source& cfg);
+  };
 
 }  // namespace miem

@@ -14,72 +14,90 @@
 // NetCDF dependency is private to the .cpp.
 #pragma once
 
+#include "emission_file_reader.hpp"
+
+#include <miem/util/types.hpp>
+
 #include <string>
 #include <vector>
 
-#include "emission_file_reader.hpp"
-#include <miem/util/types.hpp>
-
-namespace miem {
-
-class ECCADReader : public EmissionFileReader
+namespace miem
 {
- public:
-  ECCADReader() = default;
-  ~ECCADReader() override { Close(); }
 
-  ECCADReader(const ECCADReader&)             = delete;
-  ECCADReader& operator=(const ECCADReader&)  = delete;
-  ECCADReader(ECCADReader&&) noexcept;
-  ECCADReader& operator=(ECCADReader&&) noexcept;
+  class ECCADReader : public EmissionFileReader
+  {
+   public:
+    ECCADReader() = default;
+    ~ECCADReader() override
+    {
+      Close();
+    }
 
-  // Open a NetCDF file.  Throws MiemException (IO) on failure (caught at
-  // the Emissions boundary).
-  void Open(const std::string& file_path) override;
+    ECCADReader(const ECCADReader&) = delete;
+    ECCADReader& operator=(const ECCADReader&) = delete;
+    ECCADReader(ECCADReader&&) noexcept;
+    ECCADReader& operator=(ECCADReader&&) noexcept;
 
-  void Close() override;
+    // Open a NetCDF file.  Throws MiemException (IO) on failure (caught at
+    // the Emissions boundary).
+    void Open(const std::string& file_path) override;
 
-  bool IsOpen() const override { return ncid_ >= 0; }
+    void Close() override;
 
-  // Number of time steps in the file.
-  int NumTimeSteps() const override { return n_time_steps_; }
+    bool IsOpen() const override
+    {
+      return ncid_ >= 0;
+    }
 
-  // Number of grid cells in the file.
-  int NumCells() const override { return n_cells_; }
+    // Number of time steps in the file.
+    int NumTimeSteps() const override
+    {
+      return n_time_steps_;
+    }
 
-  // Available species names (ECCAD `emi_<species>` variables minus the
-  // prefix).
-  std::vector<std::string> QuerySpecies() const override;
+    // Number of grid cells in the file.
+    int NumCells() const override
+    {
+      return n_cells_;
+    }
 
-  // Time values, converted to seconds-since-Unix-epoch via the CF
-  // `units` attribute.  Throws MiemException (IO) on missing units /
-  // unsupported calendar.
-  std::vector<double> GetTimeValues() const override;
+    // Available species names (ECCAD `emi_<species>` variables minus the
+    // prefix).
+    std::vector<std::string> QuerySpecies() const override;
 
-  // Read flux at `time_index` for the requested species into
-  // `flux_out` (resized to species_names.size() * n_cells).  Throws
-  // MiemException (IO) on NetCDF failure.
-  void ReadFlux(int                            time_index,
-                const std::vector<std::string>& species_names,
-                std::vector<Real>&              flux_out,
-                int&                            n_cells_out) const override;
+    // Time values, converted to seconds-since-Unix-epoch via the CF
+    // `units` attribute.  Throws MiemException (IO) on missing units /
+    // unsupported calendar.
+    std::vector<double> GetTimeValues() const override;
 
-  // ECCAD format version, populated from the `eccad_version` global
-  // attribute (legacy `ses_version` is also accepted for one release
-  // but yields a warning in this header's documentation only — the
-  // attribute name change is intentional and lands in this port).
-  const std::string& EccadVersion() const { return eccad_version_; }
+    // Read flux at `time_index` for the requested species into
+    // `flux_out` (resized to species_names.size() * n_cells).  Throws
+    // MiemException (IO) on NetCDF failure.
+    void ReadFlux(
+        int time_index,
+        const std::vector<std::string>& species_names,
+        std::vector<Real>& flux_out,
+        int& n_cells_out) const override;
 
- private:
-  int          ncid_       = -1;
-  std::string  file_path_;
-  std::string  eccad_version_;
-  int          n_time_steps_ = 0;
-  int          n_cells_      = 0;
-  std::vector<std::string> available_species_;
+    // ECCAD format version, populated from the `eccad_version` global
+    // attribute (legacy `ses_version` is also accepted for one release
+    // but yields a warning in this header's documentation only — the
+    // attribute name change is intentional and lands in this port).
+    const std::string& EccadVersion() const
+    {
+      return eccad_version_;
+    }
 
-  void DetectFormat();
-  void DiscoverSpecies();
-};
+   private:
+    int ncid_ = -1;
+    std::string file_path_;
+    std::string eccad_version_;
+    int n_time_steps_ = 0;
+    int n_cells_ = 0;
+    std::vector<std::string> available_species_;
+
+    void DetectFormat();
+    void DiscoverSpecies();
+  };
 
 }  // namespace miem
