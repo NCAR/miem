@@ -23,6 +23,11 @@ function(create_standard_test)
     target_link_libraries(test_${TEST_NAME} PUBLIC ${library})
   endforeach()
 
+  # Make the committed fixtures in test/data/ discoverable from any test
+  # without per-test wiring.
+  target_compile_definitions(test_${TEST_NAME} PRIVATE
+    MIEM_TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/test/data")
+
   if(NOT DEFINED TEST_WORKING_DIRECTORY)
     set(TEST_WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
   endif()

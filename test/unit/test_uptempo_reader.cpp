@@ -140,6 +140,49 @@ TEST(UptempoReaderSyntheticTest, XtimeDecodesToEpochSeconds)
 }
 
 // ---------------------------------------------------------------------
+// Synthetic: the time part of an xtime stamp is optional -- a date-only
+// stamp decodes to midnight, and hours:minutes (no seconds) decodes too.
+// ---------------------------------------------------------------------
+TEST(UptempoReaderSyntheticTest, XtimeAcceptsDateOnlyAndNoSeconds)
+{
+  TempDir dir;
+  const std::string path = dir.File("uptempo_partial_xtime.nc");
+
+  // "2012-01-01" -> midnight; "2012-01-01_06:30" -> 06:30:00.
+  const std::vector<std::string> stamps = { "2012-01-01", "2012-01-01_06:30" };
+  std::vector<double> data(2 * 3, 1.0e-9);
+  CreateUptempoTestNetCDF(path, /*n_times=*/2, /*n_cells=*/3, stamps, { "bc_anth_sum" }, { data });
+
+  UptempoReader r;
+  r.Open(path);
+  const auto times = r.GetTimeValues();
+  ASSERT_EQ(times.size(), 2u);
+  EXPECT_DOUBLE_EQ(times[0], kEpoch20120101);
+  EXPECT_DOUBLE_EQ(times[1], kEpoch20120101 + 6.0 * 3600.0 + 30.0 * 60.0);
+}
+
+// ---------------------------------------------------------------------
+// Synthetic: malformed xtime stamps are rejected rather than silently
+// mis-dated -- garbage, a truncated date, and trailing junk (the MPAS
+// format carries no timezone, so a 'Z' suffix is unrecognized).
+// ---------------------------------------------------------------------
+TEST(UptempoReaderSyntheticTest, MalformedXtimeRejected)
+{
+  TempDir dir;
+
+  for (const std::string& bad : { std::string("not-a-date"), std::string("2012-01"), std::string("2012-01-01_00:00:00Z") })
+  {
+    const std::string path = dir.File("uptempo_bad_xtime.nc");
+    std::vector<double> data(3, 1.0e-9);
+    CreateUptempoTestNetCDF(path, /*n_times=*/1, /*n_cells=*/3, { bad }, { "bc_anth_sum" }, { data });
+
+    UptempoReader r;
+    r.Open(path);
+    EXPECT_THROW(r.GetTimeValues(), MiemException) << "stamp: " << bad;
+  }
+}
+
+// ---------------------------------------------------------------------
 // Synthetic: the reader discovers arbitrary variable names, not just
 // bc_anth_* -- it is not tied to one inventory's naming scheme.
 // ---------------------------------------------------------------------
