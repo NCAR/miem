@@ -14,6 +14,8 @@
 // NetCDF dependency is private to the .cpp.
 #pragma once
 
+#include "emission_file_reader.hpp"
+
 #include <miem/util/types.hpp>
 
 #include <string>
@@ -22,11 +24,11 @@
 namespace miem
 {
 
-  class ECCADReader
+  class ECCADReader : public EmissionFileReader
   {
    public:
     ECCADReader() = default;
-    ~ECCADReader()
+    ~ECCADReader() override
     {
       Close();
     }
@@ -38,35 +40,35 @@ namespace miem
 
     // Open a NetCDF file.  Throws MiemException (IO) on failure (caught at
     // the Emissions boundary).
-    void Open(const std::string& file_path);
+    void Open(const std::string& file_path) override;
 
-    void Close();
+    void Close() override;
 
-    bool IsOpen() const
+    bool IsOpen() const override
     {
       return ncid_ >= 0;
     }
 
     // Number of time steps in the file.
-    int NumTimeSteps() const
+    int NumTimeSteps() const override
     {
       return n_time_steps_;
     }
 
     // Number of grid cells in the file.
-    int NumCells() const
+    int NumCells() const override
     {
       return n_cells_;
     }
 
     // Available species names (ECCAD `emi_<species>` variables minus the
     // prefix).
-    std::vector<std::string> QuerySpecies() const;
+    std::vector<std::string> QuerySpecies() const override;
 
     // Time values, converted to seconds-since-Unix-epoch via the CF
     // `units` attribute.  Throws MiemException (IO) on missing units /
     // unsupported calendar.
-    std::vector<double> GetTimeValues() const;
+    std::vector<double> GetTimeValues() const override;
 
     // Read flux at `time_index` for the requested species into
     // `flux_out` (resized to species_names.size() * n_cells).  Throws
@@ -75,7 +77,7 @@ namespace miem
         int time_index,
         const std::vector<std::string>& species_names,
         std::vector<Real>& flux_out,
-        int& n_cells_out) const;
+        int& n_cells_out) const override;
 
     // ECCAD format version, populated from the `eccad_version` global
     // attribute (legacy `ses_version` is also accepted for one release

@@ -3,6 +3,7 @@
 
 #include "internal/eccad_reader.hpp"
 
+#include "internal/netcdf_io.hpp"
 #include "internal/time_utils.hpp"
 
 #include <miem/util/error.hpp>
@@ -16,29 +17,11 @@
 #include <set>
 #include <string>
 
-#define MIEM_NC_CHECK(call)                                                                                            \
-  do                                                                                                                   \
-  {                                                                                                                    \
-    const int nc_status_ = (call);                                                                                     \
-    if (nc_status_ != NC_NOERR)                                                                                        \
-    {                                                                                                                  \
-      throw ::miem::MiemException(                                                                                     \
-          MIEM_ERROR_CATEGORY_IO, MIEM_IO_ERROR_CODE_NETCDF, std::string("NetCDF error: ") + nc_strerror(nc_status_)); \
-    }                                                                                                                  \
-  } while (0)
-
 namespace miem
 {
 
   namespace
   {
-
-    // Accept any of these calendars (or missing). Anything else is a hard
-    // UnsupportedCalendar error.
-    bool IsAcceptedCalendar(const std::string& cal)
-    {
-      return cal.empty() || cal == "gregorian" || cal == "proleptic_gregorian" || cal == "standard";
-    }
 
     bool ParseCFTimeUnits(const std::string& units_str, double& multiplier, double& ref_epoch)
     {
@@ -227,49 +210,6 @@ namespace miem
       const std::chrono::sys_seconds tp = UtcTimePoint(year, month, day, hour, minute, second);
       ref_epoch = static_cast<double>(tp.time_since_epoch().count()) + frac_seconds - offset_seconds;
       return true;
-    }
-
-    std::string ReadTextAttribute(int ncid, int varid, const std::string& name)
-    {
-      std::size_t att_len = 0;
-      const int status = nc_inq_attlen(ncid, varid, name.c_str(), &att_len);
-      if (status != NC_NOERR || att_len == 0 || att_len > 4096)
-      {
-        return {};
-      }
-      std::string value(att_len, '\0');
-      if (nc_get_att_text(ncid, varid, name.c_str(), value.data()) != NC_NOERR)
-      {
-        return {};
-      }
-      return value;
-    }
-
-    // Type-dispatched NetCDF readers so the `Real` element type selects the
-    // matching call via overload resolution, without preprocessor branching.
-    int NcGetVara(int ncid, int varid, const std::size_t* start, const std::size_t* count, double* out)
-    {
-      return nc_get_vara_double(ncid, varid, start, count, out);
-    }
-    int NcGetVara(int ncid, int varid, const std::size_t* start, const std::size_t* count, float* out)
-    {
-      return nc_get_vara_float(ncid, varid, start, count, out);
-    }
-    int NcGetVar(int ncid, int varid, double* out)
-    {
-      return nc_get_var_double(ncid, varid, out);
-    }
-    int NcGetVar(int ncid, int varid, float* out)
-    {
-      return nc_get_var_float(ncid, varid, out);
-    }
-    int NcGetAttFill(int ncid, int varid, const char* name, double* out)
-    {
-      return nc_get_att_double(ncid, varid, name, out);
-    }
-    int NcGetAttFill(int ncid, int varid, const char* name, float* out)
-    {
-      return nc_get_att_float(ncid, varid, name, out);
     }
 
   }  // namespace

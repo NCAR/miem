@@ -107,6 +107,17 @@ TEST(EmissionsBuilderValidateTest, AcceptsCaseInsensitiveEccad)
   EXPECT_NO_THROW(builder.Build());
 }
 
+TEST(EmissionsBuilderValidateTest, AcceptsUptempoConvention)
+{
+  Source src = MakeMinimalSource();
+  src.convention_ = "uptempo";
+
+  EmissionsBuilder builder;
+  builder.SetGridDimensions(4, 2).AddSource(src);
+
+  EXPECT_NO_THROW(builder.Build());
+}
+
 // ---------------------------------------------------------------------
 // Mode must be Offline
 // ---------------------------------------------------------------------

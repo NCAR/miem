@@ -1,12 +1,12 @@
 // Copyright (C) 2026 University Corporation for Atmospheric Research
 // SPDX-License-Identifier: Apache-2.0
 
+#include "internal/reader_factory.hpp"
+
 #include <miem/emissions_builder.hpp>
 #include <miem/util/error.hpp>
 #include <miem/util/miem_exception.hpp>
 
-#include <algorithm>
-#include <cctype>
 #include <set>
 #include <string>
 #include <utility>
@@ -14,21 +14,11 @@
 namespace miem
 {
 
-  namespace
-  {
-
-    std::string ToLower(std::string s)
-    {
-      std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-      return s;
-    }
-
-  }  // namespace
-
   // The invariant checks, run once at Build() time.  Throws on the first
   // violation (MICM-aligned: no multi-error accumulation).  Invariants:
   //   - regridding must be RegriddingType::None
-  //   - each source's convention must be "eccad" (case-insensitive)
+  //   - each source's convention must be supported ("eccad" or "uptempo",
+  //     case-insensitive)
   //   - each source's mode must be SourceMode::Offline
   //   - each source's vertical injection must be VerticalInjection::Surface
   //   - each source's species map must validate (scaling sum <= 1.0)
@@ -49,13 +39,13 @@ namespace miem
 
     for (const auto& src : sources_)
     {
-      // Convention must be ECCAD.
-      if (ToLower(src.convention_) != "eccad")
+      // Convention must name a reader MIEM can build.
+      if (!IsSupportedConvention(src.convention_))
       {
         throw MiemException(
             MIEM_ERROR_CATEGORY_CONFIGURATION,
             MIEM_CONFIGURATION_ERROR_CODE_UNKNOWN_CONVENTION,
-            "Source '" + src.name_ + "': unknown convention '" + src.convention_ + "' — v1 supports only 'eccad'.");
+            "Source '" + src.name_ + "': unknown convention '" + src.convention_ + "' — v1 supports 'eccad' and 'uptempo'.");
       }
 
       // Mode must be Offline.

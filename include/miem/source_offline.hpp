@@ -20,8 +20,9 @@ namespace miem
 {
 
   // Forward-declared (defined in src/internal/) to keep NetCDF out of this
-  // public header.
-  class ECCADReader;
+  // public header.  The concrete reader is selected by the source's
+  // convention at construction time (see reader_factory).
+  class EmissionFileReader;
 
   class OfflineEmissionSource : public EmissionSource
   {
@@ -45,8 +46,8 @@ namespace miem
     std::string name_;
     Source config_;
     // Held by unique_ptr so the public header only needs a forward
-    // declaration of the internal ECCADReader type.
-    std::unique_ptr<ECCADReader> reader_;
+    // declaration of the internal reader interface.
+    std::unique_ptr<EmissionFileReader> reader_;
     SpeciesMap species_map_;
     TemporalInterpolator interpolator_;
 
