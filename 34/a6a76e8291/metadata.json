@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "34a6a76e8291",
+  "strategy": "manual-commit",
+  "branch": "feature/uptempo-reader",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "README.md",
+    "docs/source/user_guide/inventory_conventions.rst",
+    "include/miem/source_offline.hpp",
+    "src/CMakeLists.txt",
+    "src/eccad_reader.cpp",
+    "src/emissions_builder.cpp",
+    "src/internal/eccad_reader.hpp",
+    "src/internal/emission_file_reader.hpp",
+    "src/internal/netcdf_io.hpp",
+    "src/internal/reader_factory.hpp",
+    "src/internal/uptempo_reader.hpp",
+    "src/reader_factory.cpp",
+    "src/source_factory.cpp",
+    "src/source_offline.cpp",
+    "src/uptempo_reader.cpp",
+    "test/data/README.md",
+    "test/integration/CMakeLists.txt",
+    "test/integration/test_bc_pipeline.cpp",
+    "test/unit/CMakeLists.txt",
+    "test/unit/test_emissions_builder.cpp",
+    "test/unit/test_uptempo_reader.cpp",
+    "test/util/synthetic_nc.cpp",
+    "test/util/synthetic_nc.hpp"
+  ],
+  "sessions": [
+    {
+      "metadata": "/34/a6a76e8291/0/metadata.json",
+      "transcript": "/34/a6a76e8291/0/full.jsonl",
+      "content_hash": "/34/a6a76e8291/0/content_hash.txt",
+      "prompt": "/34/a6a76e8291/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 15751,
+    "cache_creation_tokens": 360246,
+    "cache_read_tokens": 13622240,
+    "output_tokens": 130323,
+    "api_call_count": 75
+  }
+}
