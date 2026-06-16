@@ -124,6 +124,8 @@ html_css_files = [
 # relative to this directory.
 html_static_path = ['_static']
 
+html_favicon = '_static/favicon/favicon.ico'
+
 
 def setup(app):
     app.connect("builder-inited", lambda _app: _ensure_doxygen_xml())
