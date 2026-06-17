@@ -78,10 +78,48 @@ thing left offline is reading the file.
 | `wasm_in_memory_reader.hpp` | `EmissionFileReader` that serves the in-memory slices (no netCDF) |
 | `reader_factory_wasm.cpp` | WASM-only `MakeEmissionFileReader` → the in-memory reader (replaces the netCDF factory) |
 | `make_zarr.py` | joins slices + epochs + cell coordinates into a Zarr v3 store |
-| `index.html` | static viewer: zarrita.js + canvas + the WASM pipeline |
+| `make_mesh_geometry.py` | reconstructs the MPAS Voronoi cells from the cell centers (spherical Voronoi) and fan-triangulates them into a Zarr v3 geometry store for the globe |
+| `index.html` | static viewer: zarrita.js + Canvas2D equirectangular splat + the WASM pipeline |
+| `cells.html` | static viewer: zarrita.js + **WebGPU** actual cells (WGSL), globe **or** 2D map + the WASM pipeline |
 | `build_and_run.sh` | compile driver + WASM → ensure deps/coords → build store → serve |
 | `data/mesh_coords.npz` | cached cell lat/lon/area (re-runs skip the 214 MB mesh) |
 | `data/land.geojson` | coarse coastline for map context (optional) |
+
+## The actual-cells view (`cells.html`, WebGPU)
+
+`index.html` draws a fixed-size dot per cell. `cells.html` instead renders the
+**true Voronoi cell polygons**, with a view toggle between a 3D **globe** and a
+2D **equirectangular map**. Because an MPAS mesh *is* the spherical centroidal
+Voronoi tessellation of its cell centers, `make_mesh_geometry.py` reconstructs
+the exact polygons from the cached centers alone (`scipy.spatial.SphericalVoronoi`)
+— no connectivity file — and fan-triangulates each cell from its center into a
+Zarr v3 geometry store:
+
+```
+positions     (Nv, 3) f32   unit-sphere xyz of every triangle vertex (globe)
+positions_xy  (Nv, 2) f32   equirectangular lon/lat degrees (2D map)
+cell_index    (Nv,)   u32   the cell each vertex belongs to (-> value lookup)
+indices       (Nt*3,) u32   per-cell triangle fans
+```
+
+Geometry is **per-cell** (no vertices shared between cells), so flat per-cell
+coloring is unambiguous. The browser uploads it to the GPU once. Each frame the
+WASM pipeline produces the per-cell flux, which is written to a **storage
+buffer**; the WGSL vertex shader projects (globe `mvp`, or flat lon/lat),
+looks up `values[cellIndex]`, log-normalizes against the per-field `vmin/vmax`,
+and passes a flat colormap coordinate; the fragment shader maps it through a
+viridis uniform LUT. So geometry is static and only ~0.6 MB of values move per
+frame — the CPU never touches a pixel.
+
+The globe is lit from the camera so the facing hemisphere is always readable. On
+the 2D map the **antimeridian seam** is handled in `positions_xy` by unwrapping
+each cell's vertices to the same 360° branch as its center (so no triangle spans
+the map; the few polar cells that genuinely wrap are collapsed), and the east/west
+wrap is filled by drawing the map three times with a ±360° longitude offset
+applied per instance in the shader. A faint lat/lon graticule (a second
+line-list pipeline) aids orientation in both views. The `x1.163842` mesh's twelve
+pentagons (vs. hexagons) are the icosahedral signature you can confirm in the
+build log (`polygon sizes {5: 12, 6: 163830}`, Σarea = 4π).
 
 ## Why a separate mesh was needed
 

@@ -29,6 +29,28 @@ pipeline, compiled to WebAssembly** (the genuine `EmissionsBuilder`, `SpeciesMap
   real `TemporalInterpolation` modes — `linear` / `nearest` / `held` — applied
   per frame. A sparkline tracks the area-weighted global total over the year.
 
+## Two renderers (same data, same in-browser MIEM)
+
+- **`index.html` — equirectangular pixels.** A Canvas2D world map, one dot per
+  cell (point splat). Runs in any browser; the original view, with the year-long
+  global-total sparkline.
+- **`cells.html` — actual cells (WebGPU).** Renders the **true MPAS Voronoi cell
+  polygons** — gap-free and area-true — via a WGSL shader pair, with a **view
+  toggle**: a rotatable **globe** or a 2D **equirectangular map**. The cell
+  geometry is reconstructed once from the cell centers (`make_mesh_geometry.py`:
+  an MPAS mesh is the spherical Voronoi tessellation of its generators) and
+  uploaded to the GPU; each frame only the per-cell flux is pushed to a storage
+  buffer and the shader colors every polygon (`values[cellIndex]` → log →
+  viridis). A lat/lon graticule aids orientation in both views. Drag to
+  rotate/pan, scroll to zoom, double-click to reset. Needs a WebGPU browser
+  (Chrome/Edge, Safari 18+, recent Firefox); otherwise it links back to the
+  pixel view.
+
+The two pages cross-link in the header and share the same field/interp controls.
+On the 2D map the antimeridian seam is handled by unwrapping each cell's vertices
+about its own center longitude (built into the geometry), and east/west wrap is
+filled by drawing the map three times with a ±360° longitude offset.
+
 ## Prerequisites
 
 This tool is meant to live as a branch/worktree **inside a MIEM checkout**, because
@@ -41,8 +63,11 @@ the build compiles against MIEM's source:
 - A C++20 compiler and `nc-config` on `PATH` (Homebrew/conda netCDF) for the
   offline driver.
 - **emscripten** (`emcc`) for the in-browser pipeline — `brew install emscripten`.
-- Python with `zarr>=3`, `netCDF4`, `numpy`. The script creates `viz/.venv` if the
-  active Python lacks them.
+- Python with `zarr>=3`, `netCDF4`, `numpy`, and `scipy` (the Voronoi cell
+  geometry). `zarr>=3` needs Python ≥3.11; the script builds `viz/.venv` from a
+  3.11+ interpreter if the active one can't satisfy the stack.
+- For the **actual-cells globe** (`cells.html`): a WebGPU-capable browser. No
+  extra install beyond the browser.
 
 ## The data file (you supply it)
 
@@ -63,8 +88,9 @@ standard `x1.163842` grid.
 ## Quick start
 
 ```sh
-./viz/build_and_run.sh          # build driver + WASM, build the Zarr store, serve on :8000
-# open http://localhost:8000/
+./viz/build_and_run.sh          # build driver + WASM + Zarr store + cell geometry, serve on :8000
+# open http://localhost:8000/           (equirectangular pixels)
+#   or  http://localhost:8000/cells.html  (WebGPU actual cells: globe or 2D map)
 ./viz/build_and_run.sh serve    # just re-serve an already-built store
 ```
 

@@ -28,14 +28,27 @@ COORDS="$DATA/mesh_coords.npz"
 mkdir -p "$DATA"
 
 # --- python with the zarr v3 stack -----------------------------------------
+# zarr>=3 needs Python >=3.11, so if the active interpreter can't satisfy the
+# stack we build viz/.venv from the newest 3.11+ python we can find.
 ensure_python() {
   PY="${PYTHON:-python3}"
-  if "$PY" -c 'import zarr, netCDF4, numpy' >/dev/null 2>&1; then return; fi
-  echo "==> setting up viz/.venv (zarr v3 + netCDF4 + numpy)"
-  "$PY" -m venv "$VIZ_DIR/.venv"
+  local stack='import zarr, netCDF4, numpy, scipy'
+  if "$PY" -c "$stack" >/dev/null 2>&1; then return; fi
+  if [ -x "$VIZ_DIR/.venv/bin/python" ] && "$VIZ_DIR/.venv/bin/python" -c "$stack" >/dev/null 2>&1; then
+    PY="$VIZ_DIR/.venv/bin/python"; return
+  fi
+  echo "==> setting up viz/.venv (zarr v3 + netCDF4 + numpy + scipy)"
+  local base="$PY"
+  for c in "$PY" python3.13 python3.12 python3.11; do
+    if command -v "$c" >/dev/null 2>&1 && \
+       "$c" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3,11) else 1)' 2>/dev/null; then
+      base="$c"; break
+    fi
+  done
+  "$base" -m venv "$VIZ_DIR/.venv"
   PY="$VIZ_DIR/.venv/bin/python"
   "$PY" -m pip install -q --upgrade pip
-  "$PY" -m pip install -q "zarr>=3" numpy netCDF4
+  "$PY" -m pip install -q "zarr>=3" numpy scipy netCDF4
 }
 
 # --- serve-only shortcut ----------------------------------------------------
@@ -115,6 +128,15 @@ lon = ((lon + 180.0) % 360.0) - 180.0           # [0,360) -> [-180,180)
 np.savez(out, lat=lat, lon=lon.astype(np.float32), area_m2=area_m2)
 print("   cached", len(lat), "cells")
 PY
+fi
+
+# --- 3b. cell polygon geometry for the WebGPU "actual cells" view (cells.html)
+# Reconstruct the MPAS Voronoi cells from the cached centers (an SCVT mesh is the
+# Voronoi diagram of its generators) and fan-triangulate them for the GPU.
+GEOM="$DATA/mesh_geometry.zarr"
+if [ ! -d "$GEOM" ] || [ "$VIZ_DIR/make_mesh_geometry.py" -nt "$GEOM/zarr.json" ]; then
+  echo "==> building cell geometry store (spherical Voronoi -> triangles)"
+  "$PY" "$VIZ_DIR/make_mesh_geometry.py" --coords "$COORDS" --out "$GEOM"
 fi
 
 # --- 4. build the store -----------------------------------------------------

@@ -1,0 +1,526 @@
+<!doctype html>
+<!--
+  Copyright (C) 2026 University Corporation for Atmospheric Research
+  SPDX-License-Identifier: Apache-2.0
+
+  MIEM emissions visualizer -- "actual cells" view. A WebGPU renderer for the
+  true MPAS Voronoi cells (reconstructed by make_mesh_geometry.py) with a
+  projection toggle: a rotatable 3D globe or a 2D equirectangular map. Either way
+  the per-cell flux per frame comes from the same real miem::Emissions::Run
+  pipeline compiled to WASM (miem_wasm.js); it lands in a GPU storage buffer and
+  one WGSL shader pair colors every cell polygon. The point-splat view in
+  index.html is unchanged -- this is a second, complementary renderer.
+
+  Needs a WebGPU browser (Chrome/Edge, Safari 18+, recent Firefox). Serve viz/
+  over HTTP and open http://localhost:8000/cells.html
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MIEM emissions — actual cells (WebGPU)</title>
+  <style>
+    :root { --bg:#0e1116; --panel:#161b22; --ink:#e6edf3; --muted:#8b949e; --accent:#58a6ff; --line:#30363d; }
+    * { box-sizing: border-box; }
+    html, body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+      font:13px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    #app { display:flex; flex-direction:column; height:100vh; }
+    header { display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px;
+      padding:9px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+    header h1 { font-size:14px; font-weight:600; margin:0; letter-spacing:.2px; white-space:nowrap; }
+    header h1 small { color:var(--muted); font-weight:400; }
+    .group { display:flex; align-items:center; gap:8px; }
+    .lbl { color:var(--muted); }
+    a.viewlink { color:var(--accent); text-decoration:none; border:1px solid var(--line); border-radius:6px; padding:4px 9px; }
+    a.viewlink:hover { background:#21262d; }
+    .seg { display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+    .seg button { background:transparent; color:var(--muted); border:0; padding:5px 11px; cursor:pointer; font:inherit; }
+    .seg button.on { background:var(--accent); color:#0b1220; font-weight:600; }
+    label.chk { color:var(--muted); display:flex; align-items:center; gap:6px; cursor:pointer; }
+    button.tbtn { background:#21262d; color:var(--ink); border:1px solid var(--line); border-radius:6px;
+      width:30px; height:28px; cursor:pointer; font-size:13px; line-height:1; }
+    button.tbtn.play { width:36px; background:var(--accent); color:#0b1220; border-color:var(--accent); font-weight:700; }
+    select { background:#21262d; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:4px 6px; font:inherit; }
+    input[type=range] { width:260px; accent-color:var(--accent); vertical-align:middle; }
+    .time { min-width:178px; color:var(--ink); font-variant-numeric:tabular-nums; }
+    #stage { position:relative; flex:1; min-height:0; }
+    canvas#view { position:absolute; inset:0; width:100%; height:100%; display:block; cursor:grab; }
+    canvas#view.drag { cursor:grabbing; }
+    .panel { position:absolute; background:rgba(13,17,23,.82); border:1px solid var(--line);
+      border-radius:8px; padding:9px 11px; backdrop-filter:blur(3px); }
+    #legend { left:16px; bottom:16px; }
+    #legend .bar { width:220px; height:12px; border-radius:3px; margin:6px 0 4px; }
+    #legend .ticks { display:flex; justify-content:space-between; color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums; }
+    #legend .cap { color:var(--muted); font-size:11px; }
+    #hint { right:16px; bottom:16px; color:var(--muted); font-size:11px; }
+    #status { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      text-align:center; color:var(--muted); font-size:14px; padding:24px; }
+    #status a { color:var(--accent); }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>MIEM emissions <small>· actual cells (WebGPU)</small></h1>
+      <a class="viewlink" href="./index.html" title="the equirectangular pixel-splat view">▦ pixels</a>
+      <div class="group">
+        <span class="lbl">view</span>
+        <div class="seg" id="proj">
+          <button data-p="0" class="on">globe</button>
+          <button data-p="1">map</button>
+        </div>
+      </div>
+      <div class="group">
+        <span class="lbl">field</span>
+        <select id="field" title="inventory sector or MIEM SpeciesMap output"></select>
+      </div>
+      <div class="group">
+        <span class="lbl">interp</span>
+        <select id="mode" title="MIEM TemporalInterpolation mode">
+          <option value="0" selected>linear</option>
+          <option value="1">nearest</option>
+          <option value="2">held</option>
+        </select>
+      </div>
+      <label class="chk"><input type="checkbox" id="log" checked /> log</label>
+      <div class="group">
+        <button class="tbtn play" id="play" title="play / pause">▶</button>
+        <select id="speed" title="playback speed">
+          <option value="24">1 day/s</option>
+          <option value="168" selected>1 week/s</option>
+          <option value="720">~1 month/s</option>
+        </select>
+      </div>
+      <div class="group">
+        <input type="range" id="time" min="0" max="0" value="0" step="1" />
+        <span class="time" id="timelabel">—</span>
+      </div>
+    </header>
+    <div id="stage">
+      <canvas id="view"></canvas>
+      <div class="panel" id="legend">
+        <div class="cap" id="legcap">surface flux (kg m⁻² s⁻¹)</div>
+        <div class="bar" id="legbar"></div>
+        <div class="ticks"><span id="legmin"></span><span id="legmax"></span></div>
+      </div>
+      <div class="panel" id="hint">drag to rotate · scroll to zoom · double-click to reset</div>
+      <div id="status">initializing WebGPU…</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as zarr from "https://esm.sh/zarrita@0.4.0";
+    import createMiem from "./miem_wasm.js";
+
+    const VIRIDIS = [[68,1,84],[72,33,115],[67,62,133],[56,88,140],[45,112,142],[37,133,142],
+      [30,155,138],[42,176,127],[82,197,105],[134,213,73],[194,223,35],[253,231,37]];
+    const cssGradient = () => "linear-gradient(90deg," +
+      VIRIDIS.map((c,i)=>`rgb(${c[0]},${c[1]},${c[2]}) ${(100*i/(VIRIDIS.length-1)).toFixed(0)}%`).join(",") + ")";
+    const supers = (n) => String(n).replace(/-/,"⁻").replace(/[0-9]/g, d => "⁰¹²³⁴⁵⁶⁷⁸⁹"[d]);
+    const fmtExp = (lv) => { const e = Math.floor(lv); return `${Math.pow(10, lv-e).toFixed(1)}×10${supers(e)}`; };
+    const fmtTime = (t) => new Date(t*1000).toISOString().slice(0,13).replace("T"," ") + ":00 UTC";
+
+    const SECTOR_LABELS = {
+      awb: "ag. waste burning", ene: "power generation", fef: "fugitives",
+      ind: "industry", ref: "refineries/transform", res: "residential",
+      com: "commercial", shp: "shipping", swd: "solid waste",
+      tnr: "off-road transport", tro: "road transport",
+    };
+    const sectorCode = (name) => name.includes("_anth_") ? name.split("_anth_").pop() : name.split("_").pop();
+
+    const status = document.getElementById("status");
+    const fail = (msg) => { status.style.display = "flex"; status.innerHTML = msg; throw new Error("init"); };
+
+    // ---- tiny column-major mat4 helpers (WebGPU clip: z in [0,1], y up) ------
+    const mul = (a, b) => {
+      const o = new Float32Array(16);
+      for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+        let s = 0; for (let k = 0; k < 4; k++) s += a[k*4+r] * b[c*4+k];
+        o[c*4+r] = s;
+      }
+      return o;
+    };
+    const perspective = (fovy, aspect, near, far) => {
+      const f = 1/Math.tan(fovy/2), nf = 1/(near-far);
+      return new Float32Array([f/aspect,0,0,0, 0,f,0,0, 0,0,far*nf,-1, 0,0,near*far*nf,0]);
+    };
+    const translate = (x,y,z) => new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]);
+    const rotX = (a) => { const c=Math.cos(a),s=Math.sin(a); return new Float32Array([1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]); };
+    const rotY = (a) => { const c=Math.cos(a),s=Math.sin(a); return new Float32Array([c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]); };
+
+    // ---- shaders -------------------------------------------------------------
+    // One module: cell triangles (vs/fs) + graticule lines (vsLine/fsLine). The
+    // projection (globe vs flat map) is a uniform branch shared by both.
+    const WGSL = `
+      struct Uniforms {
+        mvp : mat4x4<f32>,
+        rot : mat4x4<f32>,
+        vmin : f32, vmax : f32, useLog : f32, projMode : f32,
+        cLon : f32, cLat : f32, zoom : f32, aspect : f32,
+      };
+      @group(0) @binding(0) var<uniform> U : Uniforms;
+      @group(0) @binding(1) var<storage, read> values : array<f32>;
+      @group(0) @binding(2) var<uniform> viridis : array<vec4<f32>, 12>;
+
+      fn project(p3 : vec3<f32>, p2 : vec2<f32>, inst : u32, flatZ : f32) -> vec4<f32> {
+        if (U.projMode < 0.5) { return U.mvp * vec4<f32>(p3, 1.0); }
+        let lon = p2.x + (f32(inst) - 1.0) * 360.0;          // instanced ±360 wrap
+        let x = (lon - U.cLon) / 180.0 * U.zoom;
+        let y = (p2.y - U.cLat) / 180.0 * U.zoom * U.aspect;
+        return vec4<f32>(x, y, flatZ, 1.0);
+      }
+
+      struct VSOut {
+        @builtin(position) clip : vec4<f32>,
+        @location(0) @interpolate(flat) t : f32,
+        @location(1) shade : f32,
+      };
+
+      @vertex
+      fn vs(@location(0) p3 : vec3<f32>, @location(1) cell : u32,
+            @location(2) p2 : vec2<f32>, @builtin(instance_index) inst : u32) -> VSOut {
+        var out : VSOut;
+        out.clip = project(p3, p2, inst, 0.5);
+        let v = values[cell];
+        var t : f32 = -1.0;
+        if (v > 0.0) {
+          let s = (log(v) / log(10.0) - U.vmin) / max(U.vmax - U.vmin, 1e-6);
+          let lin = v / pow(10.0, U.vmax);
+          t = clamp(select(lin, s, U.useLog > 0.5), 0.0, 1.0);
+        }
+        out.t = t;
+        if (U.projMode < 0.5) {
+          let n = (U.rot * vec4<f32>(p3, 0.0)).xyz;          // camera-lit globe
+          out.shade = clamp(n.z * 0.85 + 0.2, 0.18, 1.0);
+        } else { out.shade = 1.0; }
+        return out;
+      }
+
+      fn ramp(t : f32) -> vec3<f32> {
+        let x = clamp(t, 0.0, 1.0) * 11.0;
+        let i = i32(floor(x));
+        return mix(viridis[i].rgb, viridis[min(i + 1, 11)].rgb, x - floor(x));
+      }
+
+      @fragment
+      fn fs(in : VSOut) -> @location(0) vec4<f32> {
+        var col : vec3<f32>;
+        if (in.t < 0.0) { col = vec3<f32>(0.07, 0.12, 0.20); } else { col = ramp(in.t); }
+        return vec4<f32>(col * in.shade, 1.0);
+      }
+
+      @vertex
+      fn vsLine(@location(0) p3 : vec3<f32>, @location(1) p2 : vec2<f32>,
+                @builtin(instance_index) inst : u32) -> @builtin(position) vec4<f32> {
+        return project(p3, p2, inst, 0.4);                   // graticule slightly in front
+      }
+      @fragment
+      fn fsLine() -> @location(0) vec4<f32> { return vec4<f32>(0.55, 0.66, 0.82, 0.35); }
+    `;
+
+    // ---- state ---------------------------------------------------------------
+    let device, ctx, format, bgl, layout, pCellsGlobe, pCellsFlat, pLines, bind, depthTex;
+    let uBuf, vBuf, viridisBuf, posBuf, xyBuf, cellBuf, idxBuf, idxCount, gp3Buf, gp2Buf, gCount;
+    let Module, NC, NT, NSEC, epochs, attrs, vmin, vmax, mode = 0, proj = 0;
+    let sectors = [], sectorTotals = [], FIELDS = [], sel = { mask:0, scale:1 };
+    let T0, T1, t = 0;
+    const uData = new Float32Array(40);        // mvp(16) rot(16) vmin vmax useLog projMode cLon cLat zoom aspect
+    const GLOBE0 = { yaw: 2.1, pitch: -0.35, dist: 2.9 };
+    const FLAT0 = { lon: 0, lat: 0, zoom: 1 };
+    let globe = { ...GLOBE0 }, flat = { ...FLAT0 }, dpr = 1, cw = 0, ch = 0;
+
+    async function initGPU() {
+      if (!navigator.gpu) fail('This view needs <b>WebGPU</b>.<br>Open in Chrome/Edge, Safari 18+, or recent Firefox — ' +
+        'or use the <a href="./index.html">pixel-splat view</a>, which runs anywhere.');
+      const adapter = await navigator.gpu.requestAdapter();
+      if (!adapter) fail('No WebGPU adapter. Try the <a href="./index.html">pixel-splat view</a>.');
+      device = await adapter.requestDevice();
+      const canvas = document.getElementById("view");
+      ctx = canvas.getContext("webgpu");
+      format = navigator.gpu.getPreferredCanvasFormat();
+      ctx.configure({ device, format, alphaMode: "opaque" });
+    }
+
+    function mkBuf(arr, usage) {
+      const b = device.createBuffer({ size: arr.byteLength, usage: usage | GPUBufferUsage.COPY_DST });
+      device.queue.writeBuffer(b, 0, arr);
+      return b;
+    }
+
+    function buildGraticule() {
+      const p3 = [], p2 = [], R = 1.004, D2R = Math.PI/180;
+      const seg = (lo1,la1,lo2,la2) => {
+        for (const [lo,la] of [[lo1,la1],[lo2,la2]]) {
+          const cl = Math.cos(la*D2R);
+          p3.push(R*cl*Math.cos(lo*D2R), R*cl*Math.sin(lo*D2R), R*Math.sin(la*D2R));
+          p2.push(lo, la);
+        }
+      };
+      for (let lo=-180; lo<180; lo+=30) for (let la=-88; la<88; la+=2) seg(lo,la,lo,la+2);   // meridians
+      for (let la=-60; la<=60; la+=30) for (let lo=-180; lo<180; lo+=2) seg(lo,la,lo+2,la);  // parallels
+      return { p3: new Float32Array(p3), p2: new Float32Array(p2), n: p2.length/2 };
+    }
+
+    async function loadData() {
+      const gstore = new zarr.FetchStore(new URL("./data/mesh_geometry.zarr", location.href));
+      const G = await zarr.open(gstore, { kind: "group" });
+      const garr = (n) => zarr.open(G.resolve(n), { kind: "array" }).then(a => zarr.get(a));
+      posBuf  = mkBuf((await garr("positions")).data,    GPUBufferUsage.VERTEX);
+      xyBuf   = mkBuf((await garr("positions_xy")).data, GPUBufferUsage.VERTEX);
+      cellBuf = mkBuf((await garr("cell_index")).data,   GPUBufferUsage.VERTEX);
+      const indices = (await garr("indices")).data;
+      idxBuf  = mkBuf(indices, GPUBufferUsage.INDEX);
+      idxCount = indices.length;
+
+      const grat = buildGraticule();
+      gp3Buf = mkBuf(grat.p3, GPUBufferUsage.VERTEX);
+      gp2Buf = mkBuf(grat.p2, GPUBufferUsage.VERTEX);
+      gCount = grat.n;
+
+      const estore = new zarr.FetchStore(new URL("./data/emissions.zarr", location.href));
+      const E = await zarr.open(estore, { kind: "group" });
+      attrs = E.attrs;
+      NC = attrs.n_cells; NT = attrs.n_time; NSEC = attrs.n_sectors;
+      vmin = attrs.log_vmin; vmax = attrs.log_vmax;
+      sectors = attrs.sectors; sectorTotals = attrs.sector_totals;
+      const earr = (n) => zarr.open(E.resolve(n), { kind: "array" }).then(a => zarr.get(a));
+      epochs = Array.from((await earr("epochs")).data);
+      const ss = (await earr("sector_slices")).data;
+
+      Module = await createMiem();
+      const epPtr = Module._malloc(NT * 8);
+      Module.HEAPF64.set(Float64Array.from(epochs), epPtr / 8);
+      Module._miem_load_times(NC, NT, NSEC, epPtr);
+      Module._free(epPtr);
+      const per = NT * NC;
+      for (let i = 0; i < NSEC; i++) {
+        const ptr = Module._malloc(per * 8);
+        Module.HEAPF64.set(Float64Array.from(ss.subarray(i * per, (i + 1) * per)), ptr / 8);
+        Module._miem_load_sector(i, ptr);
+        Module._free(ptr);
+      }
+
+      const allMask = (1 << NSEC) - 1, MS = attrs.mech_species;
+      FIELDS = [
+        { label: `${MS} — Σ all sectors (MIEM aggregate)`, mask: allMask, scale: 1 },
+        { label: `${MS} hydrophobic — split 0.8·Σ`, mask: allMask, scale: 0.8 },
+        { label: `${MS} hydrophilic — split 0.2·Σ`, mask: allMask, scale: 0.2 },
+        ...sectors.map((s, i) => {
+          const code = sectorCode(s);
+          return { label: `sector: ${SECTOR_LABELS[code] || code} (${code})`, mask: 1 << i, scale: 1 };
+        }),
+      ];
+      document.getElementById("field").innerHTML =
+        FIELDS.map((f, i) => `<option value="${i}">${f.label}</option>`).join("");
+      sel = FIELDS[0];
+      Module._miem_build(mode, sel.mask, sel.scale);
+
+      vBuf = device.createBuffer({ size: NC * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+
+      T0 = epochs[0]; T1 = epochs[NT - 1]; t = T0;
+      document.getElementById("time").max = Math.round((T1 - T0) / 3600);
+      document.getElementById("legbar").style.background = cssGradient();
+    }
+
+    function buildPipelines() {
+      const mod = device.createShaderModule({ code: WGSL });
+      bgl = device.createBindGroupLayout({ entries: [
+        { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
+        { binding: 1, visibility: GPUShaderStage.VERTEX, buffer: { type: "read-only-storage" } },
+        { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
+      ]});
+      layout = device.createPipelineLayout({ bindGroupLayouts: [bgl] });
+
+      const cellBuffers = [
+        { arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x3" }] },
+        { arrayStride: 4,  attributes: [{ shaderLocation: 1, offset: 0, format: "uint32" }] },
+        { arrayStride: 8,  attributes: [{ shaderLocation: 2, offset: 0, format: "float32x2" }] },
+      ];
+      const cellPipe = (depth) => device.createRenderPipeline({
+        layout,
+        vertex: { module: mod, entryPoint: "vs", buffers: cellBuffers },
+        fragment: { module: mod, entryPoint: "fs", targets: [{ format }] },
+        primitive: { topology: "triangle-list", cullMode: "none" },
+        depthStencil: { format: "depth24plus", ...depth },
+      });
+      pCellsGlobe = cellPipe({ depthWriteEnabled: true,  depthCompare: "less" });
+      pCellsFlat  = cellPipe({ depthWriteEnabled: false, depthCompare: "always" });
+
+      pLines = device.createRenderPipeline({
+        layout,
+        vertex: { module: mod, entryPoint: "vsLine", buffers: [
+          { arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x3" }] },
+          { arrayStride: 8,  attributes: [{ shaderLocation: 1, offset: 0, format: "float32x2" }] },
+        ]},
+        fragment: { module: mod, entryPoint: "fsLine", targets: [{ format, blend: {
+          color: { srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha", operation: "add" },
+          alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" } } }] },
+        primitive: { topology: "line-list" },
+        depthStencil: { format: "depth24plus", depthWriteEnabled: false, depthCompare: "less" },
+      });
+
+      uBuf = device.createBuffer({ size: uData.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      const vir = new Float32Array(12 * 4);
+      VIRIDIS.forEach((c, i) => { vir[i*4]=c[0]/255; vir[i*4+1]=c[1]/255; vir[i*4+2]=c[2]/255; vir[i*4+3]=1; });
+      viridisBuf = device.createBuffer({ size: vir.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      device.queue.writeBuffer(viridisBuf, 0, vir);
+
+      bind = device.createBindGroup({ layout: bgl, entries: [
+        { binding: 0, resource: { buffer: uBuf } },
+        { binding: 1, resource: { buffer: vBuf } },
+        { binding: 2, resource: { buffer: viridisBuf } },
+      ]});
+    }
+
+    function pushValues() {
+      const ptr = Module._miem_run_at(t);
+      device.queue.writeBuffer(vBuf, 0, Float32Array.from(Module.HEAPF64.subarray(ptr / 8, ptr / 8 + NC)));
+    }
+
+    function updateUniforms() {
+      const aspect = cw / Math.max(1, ch);
+      const rot = mul(rotY(globe.yaw), rotX(globe.pitch));
+      const mvp = mul(perspective(0.8, aspect, 0.02, 20), mul(translate(0, 0, -globe.dist), rot));
+      uData.set(mvp, 0); uData.set(rot, 16);
+      uData[32] = vmin; uData[33] = vmax;
+      uData[34] = document.getElementById("log").checked ? 1 : 0;
+      uData[35] = proj;
+      uData[36] = flat.lon; uData[37] = flat.lat; uData[38] = flat.zoom; uData[39] = aspect;
+      device.queue.writeBuffer(uBuf, 0, uData);
+    }
+
+    function render() {
+      const w = Math.max(1, Math.round(cw*dpr)), h = Math.max(1, Math.round(ch*dpr));
+      if (!depthTex || depthTex.width !== w || depthTex.height !== h) {
+        depthTex?.destroy();
+        depthTex = device.createTexture({ size: [w, h], format: "depth24plus", usage: GPUTextureUsage.RENDER_ATTACHMENT });
+      }
+      updateUniforms();
+      const inst = proj === 1 ? 3 : 1;                       // ±360 wrap copies on the flat map
+      const enc = device.createCommandEncoder();
+      const pass = enc.beginRenderPass({
+        colorAttachments: [{ view: ctx.getCurrentTexture().createView(),
+          clearValue: { r:0.055, g:0.067, b:0.086, a:1 }, loadOp: "clear", storeOp: "store" }],
+        depthStencilAttachment: { view: depthTex.createView(),
+          depthClearValue: 1.0, depthLoadOp: "clear", depthStoreOp: "store" },
+      });
+      pass.setBindGroup(0, bind);
+      pass.setPipeline(proj === 1 ? pCellsFlat : pCellsGlobe);
+      pass.setVertexBuffer(0, posBuf); pass.setVertexBuffer(1, cellBuf); pass.setVertexBuffer(2, xyBuf);
+      pass.setIndexBuffer(idxBuf, "uint32");
+      pass.drawIndexed(idxCount, inst);
+      pass.setPipeline(pLines);
+      pass.setVertexBuffer(0, gp3Buf); pass.setVertexBuffer(1, gp2Buf);
+      pass.draw(gCount, inst);
+      pass.end();
+      device.queue.submit([enc.finish()]);
+    }
+
+    function computeFieldRange() {
+      const logs = [];
+      for (let k = 0; k < NT; k++) {
+        const ptr = Module._miem_run_at(epochs[k]);
+        const row = Module.HEAPF64.subarray(ptr / 8, ptr / 8 + NC);
+        for (let i = 0; i < NC; i++) { const v = row[i]; if (v > 0) logs.push(Math.log10(v)); }
+      }
+      if (!logs.length) { vmin = -16; vmax = -11; } else {
+        logs.sort((a, b) => a - b);
+        const pct = (p) => logs[Math.min(logs.length-1, Math.max(0, Math.round(p/100*(logs.length-1))))];
+        vmax = pct(99.5); vmin = Math.max(pct(10), vmax - 6);
+      }
+      document.getElementById("legmin").textContent = fmtExp(vmin);
+      document.getElementById("legmax").textContent = fmtExp(vmax);
+    }
+
+    function setTime(newT, fromSlider) {
+      t = Math.min(T1, Math.max(T0, newT));
+      if (!fromSlider) document.getElementById("time").value = Math.round((t - T0) / 3600);
+      document.getElementById("timelabel").textContent = fmtTime(t);
+      pushValues(); render();
+    }
+
+    // ---- transport -----------------------------------------------------------
+    let playing = false, lastTs = 0, hoursPerSec = 168;
+    const playBtn = document.getElementById("play");
+    function frame(ts) {
+      if (!playing) return;
+      if (lastTs) { let nt = t + hoursPerSec * 3600 * (ts - lastTs) / 1000; if (nt >= T1) nt = T0; setTime(nt); }
+      lastTs = ts; requestAnimationFrame(frame);
+    }
+    function setPlaying(on) { playing = on; lastTs = 0; playBtn.textContent = on ? "⏸" : "▶"; if (on) requestAnimationFrame(frame); }
+    playBtn.onclick = () => setPlaying(!playing);
+    document.getElementById("speed").onchange = (e) => { hoursPerSec = +e.target.value; };
+    document.getElementById("time").addEventListener("input", (e) => { setPlaying(false); setTime(T0 + (+e.target.value)*3600, true); });
+    document.getElementById("log").addEventListener("change", render);
+    document.getElementById("mode").addEventListener("change", (e) => {
+      mode = +e.target.value; Module._miem_build(mode, sel.mask, sel.scale); pushValues(); render();
+    });
+    document.getElementById("field").addEventListener("change", (e) => {
+      sel = FIELDS[+e.target.value]; Module._miem_build(mode, sel.mask, sel.scale);
+      computeFieldRange(); pushValues(); render();
+    });
+    document.getElementById("proj").addEventListener("click", (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      proj = +b.dataset.p;
+      [...e.currentTarget.children].forEach(x => x.classList.toggle("on", x === b));
+      document.getElementById("hint").textContent = proj === 1
+        ? "drag to pan · scroll to zoom · double-click to reset"
+        : "drag to rotate · scroll to zoom · double-click to reset";
+      render();
+    });
+
+    // ---- navigation (globe: orbit; map: pan) --------------------------------
+    const canvas = document.getElementById("view");
+    function resize() {
+      dpr = window.devicePixelRatio || 1;
+      const r = canvas.getBoundingClientRect(); cw = r.width; ch = r.height;
+      canvas.width = Math.max(1, Math.round(cw*dpr)); canvas.height = Math.max(1, Math.round(ch*dpr));
+      render();
+    }
+    let dragging = false, lastX = 0, lastY = 0;
+    canvas.addEventListener("mousedown", (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; canvas.classList.add("drag"); });
+    window.addEventListener("mouseup", () => { dragging = false; canvas.classList.remove("drag"); });
+    window.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - lastX, dy = e.clientY - lastY;
+      if (proj === 1) {
+        const degPerPx = 360 / (flat.zoom * Math.max(1, cw));   // calmer when zoomed in
+        flat.lon -= dx * degPerPx;
+        flat.lat = Math.max(-90, Math.min(90, flat.lat + dy * degPerPx));
+      } else {
+        const k = 0.0006 * globe.dist;                          // rotation eases with zoom
+        globe.yaw += dx * k;
+        globe.pitch = Math.max(-1.5, Math.min(1.5, globe.pitch + dy * k));
+      }
+      lastX = e.clientX; lastY = e.clientY; render();
+    });
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      if (proj === 1) flat.zoom = Math.min(60, Math.max(0.4, flat.zoom * Math.exp(-e.deltaY * 0.0015)));
+      else globe.dist = Math.min(12, Math.max(1.08, globe.dist * Math.exp(e.deltaY * 0.0012)));
+      render();
+    }, { passive: false });
+    canvas.addEventListener("dblclick", () => {
+      if (proj === 1) flat = { ...FLAT0 }; else globe = { ...GLOBE0 };
+      render();
+    });
+    window.addEventListener("resize", resize);
+
+    // ---- boot ----------------------------------------------------------------
+    (async () => {
+      try {
+        await initGPU();
+        await loadData();
+        buildPipelines();
+        computeFieldRange();
+        status.style.display = "none";
+        resize();
+        setTime(T0);
+      } catch (err) {
+        if (status.style.display !== "flex") { status.style.display = "flex"; status.textContent = "failed to load: " + err.message; }
+        console.error(err);
+      }
+    })();
+  </script>
+</body>
+</html>

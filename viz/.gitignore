@@ -4,6 +4,7 @@ miem_wasm.js
 miem_wasm.wasm
 .venv/
 data/emissions.zarr/
+data/mesh_geometry.zarr/
 data/x1.163842.grid.nc
 data/x1.163842.tar.gz
 *.o
