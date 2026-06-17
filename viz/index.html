@@ -1,0 +1,430 @@
+<!doctype html>
+<!--
+  Copyright (C) 2026 University Corporation for Atmospheric Research
+  SPDX-License-Identifier: Apache-2.0
+
+  MIEM emissions visualizer. A static page that reads the Zarr v3 store built by
+  make_zarr.py (12 masked monthly slices + cell coordinates) and animates MIEM's
+  surface flux on a map at arbitrary time resolution. Each frame is computed in
+  the browser by the *real* miem::TemporalInterpolator, compiled to WASM
+  (miem_wasm.js) -- not a JS re-implementation, and not a pre-baked frame stack.
+
+  Serve viz/ over HTTP, e.g.  python -m http.server -d viz 8000
+  then open http://localhost:8000/
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MIEM emissions visualizer</title>
+  <style>
+    :root { --bg:#0e1116; --panel:#161b22; --ink:#e6edf3; --muted:#8b949e; --accent:#58a6ff; --line:#30363d; }
+    * { box-sizing: border-box; }
+    html, body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+      font:13px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    #app { display:flex; flex-direction:column; height:100vh; }
+    header { display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px;
+      padding:9px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+    header h1 { font-size:14px; font-weight:600; margin:0; letter-spacing:.2px; white-space:nowrap; }
+    header h1 small { color:var(--muted); font-weight:400; }
+    .group { display:flex; align-items:center; gap:8px; }
+    .lbl { color:var(--muted); }
+    .seg { display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+    .seg button { background:transparent; color:var(--muted); border:0; padding:5px 11px; cursor:pointer; font:inherit; }
+    .seg button.on { background:var(--accent); color:#0b1220; font-weight:600; }
+    label.chk { color:var(--muted); display:flex; align-items:center; gap:6px; cursor:pointer; }
+    button.tbtn { background:#21262d; color:var(--ink); border:1px solid var(--line); border-radius:6px;
+      width:30px; height:28px; cursor:pointer; font-size:13px; line-height:1; }
+    button.tbtn.play { width:36px; background:var(--accent); color:#0b1220; border-color:var(--accent); font-weight:700; }
+    select { background:#21262d; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:4px 6px; font:inherit; }
+    input[type=range] { width:300px; accent-color:var(--accent); vertical-align:middle; }
+    .time { min-width:178px; color:var(--ink); font-variant-numeric:tabular-nums; }
+    #stage { position:relative; flex:1; min-height:0; }
+    canvas#map { position:absolute; inset:0; width:100%; height:100%; display:block; cursor:grab; }
+    canvas#map.drag { cursor:grabbing; }
+    .panel { position:absolute; background:rgba(13,17,23,.82); border:1px solid var(--line);
+      border-radius:8px; padding:9px 11px; backdrop-filter:blur(3px); }
+    #legend { left:16px; bottom:16px; }
+    #legend .bar { width:220px; height:12px; border-radius:3px; margin:6px 0 4px; }
+    #legend .ticks { display:flex; justify-content:space-between; color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums; }
+    #legend .cap { color:var(--muted); font-size:11px; }
+    #spark { right:16px; top:16px; width:340px; }
+    #spark .row { display:flex; justify-content:space-between; align-items:baseline; color:var(--muted); font-size:11px; }
+    #spark .row b { color:var(--ink); font-variant-numeric:tabular-nums; }
+    #spark .sw { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; }
+    #sparkc { width:318px; height:72px; display:block; margin-top:4px; }
+    #hint { right:16px; bottom:16px; color:var(--muted); font-size:11px; }
+    #status { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>MIEM emissions <small id="meta"></small></h1>
+      <div class="group">
+        <span class="lbl">field</span>
+        <select id="field" title="inventory sector or MIEM SpeciesMap output"></select>
+      </div>
+      <div class="group">
+        <span class="lbl">interp</span>
+        <div class="seg" id="mode">
+          <button data-m="0" class="on">linear</button>
+          <button data-m="1">nearest</button>
+          <button data-m="2">held</button>
+        </div>
+      </div>
+      <label class="chk"><input type="checkbox" id="log" checked /> log</label>
+      <div class="group" id="transport">
+        <button class="tbtn" id="toStart" title="jump to start">⏮</button>
+        <button class="tbtn" id="stepB" title="−1 hour">◀</button>
+        <button class="tbtn play" id="play" title="play / pause">▶</button>
+        <button class="tbtn" id="stepF" title="+1 hour">▶</button>
+        <select id="speed" title="playback speed">
+          <option value="24">1 day/s</option>
+          <option value="168" selected>1 week/s</option>
+          <option value="720">~1 month/s</option>
+        </select>
+      </div>
+      <div class="group">
+        <input type="range" id="time" min="0" max="0" value="0" step="1" />
+        <span class="time" id="timelabel">—</span>
+      </div>
+    </header>
+    <div id="stage">
+      <canvas id="map"></canvas>
+      <div class="panel" id="spark">
+        <div class="row">
+          <span>global total (kg/s)</span>
+          <span><span class="sw" style="background:#58a6ff"></span>linear
+                &nbsp;<span class="sw" style="background:#e3b341"></span>held
+                &nbsp;<b id="spk-now">—</b></span>
+        </div>
+        <canvas id="sparkc"></canvas>
+      </div>
+      <div class="panel" id="legend">
+        <div class="cap" id="legcap">surface flux (kg m⁻² s⁻¹)</div>
+        <div class="bar" id="legbar"></div>
+        <div class="ticks"><span id="legmin"></span><span id="legmax"></span></div>
+      </div>
+      <div class="panel" id="hint">scroll zoom · drag pan · double-click reset</div>
+      <div id="status">loading store + WASM…</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as zarr from "https://esm.sh/zarrita@0.4.0";
+    import createMiem from "./miem_wasm.js";
+
+    // viridis (12 stops, linearly interpolated)
+    const VIRIDIS = [[68,1,84],[72,33,115],[67,62,133],[56,88,140],[45,112,142],[37,133,142],
+      [30,155,138],[42,176,127],[82,197,105],[134,213,73],[194,223,35],[253,231,37]];
+    const viridis = (t) => {
+      t = Math.min(1, Math.max(0, t));
+      const x = t * (VIRIDIS.length - 1), i = Math.floor(x), f = x - i;
+      const a = VIRIDIS[i], b = VIRIDIS[Math.min(i + 1, VIRIDIS.length - 1)];
+      return [a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f];
+    };
+    const cssGradient = () => "linear-gradient(90deg," +
+      VIRIDIS.map((c,i)=>`rgb(${c[0]},${c[1]},${c[2]}) ${(100*i/(VIRIDIS.length-1)).toFixed(0)}%`).join(",") + ")";
+    const supers = (n) => String(n).replace(/-/,"⁻").replace(/[0-9]/g, d => "⁰¹²³⁴⁵⁶⁷⁸⁹"[d]);
+    const fmtExp = (lv) => { const e = Math.floor(lv); return `${Math.pow(10, lv-e).toFixed(1)}×10${supers(e)}`; };
+    const fmtTime = (t) => new Date(t*1000).toISOString().slice(0,13).replace("T"," ") + ":00 UTC";
+
+    // Friendly names for the CAMS-GLOB-ANT sector codes. Keyed by the bare code
+    // (awb, ene, …) so they apply to any species: bc_anth_ene, co_anth_ene, … all
+    // share the "ene" code.
+    const SECTOR_LABELS = {
+      awb: "ag. waste burning", ene: "power generation", fef: "fugitives",
+      ind: "industry", ref: "refineries/transform", res: "residential",
+      com: "commercial", shp: "shipping", swd: "solid waste",
+      tnr: "off-road transport", tro: "road transport",
+    };
+    // The bare sector code from a variable name: the part after "_anth_" (CAMS
+    // convention), else after the last underscore.
+    const sectorCode = (name) =>
+      name.includes("_anth_") ? name.split("_anth_").pop() : name.split("_").pop();
+
+    const status = document.getElementById("status");
+    let Module, lon, lat, attrs, NC, NT, NSEC, vmin, vmax, epochs, knot;
+    let sectors = [], sectorTotals = [], FIELDS = [], sel = { mask: 0, scale: 1, label: "" };
+    let T0, T1, t = 0, mode = 0, curRow = null;
+
+    async function load() {
+      const store = new zarr.FetchStore(new URL("./data/emissions.zarr", location.href));
+      const G = await zarr.open(store, { kind: "group" });
+      attrs = G.attrs;
+      NC = attrs.n_cells; NT = attrs.n_time; NSEC = attrs.n_sectors; vmin = attrs.log_vmin; vmax = attrs.log_vmax;
+      sectors = attrs.sectors; sectorTotals = attrs.sector_totals;   // [sector][month] kg/s
+      const arr = (n) => zarr.open(G.resolve(n), { kind: "array" }).then(a => zarr.get(a));
+      lon = (await arr("lon")).data;
+      lat = (await arr("lat")).data;
+      epochs = Array.from((await arr("epochs")).data);
+      const ss = (await arr("sector_slices")).data;                 // Float32Array, NSEC*NT*NC
+
+      Module = await createMiem();
+      const epPtr = Module._malloc(NT * 8);
+      Module.HEAPF64.set(Float64Array.from(epochs), epPtr / 8);
+      Module._miem_load_times(NC, NT, NSEC, epPtr);
+      Module._free(epPtr);
+      const per = NT * NC;
+      for (let i = 0; i < NSEC; i++) {                               // load each sector (f32 -> f64)
+        const ptr = Module._malloc(per * 8);
+        Module.HEAPF64.set(Float64Array.from(ss.subarray(i * per, (i + 1) * per)), ptr / 8);
+        Module._miem_load_sector(i, ptr);
+        Module._free(ptr);
+      }
+
+      // Field menu: MIEM SpeciesMap outputs (aggregate / split) + each raw sector.
+      const allMask = (1 << NSEC) - 1, MS = attrs.mech_species;
+      FIELDS = [
+        { label: `${MS} — Σ all sectors (MIEM aggregate)`, mask: allMask, scale: 1 },
+        { label: `${MS} hydrophobic — split 0.8·Σ`, mask: allMask, scale: 0.8 },
+        { label: `${MS} hydrophilic — split 0.2·Σ`, mask: allMask, scale: 0.2 },
+        ...sectors.map((s, i) => {
+          const code = sectorCode(s);
+          return { label: `sector: ${SECTOR_LABELS[code] || code} (${code})`, mask: 1 << i, scale: 1 };
+        }),
+      ];
+      const fieldSel = document.getElementById("field");
+      fieldSel.innerHTML = FIELDS.map((f, i) => `<option value="${i}">${f.label}</option>`).join("");
+      sel = FIELDS[0];
+      recomputeKnot();
+      Module._miem_build(mode, sel.mask, sel.scale);   // real EmissionsBuilder + SpeciesMap
+      computeFieldRange();                             // scale the legend to this field
+
+      T0 = epochs[0]; T1 = epochs[NT - 1]; t = T0;
+      document.getElementById("time").max = Math.round((T1 - T0) / 3600);   // hourly steps
+      document.getElementById("meta").textContent =
+        `· ${NSEC} sectors → ${attrs.mech_species} · ${NC.toLocaleString()} cells · real SpeciesMap + Run (WASM)`;
+      document.getElementById("legbar").style.background = cssGradient();
+      updateLegend();
+      status.style.display = "none";
+    }
+
+    // Selected field's global total per month: scale * sum of its sectors. The
+    // sparkline reads this; it matches the area-weighted sum of the WASM field.
+    function recomputeKnot() {
+      knot = new Array(NT).fill(0);
+      for (let i = 0; i < NSEC; i++) {
+        if (sel.mask & (1 << i)) for (let k = 0; k < NT; k++) knot[k] += sectorTotals[i][k];
+      }
+      for (let k = 0; k < NT; k++) knot[k] *= sel.scale;
+    }
+
+    // Full MIEM pipeline in WASM: Emissions::Run(t) -> n_cells surface flux.
+    // The interp mode is baked into the built module (see onMode), so this just
+    // advances time.
+    function computeRow() {
+      const ptr = Module._miem_run_at(t);
+      curRow = Module.HEAPF64.subarray(ptr / 8, ptr / 8 + NC);
+    }
+
+    // Per-field log color range. Evaluate the built pipeline at each monthly knot
+    // (interpolation at a knot returns that month's slice for every mode, so the
+    // knots bound all in-between frames) and take p10..p99.5 of the positive
+    // values, capped at 6 decades -- the same recipe make_zarr uses for the Σ-all
+    // field. Without this every field shares the Σ-all scale, so a small sector
+    // like power generation (3 kg/s vs Σ 167) is crushed to the dark floor and
+    // looks flat. Run after each _miem_build; mode-independent, so no recompute
+    // on interp change.
+    function computeFieldRange() {
+      const logs = [];
+      for (let k = 0; k < NT; k++) {
+        const ptr = Module._miem_run_at(epochs[k]);
+        const row = Module.HEAPF64.subarray(ptr / 8, ptr / 8 + NC);
+        for (let i = 0; i < NC; i++) { const v = row[i]; if (v > 0) logs.push(Math.log10(v)); }
+      }
+      if (!logs.length) { vmin = -16; vmax = -11; return; }
+      logs.sort((a, b) => a - b);
+      const pct = (p) => logs[Math.min(logs.length - 1, Math.max(0, Math.round(p / 100 * (logs.length - 1))))];
+      vmax = pct(99.5);
+      vmin = Math.max(pct(10), vmax - 6);
+    }
+
+    function updateLegend() {
+      document.getElementById("legmin").textContent = fmtExp(vmin);
+      document.getElementById("legmax").textContent = fmtExp(vmax);
+    }
+
+    // The global total under each mode, derived from the monthly knot totals
+    // (sum of a per-cell interpolation == interpolation of the per-cell sum).
+    function totalAt(time, m) {
+      if (time <= epochs[0]) return knot[0];
+      if (time >= epochs[NT-1]) return knot[NT-1];
+      let k = 0; while (k < NT - 1 && time >= epochs[k+1]) k++;
+      const a = (time - epochs[k]) / (epochs[k+1] - epochs[k]);
+      if (m === 2) return knot[k];                          // held (None)
+      if (m === 1) return a <= 0.5 ? knot[k] : knot[k+1];   // nearest
+      return knot[k] * (1 - a) + knot[k+1] * a;             // linear
+    }
+
+    // ---- map ----------------------------------------------------------------
+    const canvas = document.getElementById("map");
+    const ctx = canvas.getContext("2d");
+    let cam = { zoom: 1, panX: 0, panY: 0 }, dpr = 1, cw = 0, ch = 0, baseScale = 1, land = null;
+
+    function resize() {
+      dpr = window.devicePixelRatio || 1;
+      const r = canvas.getBoundingClientRect();
+      cw = r.width; ch = r.height;
+      canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+      baseScale = cw / 360;
+      drawMap();
+    }
+    const projX = (lo) => ((lo + 180) * baseScale * cam.zoom) + cam.panX;
+    const projY = (la) => ((90 - la) * baseScale * cam.zoom) + cam.panY;
+    function resetCam() { cam.zoom = 1; cam.panX = 0; cam.panY = (ch - 180 * baseScale) / 2; drawMap(); }
+
+    function drawMap() {
+      if (!curRow) return;
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.fillStyle = "#0b1f33";
+      ctx.fillRect(projX(-180), projY(90), 360*baseScale*cam.zoom, 180*baseScale*cam.zoom);
+      if (land) {
+        ctx.beginPath();
+        for (const poly of land) for (const ring of poly) {
+          for (let i = 0; i < ring.length; i++) {
+            const x = projX(ring[i][0]), y = projY(ring[i][1]);
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+        }
+        ctx.fillStyle = "#13283d"; ctx.fill("evenodd");
+        ctx.lineWidth = 0.6; ctx.strokeStyle = "rgba(150,180,210,.45)"; ctx.stroke();
+      }
+      const span = vmax - vmin, useLog = document.getElementById("log").checked;
+      const linMax = Math.pow(10, vmax), ps = Math.max(1.4, 1.6 * cam.zoom);
+      for (let i = 0; i < NC; i++) {
+        const v = curRow[i];
+        if (!(v > 0)) continue;
+        const tt = useLog ? (Math.log10(v) - vmin) / span : v / linMax;
+        if (tt <= 0) continue;
+        const c = viridis(tt);
+        ctx.fillStyle = `rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
+        ctx.fillRect(projX(lon[i]) - ps/2, projY(lat[i]) - ps/2, ps, ps);
+      }
+      ctx.restore();
+    }
+
+    // ---- sparkline (monthly knot totals; marker rides the active mode) ------
+    const sparkc = document.getElementById("sparkc");
+    const sctx = sparkc.getContext("2d");
+    function drawSpark() {
+      const w = sparkc.clientWidth, h = sparkc.clientHeight, pad = 6;
+      sparkc.width = Math.round(w*dpr); sparkc.height = Math.round(h*dpr);
+      sctx.setTransform(dpr,0,0,dpr,0,0); sctx.clearRect(0,0,w,h);
+      let lo = Math.min(...knot), hi = Math.max(...knot); const sp = (hi-lo)||1;
+      const X = (tm) => pad + (tm - T0)/(T1 - T0) * (w - 2*pad);
+      const Y = (v) => (h - pad) - (v - lo)/sp * (h - 2*pad);
+      // held step (amber): hold each month's value until the next knot
+      sctx.beginPath();
+      for (let k = 0; k < NT; k++) {
+        const x = X(epochs[k]), y = Y(knot[k]);
+        if (k === 0) sctx.moveTo(x, y); else { sctx.lineTo(x, Y(knot[k-1])); sctx.lineTo(x, y); }
+      }
+      sctx.lineWidth = 1.3; sctx.strokeStyle = "#e3b341"; sctx.stroke();
+      // linear (blue): straight segments through the knots
+      sctx.beginPath();
+      for (let k = 0; k < NT; k++) { const x = X(epochs[k]), y = Y(knot[k]); k===0?sctx.moveTo(x,y):sctx.lineTo(x,y); }
+      sctx.lineWidth = 1.5; sctx.strokeStyle = "#58a6ff"; sctx.stroke();
+      // current-time marker
+      const mx = X(t), val = totalAt(t, mode);
+      sctx.strokeStyle = "rgba(230,237,243,.5)"; sctx.lineWidth = 1;
+      sctx.beginPath(); sctx.moveTo(mx, 0); sctx.lineTo(mx, h); sctx.stroke();
+      const mc = mode === 2 ? "#e3b341" : mode === 1 ? "#7ee787" : "#58a6ff";
+      sctx.fillStyle = mc; sctx.beginPath(); sctx.arc(mx, Y(val), 3, 0, 7); sctx.fill();
+      document.getElementById("spk-now").textContent = `${val.toFixed(1)} kg/s`;
+    }
+
+    // ---- time + render orchestration ----------------------------------------
+    function setTime(newT, fromSlider) {
+      t = Math.min(T1, Math.max(T0, newT));
+      if (!fromSlider) document.getElementById("time").value = Math.round((t - T0) / 3600);
+      document.getElementById("timelabel").textContent = fmtTime(t);
+      computeRow(); drawMap(); drawSpark();
+    }
+
+    // ---- transport ----------------------------------------------------------
+    let playing = false, lastTs = 0, hoursPerSec = 168;
+    const playBtn = document.getElementById("play");
+    function frame(ts) {
+      if (!playing) return;
+      if (lastTs) {
+        let nt = t + hoursPerSec * 3600 * (ts - lastTs) / 1000;
+        if (nt >= T1) nt = T0;                 // loop
+        setTime(nt);
+      }
+      lastTs = ts; requestAnimationFrame(frame);
+    }
+    function setPlaying(on) {
+      playing = on; lastTs = 0; playBtn.textContent = on ? "⏸" : "▶";
+      if (on) requestAnimationFrame(frame);
+    }
+    playBtn.onclick = () => setPlaying(!playing);
+    document.getElementById("toStart").onclick = () => { setPlaying(false); setTime(T0); };
+    document.getElementById("stepB").onclick = () => { setPlaying(false); setTime(t - 3600); };
+    document.getElementById("stepF").onclick = () => { setPlaying(false); setTime(t + 3600); };
+    document.getElementById("speed").onchange = (e) => { hoursPerSec = +e.target.value; };
+    document.getElementById("time").addEventListener("input", (e) => {
+      setPlaying(false); setTime(T0 + (+e.target.value) * 3600, true);
+    });
+    document.getElementById("log").addEventListener("change", drawMap);
+    document.getElementById("mode").addEventListener("click", (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      mode = +b.dataset.m;
+      [...e.currentTarget.children].forEach(x => x.classList.toggle("on", x === b));
+      Module._miem_build(mode, sel.mask, sel.scale);   // rebuild for the new interp mode
+      computeRow(); drawMap(); drawSpark();
+    });
+    document.getElementById("field").addEventListener("change", (e) => {
+      sel = FIELDS[+e.target.value];
+      Module._miem_build(mode, sel.mask, sel.scale);   // reconfigure the SpeciesMap
+      computeFieldRange(); updateLegend();             // rescale legend to the new field
+      recomputeKnot(); computeRow(); drawMap(); drawSpark();
+    });
+
+    // ---- camera interactions -------------------------------------------------
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      const nz = Math.min(80, Math.max(1, cam.zoom * Math.exp(-e.deltaY * 0.0015)));
+      cam.panX = mx - (mx - cam.panX) * (nz / cam.zoom);
+      cam.panY = my - (my - cam.panY) * (nz / cam.zoom);
+      cam.zoom = nz; drawMap();
+    }, { passive: false });
+    let dragging = false, lastX = 0, lastY = 0;
+    canvas.addEventListener("mousedown", (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; canvas.classList.add("drag"); });
+    window.addEventListener("mouseup", () => { dragging = false; canvas.classList.remove("drag"); });
+    window.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      cam.panX += e.clientX - lastX; cam.panY += e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY; drawMap();
+    });
+    canvas.addEventListener("dblclick", resetCam);
+    window.addEventListener("resize", () => { resize(); drawSpark(); });
+
+    // ---- boot ---------------------------------------------------------------
+    (async () => {
+      try {
+        await load();
+        try {
+          const gj = await (await fetch("./data/land.geojson")).json();
+          land = [];
+          for (const f of gj.features) {
+            const g = f.geometry; if (!g) continue;
+            if (g.type === "Polygon") land.push(g.coordinates);
+            else if (g.type === "MultiPolygon") for (const p of g.coordinates) land.push(p);
+          }
+        } catch (_) { /* coastline optional */ }
+        computeRow(); resize(); resetCam(); setTime(T0); drawSpark();
+      } catch (err) {
+        status.style.display = "flex";
+        status.textContent = "failed to load: " + err.message;
+        console.error(err);
+      }
+    })();
+  </script>
+</body>
+</html>

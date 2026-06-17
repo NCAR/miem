@@ -1,0 +1,9 @@
+# Generated / downloaded artifacts -- regenerate with build_and_run.sh.
+miem_run
+miem_wasm.js
+miem_wasm.wasm
+.venv/
+data/emissions.zarr/
+data/x1.163842.grid.nc
+data/x1.163842.tar.gz
+*.o

@@ -1,0 +1,9 @@
+# Orphaned 'visualizer' branch: it carries ONLY the viz/ tool, this README, and
+# this .gitignore. Everything else physically present in the worktree -- the MIEM
+# source materialized from the parent checkout, screenshots, IDE files, build
+# output -- is local scratch and deliberately ignored, so `git status` stays
+# clean and `git add` can't pull the MIEM tree onto this branch.
+/*
+!/.gitignore
+!/README.md
+!/viz/
