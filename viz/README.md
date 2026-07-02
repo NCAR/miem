@@ -78,12 +78,12 @@ thing left offline is reading the file.
 | `wasm_in_memory_reader.hpp` | `EmissionFileReader` that serves the in-memory slices (no netCDF) |
 | `reader_factory_wasm.cpp` | WASM-only `MakeEmissionFileReader` → the in-memory reader (replaces the netCDF factory) |
 | `make_zarr.py` | joins slices + epochs + cell coordinates into a Zarr v3 store |
-| `make_mesh_geometry.py` | reconstructs the MPAS Voronoi cells from the cell centers (spherical Voronoi) and fan-triangulates them into a Zarr v3 geometry store for the globe |
+| `make_mesh_geometry.py` | reconstructs the MPAS Voronoi cells from the cell centers (spherical Voronoi), fan-triangulates them, and (with `--land`) tags each cell land/ocean, into a Zarr v3 geometry store |
 | `index.html` | static viewer: zarrita.js + Canvas2D equirectangular splat + the WASM pipeline |
 | `cells.html` | static viewer: zarrita.js + **WebGPU** actual cells (WGSL), globe **or** 2D map + the WASM pipeline |
 | `build_and_run.sh` | compile driver + WASM → ensure deps/coords → build store → serve |
 | `data/mesh_coords.npz` | cached cell lat/lon/area (re-runs skip the 214 MB mesh) |
-| `data/land.geojson` | coarse coastline for map context (optional) |
+| `data/land.geojson` | coarse coastline: drawn as the coastline overlay and (via `--land`) the per-cell land tint (optional) |
 
 ## The actual-cells view (`cells.html`, WebGPU)
 
@@ -100,6 +100,7 @@ positions     (Nv, 3) f32   unit-sphere xyz of every triangle vertex (globe)
 positions_xy  (Nv, 2) f32   equirectangular lon/lat degrees (2D map)
 cell_index    (Nv,)   u32   the cell each vertex belongs to (-> value lookup)
 indices       (Nt*3,) u32   per-cell triangle fans
+land_mask     (NC,)   u32   per-cell 1=land (tints empty cells; optional)
 ```
 
 Geometry is **per-cell** (no vertices shared between cells), so flat per-cell
@@ -116,10 +117,23 @@ the 2D map the **antimeridian seam** is handled in `positions_xy` by unwrapping
 each cell's vertices to the same 360° branch as its center (so no triangle spans
 the map; the few polar cells that genuinely wrap are collapsed), and the east/west
 wrap is filled by drawing the map three times with a ±360° longitude offset
-applied per instance in the shader. A faint lat/lon graticule (a second
-line-list pipeline) aids orientation in both views. The `x1.163842` mesh's twelve
+applied per instance in the shader. A faint lat/lon graticule and a coastline
+overlay (the same `land.geojson` `index.html` uses, drawn through a shared
+line-list pipeline; antimeridian-crossing segments are dropped) aid orientation
+in both views. The `x1.163842` mesh's twelve
 pentagons (vs. hexagons) are the icosahedral signature you can confirm in the
 build log (`polygon sizes {5: 12, 6: 163830}`, Σarea = 4π).
+
+Because the cells tile the whole sphere with no gaps, there is no background to
+"show through" the way the pixel view's land fill shows between dots. So the
+continents are rendered the cells-view way: `make_mesh_geometry.py` precomputes a
+per-cell `land_mask` (even-odd point-in-polygon of each cell center against the
+same `land.geojson`; ~29% of cells land, matching Earth), and the shader paints
+**empty (no-emission) cells over land** a slightly lighter shade than ocean —
+the mirror of `index.html`'s filled continents, leaving emission-bearing cells
+their true viridis color. Cells with emissions are colored normally regardless,
+so the land tint never washes out data. If the mask is absent (a store built
+without `--land`), every empty cell falls back to the ocean shade.
 
 ## Why a separate mesh was needed
 

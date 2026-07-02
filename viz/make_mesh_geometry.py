@@ -19,6 +19,7 @@ cell ordering of `cell_index` matches the inventory's nCells axis, so the browse
 can color each cell directly by MIEM's per-cell flux.
 """
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
@@ -39,6 +40,45 @@ def _lonlat(p):
     lon = np.degrees(np.arctan2(p[..., 1], p[..., 0]))
     lat = np.degrees(np.arcsin(np.clip(p[..., 2], -1.0, 1.0)))
     return lon, lat
+
+
+def land_mask_for(lon, lat, geojson_path):
+    """Per-cell land/ocean bit (1 = center over land) from a GeoJSON coastline.
+
+    Even-odd ray casting of each cell center against every ring (outer rings and
+    holes alike), so lakes/inland seas punched as holes come out as ocean. The
+    Natural Earth land polygons are split at the antimeridian, so a horizontal
+    +lon ray never has to wrap. Returns a uint32 array in cell order, matching
+    the inventory's nCells axis. The "actual cells" view tints no-data cells
+    lighter where this is set, mirroring the pixel view's filled continents.
+    """
+    gj = json.loads(Path(geojson_path).read_text())
+    rings = []
+    for feat in gj.get("features", []):
+        g = feat.get("geometry") or {}
+        polys = (
+            [g["coordinates"]] if g.get("type") == "Polygon"
+            else g["coordinates"] if g.get("type") == "MultiPolygon"
+            else []
+        )
+        for poly in polys:
+            for ring in poly:
+                r = np.asarray(ring, dtype=np.float64)
+                if len(r) >= 4:
+                    rings.append(r)
+
+    px = lon.astype(np.float64)
+    py = lat.astype(np.float64)
+    inside = np.zeros(len(px), dtype=bool)
+    for r in rings:                                  # accumulate crossing parity
+        x, y = r[:, 0], r[:, 1]
+        x1, y1, x2, y2 = x[:-1], y[:-1], x[1:], y[1:]
+        for k in range(len(x1)):                     # vectorized over points per edge
+            straddle = (y1[k] > py) != (y2[k] > py)  # ray at py crosses this edge's y-span
+            dy = y2[k] - y1[k]
+            xint = x1[k] + (py - y1[k]) * (x2[k] - x1[k]) / (dy if dy else 1.0)
+            inside ^= straddle & (px < xint)
+    return inside.astype(np.uint32)
 
 
 def build_geometry(centers):
@@ -108,7 +148,7 @@ def build_geometry(centers):
     )
 
 
-def write_store(out_dir, positions, cell_index, indices, positions_xy, meta):
+def write_store(out_dir, positions, cell_index, indices, positions_xy, land_mask, meta):
     store = zarr.storage.LocalStore(str(out_dir))
     root = zarr.create_group(store=store, overwrite=True)
 
@@ -120,6 +160,8 @@ def write_store(out_dir, positions, cell_index, indices, positions_xy, meta):
     arr("positions_xy", positions_xy)  # equirectangular lon/lat degrees (2D map)
     arr("cell_index", cell_index)
     arr("indices", indices)
+    if land_mask is not None:
+        arr("land_mask", land_mask)    # per-cell 1=land (tints no-data cells lighter)
     root.attrs.update(meta)
 
 
@@ -127,6 +169,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--coords", required=True, help="mesh_coords.npz (lat/lon in cell order)")
     ap.add_argument("--out", required=True, help="output Zarr v3 directory")
+    ap.add_argument("--land", help="optional GeoJSON coastline -> per-cell land_mask")
     args = ap.parse_args()
 
     z = np.load(args.coords)
@@ -138,6 +181,11 @@ def main():
     print("[2/3] spherical Voronoi + fan triangulation ...", flush=True)
     positions, cell_index, indices, positions_xy, sizes = build_geometry(centers)
     n_tri = len(indices) // 3
+
+    land_mask = None
+    if args.land and Path(args.land).exists():
+        land_mask = land_mask_for(lon, lat, args.land)
+        print(f"      land mask: {int(land_mask.sum()):,} / {n_cells:,} cells over land", flush=True)
 
     # Completeness check: the Voronoi cell areas must tile the whole sphere (4*pi).
     sphere_area = float(SphericalVoronoi(centers, radius=1.0, center=np.zeros(3)).calculate_areas().sum())
@@ -157,6 +205,7 @@ def main():
         cell_index,
         indices,
         positions_xy,
+        land_mask,
         {
             "n_cells": int(n_cells),
             "n_vertices": int(len(positions)),
@@ -164,11 +213,13 @@ def main():
             "polygon_sizes": hist,
             "sphere_area_check": sphere_area,
             "polar_collapsed_2d": int(build_geometry.n_polar_collapsed),
+            "land_cells": int(land_mask.sum()) if land_mask is not None else None,
             "source_coords": Path(args.coords).name,
             "geometry": "per-cell fans; positions=unit-sphere xyz, positions_xy=equirectangular lon/lat deg",
         },
     )
-    mb = (positions.nbytes + positions_xy.nbytes + cell_index.nbytes + indices.nbytes) / 1e6
+    extra = land_mask.nbytes if land_mask is not None else 0
+    mb = (positions.nbytes + positions_xy.nbytes + cell_index.nbytes + indices.nbytes + extra) / 1e6
     print(f"      done ({mb:.1f} MB).", flush=True)
 
 

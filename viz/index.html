@@ -21,11 +21,11 @@
     :root { --bg:#0e1116; --panel:#161b22; --ink:#e6edf3; --muted:#8b949e; --accent:#58a6ff; --line:#30363d; }
     * { box-sizing: border-box; }
     html, body { margin:0; height:100%; background:var(--bg); color:var(--ink);
-      font:13px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      font:17px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
     #app { display:flex; flex-direction:column; height:100vh; }
     header { display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px;
       padding:9px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
-    header h1 { font-size:14px; font-weight:600; margin:0; letter-spacing:.2px; white-space:nowrap; }
+    header h1 { font-size:20px; font-weight:600; margin:0; letter-spacing:.2px; white-space:nowrap; }
     header h1 small { color:var(--muted); font-weight:400; }
     .group { display:flex; align-items:center; gap:8px; }
     .lbl { color:var(--muted); }
@@ -34,9 +34,9 @@
     .seg button.on { background:var(--accent); color:#0b1220; font-weight:600; }
     label.chk { color:var(--muted); display:flex; align-items:center; gap:6px; cursor:pointer; }
     button.tbtn { background:#21262d; color:var(--ink); border:1px solid var(--line); border-radius:6px;
-      width:30px; height:28px; cursor:pointer; font-size:13px; line-height:1; }
-    button.tbtn.play { width:36px; background:var(--accent); color:#0b1220; border-color:var(--accent); font-weight:700; }
-    select { background:#21262d; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:4px 6px; font:inherit; }
+      width:38px; height:34px; cursor:pointer; font-size:17px; line-height:1; }
+    button.tbtn.play { width:44px; background:var(--accent); color:#0b1220; border-color:var(--accent); font-weight:700; }
+    select { background:#21262d; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:7px 12px; font:inherit; }
     input[type=range] { width:300px; accent-color:var(--accent); vertical-align:middle; }
     .time { min-width:178px; color:var(--ink); font-variant-numeric:tabular-nums; }
     #stage { position:relative; flex:1; min-height:0; }
@@ -46,15 +46,20 @@
       border-radius:8px; padding:9px 11px; backdrop-filter:blur(3px); }
     #legend { left:16px; bottom:16px; }
     #legend .bar { width:220px; height:12px; border-radius:3px; margin:6px 0 4px; }
-    #legend .ticks { display:flex; justify-content:space-between; color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums; }
-    #legend .cap { color:var(--muted); font-size:11px; }
+    #legend .ticks { display:flex; justify-content:space-between; color:var(--muted); font-size:15px; font-variant-numeric:tabular-nums; }
+    #legend .cap { color:var(--muted); font-size:15px; }
     #spark { right:16px; top:16px; width:340px; }
-    #spark .row { display:flex; justify-content:space-between; align-items:baseline; color:var(--muted); font-size:11px; }
+    #spark .row { display:flex; justify-content:space-between; align-items:baseline; color:var(--muted); font-size:15px; }
     #spark .row b { color:var(--ink); font-variant-numeric:tabular-nums; }
     #spark .sw { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; }
     #sparkc { width:318px; height:72px; display:block; margin-top:4px; }
-    #hint { right:16px; bottom:16px; color:var(--muted); font-size:11px; }
-    #status { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; }
+    #hint { right:16px; bottom:16px; color:var(--muted); font-size:15px; }
+    #status { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:18px; }
+    /* Field title overlay: shows the currently selected field on the map itself,
+       so it stays visible in screen-shares (native <select> popups aren't captured). */
+    #fieldtitle { left:16px; top:14px; max-width:min(60vw,760px); }
+    #fieldtitle .eyebrow { color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:1.6px; }
+    #fieldtitle .name { color:var(--ink); font-size:28px; font-weight:600; line-height:1.2; }
   </style>
 </head>
 <body>
@@ -64,8 +69,17 @@
       <a href="./cells.html" title="WebGPU globe of the actual MPAS Voronoi cells"
          style="color:var(--accent);text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:4px 9px">🌐 actual cells</a>
       <div class="group">
+        <span class="lbl">dataset</span>
+        <select id="dataset" title="emissions inventory"></select>
+      </div>
+      <div class="group">
         <span class="lbl">field</span>
         <select id="field" title="inventory sector or MIEM SpeciesMap output"></select>
+      </div>
+      <div class="group" id="splitgrp" title="SpeciesMap split — a molar fraction, converted to a mass factor by molecular weight">
+        <span class="lbl" id="splitlbl">split %</span>
+        <input type="number" id="splitval" min="0" max="100" step="1" style="width:62px" />
+        <span class="lbl" id="splitout"></span>
       </div>
       <div class="group">
         <span class="lbl">interp</span>
@@ -94,6 +108,7 @@
     </header>
     <div id="stage">
       <canvas id="map"></canvas>
+      <div class="panel" id="fieldtitle"><div class="eyebrow">field</div><div class="name" id="fieldname">—</div></div>
       <div class="panel" id="spark">
         <div class="row">
           <span>global total (kg/s)</span>
@@ -150,12 +165,62 @@
     let Module, lon, lat, attrs, NC, NT, NSEC, vmin, vmax, epochs, knot;
     let sectors = [], sectorTotals = [], FIELDS = [], sel = { mask: 0, scale: 1, label: "" };
     let T0, T1, t = 0, mode = 0, curRow = null;
+    let baseVmin = -16, baseVmax = -11;   // fixed Σ-all reference range shared by the aggregate/split fields
 
-    async function load() {
-      const store = new zarr.FetchStore(new URL("./data/emissions.zarr", location.href));
+    // Selectable datasets; all share the x1.163842 mesh. `split` defines the
+    // two-way SpeciesMap split shown as fields 2 & 3. A molar fraction becomes a
+    // mass factor via each branch's MW: NOx is reported as NO2-equivalent mass, so
+    // NO is rescaled by MW_NO/MW_NO2. BC's two bins are the same species (mw ratio
+    // 1), so its split collapses to a pure mass split.
+    const MW = { NO: 30.006, NO2: 46.006 };
+    const DATASETS = {
+      bc:  { label: "BC · CAMS-GLOB-ANT 2012", store: "./data/emissions.zarr",
+             split: { basisMW: 1, a: { name: "BC hydrophobic", mw: 1 }, b: { name: "BC hydrophilic", mw: 1 }, defFracA: 0.8, ctrl: "hydrophobic %" } },
+      nox: { label: "NOₓ · 2024 (NO/NO₂)", store: "./data/nox/emissions.zarr",
+             split: { basisMW: MW.NO2, a: { name: "NO", mw: MW.NO }, b: { name: "NO₂", mw: MW.NO2 }, defFracA: 0.9, ctrl: "NO mol %" } },
+    };
+    let dsKey = "bc", fracA = DATASETS.bc.split.defFracA;   // active dataset + split fraction of branch A
+
+    // Molar (or mass, when mw == basisMW) fraction -> SpeciesMap mass factor.
+    const massFactors = () => {
+      const sp = DATASETS[dsKey].split;
+      return { a: fracA * sp.a.mw / sp.basisMW, b: (1 - fracA) * sp.b.mw / sp.basisMW };
+    };
+    // Field menu: Σ-all aggregate, the two split branches (live MW-aware factors),
+    // then each raw sector.
+    function buildFields() {
+      const sp = DATASETS[dsKey].split, allMask = (1 << NSEC) - 1, MS = attrs.mech_species;
+      const f = massFactors(), pa = Math.round(fracA * 100);
+      FIELDS = [
+        { label: `${MS} — Σ all sectors (MIEM aggregate)`, mask: allMask, scale: 1 },
+        { label: `${sp.a.name} — ${pa}% → ${f.a.toFixed(2)}·Σ`, mask: allMask, scale: f.a },
+        { label: `${sp.b.name} — ${100 - pa}% → ${f.b.toFixed(2)}·Σ`, mask: allMask, scale: f.b },
+        ...sectors.map((s, i) => {
+          const code = sectorCode(s);
+          return { label: `sector: ${SECTOR_LABELS[code] || code} (${code})`, mask: 1 << i, scale: 1 };
+        }),
+      ];
+    }
+    function refreshFieldMenu(idx) {
+      const fieldSel = document.getElementById("field");
+      fieldSel.innerHTML = FIELDS.map((ff, i) => `<option value="${i}">${ff.label}</option>`).join("");
+      fieldSel.value = String(idx);
+    }
+    function syncSplitUI() {
+      const sp = DATASETS[dsKey].split, f = massFactors();
+      document.getElementById("splitlbl").textContent = sp.ctrl;
+      document.getElementById("splitval").value = String(Math.round(fracA * 100));
+      document.getElementById("splitout").textContent =
+        `→ ${sp.a.name} ${f.a.toFixed(2)}·Σ + ${sp.b.name} ${f.b.toFixed(2)}·Σ (mass)`;
+    }
+
+    async function loadDataset(key) {
+      dsKey = key; fracA = DATASETS[key].split.defFracA;
+      status.style.display = "flex"; status.textContent = "loading store + WASM…";
+      const store = new zarr.FetchStore(new URL(DATASETS[key].store, location.href));
       const G = await zarr.open(store, { kind: "group" });
       attrs = G.attrs;
-      NC = attrs.n_cells; NT = attrs.n_time; NSEC = attrs.n_sectors; vmin = attrs.log_vmin; vmax = attrs.log_vmax;
+      NC = attrs.n_cells; NT = attrs.n_time; NSEC = attrs.n_sectors;
       sectors = attrs.sectors; sectorTotals = attrs.sector_totals;   // [sector][month] kg/s
       const arr = (n) => zarr.open(G.resolve(n), { kind: "array" }).then(a => zarr.get(a));
       lon = (await arr("lon")).data;
@@ -163,10 +228,10 @@
       epochs = Array.from((await arr("epochs")).data);
       const ss = (await arr("sector_slices")).data;                 // Float32Array, NSEC*NT*NC
 
-      Module = await createMiem();
+      if (!Module) Module = await createMiem();                     // create once; reuse the in-memory store across datasets
       const epPtr = Module._malloc(NT * 8);
       Module.HEAPF64.set(Float64Array.from(epochs), epPtr / 8);
-      Module._miem_load_times(NC, NT, NSEC, epPtr);
+      Module._miem_load_times(NC, NT, NSEC, epPtr);                 // resets the singleton store's dims/times
       Module._free(epPtr);
       const per = NT * NC;
       for (let i = 0; i < NSEC; i++) {                               // load each sector (f32 -> f64)
@@ -176,23 +241,15 @@
         Module._free(ptr);
       }
 
-      // Field menu: MIEM SpeciesMap outputs (aggregate / split) + each raw sector.
-      const allMask = (1 << NSEC) - 1, MS = attrs.mech_species;
-      FIELDS = [
-        { label: `${MS} — Σ all sectors (MIEM aggregate)`, mask: allMask, scale: 1 },
-        { label: `${MS} hydrophobic — split 0.8·Σ`, mask: allMask, scale: 0.8 },
-        { label: `${MS} hydrophilic — split 0.2·Σ`, mask: allMask, scale: 0.2 },
-        ...sectors.map((s, i) => {
-          const code = sectorCode(s);
-          return { label: `sector: ${SECTOR_LABELS[code] || code} (${code})`, mask: 1 << i, scale: 1 };
-        }),
-      ];
-      const fieldSel = document.getElementById("field");
-      fieldSel.innerHTML = FIELDS.map((f, i) => `<option value="${i}">${f.label}</option>`).join("");
+      syncSplitUI();
+      buildFields();
+      refreshFieldMenu(0);
       sel = FIELDS[0];
+      setFieldTitle();
       recomputeKnot();
       Module._miem_build(mode, sel.mask, sel.scale);   // real EmissionsBuilder + SpeciesMap
-      computeFieldRange();                             // scale the legend to this field
+      computeFieldRange();                             // range the Σ-all aggregate...
+      baseVmin = vmin; baseVmax = vmax;                // ...and lock it as the shared reference
 
       T0 = epochs[0]; T1 = epochs[NT - 1]; t = T0;
       document.getElementById("time").max = Math.round((T1 - T0) / 3600);   // hourly steps
@@ -247,6 +304,20 @@
       document.getElementById("legmin").textContent = fmtExp(vmin);
       document.getElementById("legmax").textContent = fmtExp(vmax);
     }
+
+    // Legend range. The aggregate + both split branches share the fixed Σ-all
+    // reference range, so changing the split % dims/brightens the map instead of
+    // rescaling the change away. Each raw sector still auto-scales to its own
+    // p10–p99.5 (otherwise a small sector is crushed to the dark floor).
+    function setRangeForSelection() {
+      const allMask = (1 << NSEC) - 1;
+      if (sel.mask === allMask) { vmin = baseVmin; vmax = baseVmax; }
+      else computeFieldRange();
+      updateLegend();
+    }
+
+    // Mirror the current field's name onto the map overlay (legible in screen-shares).
+    function setFieldTitle() { document.getElementById("fieldname").textContent = sel.label; }
 
     // The global total under each mode, derived from the monthly knot totals
     // (sum of a per-cell interpolation == interpolation of the per-cell sum).
@@ -382,8 +453,23 @@
     });
     document.getElementById("field").addEventListener("change", (e) => {
       sel = FIELDS[+e.target.value];
+      setFieldTitle();
       Module._miem_build(mode, sel.mask, sel.scale);   // reconfigure the SpeciesMap
-      computeFieldRange(); updateLegend();             // rescale legend to the new field
+      setRangeForSelection();                          // fixed Σ-all range for splits; per-sector auto
+      recomputeKnot(); computeRow(); drawMap(); drawSpark();
+    });
+    document.getElementById("dataset").addEventListener("change", async (e) => {
+      setPlaying(false);
+      await loadDataset(e.target.value);               // re-reads the store, reloads the WASM sectors
+      computeRow(); setTime(T0); drawSpark();
+    });
+    document.getElementById("splitval").addEventListener("input", (e) => {
+      fracA = Math.max(0, Math.min(100, +e.target.value || 0)) / 100;
+      const curIdx = +document.getElementById("field").value;       // keep the current selection
+      buildFields(); refreshFieldMenu(curIdx); syncSplitUI();
+      sel = FIELDS[curIdx]; setFieldTitle();
+      Module._miem_build(mode, sel.mask, sel.scale);   // re-apply with the new MW-aware factor
+      setRangeForSelection();                          // legend stays fixed -> the % shows as brightness
       recomputeKnot(); computeRow(); drawMap(); drawSpark();
     });
 
@@ -410,7 +496,9 @@
     // ---- boot ---------------------------------------------------------------
     (async () => {
       try {
-        await load();
+        const dsSel = document.getElementById("dataset");
+        dsSel.innerHTML = Object.entries(DATASETS).map(([k, d]) => `<option value="${k}">${d.label}</option>`).join("");
+        await loadDataset("bc");
         try {
           const gj = await (await fetch("./data/land.geojson")).json();
           land = [];

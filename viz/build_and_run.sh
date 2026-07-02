@@ -134,9 +134,12 @@ fi
 # Reconstruct the MPAS Voronoi cells from the cached centers (an SCVT mesh is the
 # Voronoi diagram of its generators) and fan-triangulate them for the GPU.
 GEOM="$DATA/mesh_geometry.zarr"
-if [ ! -d "$GEOM" ] || [ "$VIZ_DIR/make_mesh_geometry.py" -nt "$GEOM/zarr.json" ]; then
+LAND="$DATA/land.geojson"
+LAND_ARG=(); [ -f "$LAND" ] && LAND_ARG=(--land "$LAND")   # per-cell land tint (optional)
+if [ ! -d "$GEOM" ] || [ "$VIZ_DIR/make_mesh_geometry.py" -nt "$GEOM/zarr.json" ] \
+   || { [ -f "$LAND" ] && [ "$LAND" -nt "$GEOM/zarr.json" ]; }; then
   echo "==> building cell geometry store (spherical Voronoi -> triangles)"
-  "$PY" "$VIZ_DIR/make_mesh_geometry.py" --coords "$COORDS" --out "$GEOM"
+  "$PY" "$VIZ_DIR/make_mesh_geometry.py" --coords "$COORDS" --out "$GEOM" "${LAND_ARG[@]}"
 fi
 
 # --- 4. build the store -----------------------------------------------------

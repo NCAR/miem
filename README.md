@@ -41,8 +41,10 @@ pipeline, compiled to WebAssembly** (the genuine `EmissionsBuilder`, `SpeciesMap
   an MPAS mesh is the spherical Voronoi tessellation of its generators) and
   uploaded to the GPU; each frame only the per-cell flux is pushed to a storage
   buffer and the shader colors every polygon (`values[cellIndex]` → log →
-  viridis). A lat/lon graticule aids orientation in both views. Drag to
-  rotate/pan, scroll to zoom, double-click to reset. Needs a WebGPU browser
+  viridis). Empty (no-emission) cells over land are tinted a slightly lighter
+  shade than ocean — the mirror of the pixel view's filled continents, at cell
+  resolution — and a lat/lon graticule and crisp coastline overlay aid
+  orientation in both views. Drag to rotate/pan, scroll to zoom, double-click to reset. Needs a WebGPU browser
   (Chrome/Edge, Safari 18+, recent Firefox); otherwise it links back to the
   pixel view.
 

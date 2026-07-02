@@ -23,11 +23,11 @@
     :root { --bg:#0e1116; --panel:#161b22; --ink:#e6edf3; --muted:#8b949e; --accent:#58a6ff; --line:#30363d; }
     * { box-sizing: border-box; }
     html, body { margin:0; height:100%; background:var(--bg); color:var(--ink);
-      font:13px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      font:17px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
     #app { display:flex; flex-direction:column; height:100vh; }
     header { display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px;
       padding:9px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
-    header h1 { font-size:14px; font-weight:600; margin:0; letter-spacing:.2px; white-space:nowrap; }
+    header h1 { font-size:20px; font-weight:600; margin:0; letter-spacing:.2px; white-space:nowrap; }
     header h1 small { color:var(--muted); font-weight:400; }
     .group { display:flex; align-items:center; gap:8px; }
     .lbl { color:var(--muted); }
@@ -38,9 +38,9 @@
     .seg button.on { background:var(--accent); color:#0b1220; font-weight:600; }
     label.chk { color:var(--muted); display:flex; align-items:center; gap:6px; cursor:pointer; }
     button.tbtn { background:#21262d; color:var(--ink); border:1px solid var(--line); border-radius:6px;
-      width:30px; height:28px; cursor:pointer; font-size:13px; line-height:1; }
-    button.tbtn.play { width:36px; background:var(--accent); color:#0b1220; border-color:var(--accent); font-weight:700; }
-    select { background:#21262d; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:4px 6px; font:inherit; }
+      width:38px; height:34px; cursor:pointer; font-size:17px; line-height:1; }
+    button.tbtn.play { width:44px; background:var(--accent); color:#0b1220; border-color:var(--accent); font-weight:700; }
+    select { background:#21262d; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:7px 12px; font:inherit; }
     input[type=range] { width:260px; accent-color:var(--accent); vertical-align:middle; }
     .time { min-width:178px; color:var(--ink); font-variant-numeric:tabular-nums; }
     #stage { position:relative; flex:1; min-height:0; }
@@ -50,12 +50,17 @@
       border-radius:8px; padding:9px 11px; backdrop-filter:blur(3px); }
     #legend { left:16px; bottom:16px; }
     #legend .bar { width:220px; height:12px; border-radius:3px; margin:6px 0 4px; }
-    #legend .ticks { display:flex; justify-content:space-between; color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums; }
-    #legend .cap { color:var(--muted); font-size:11px; }
-    #hint { right:16px; bottom:16px; color:var(--muted); font-size:11px; }
+    #legend .ticks { display:flex; justify-content:space-between; color:var(--muted); font-size:15px; font-variant-numeric:tabular-nums; }
+    #legend .cap { color:var(--muted); font-size:15px; }
+    #hint { right:16px; bottom:16px; color:var(--muted); font-size:15px; }
     #status { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-      text-align:center; color:var(--muted); font-size:14px; padding:24px; }
+      text-align:center; color:var(--muted); font-size:18px; padding:24px; }
     #status a { color:var(--accent); }
+    /* Field title overlay: shows the currently selected field on the map itself,
+       so it stays visible in screen-shares (native <select> popups aren't captured). */
+    #fieldtitle { left:16px; top:14px; max-width:min(60vw,760px); }
+    #fieldtitle .eyebrow { color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:1.6px; }
+    #fieldtitle .name { color:var(--ink); font-size:28px; font-weight:600; line-height:1.2; }
   </style>
 </head>
 <body>
@@ -71,8 +76,17 @@
         </div>
       </div>
       <div class="group">
+        <span class="lbl">dataset</span>
+        <select id="dataset" title="emissions inventory"></select>
+      </div>
+      <div class="group">
         <span class="lbl">field</span>
         <select id="field" title="inventory sector or MIEM SpeciesMap output"></select>
+      </div>
+      <div class="group" id="splitgrp" title="SpeciesMap split — a molar fraction, converted to a mass factor by molecular weight">
+        <span class="lbl" id="splitlbl">split %</span>
+        <input type="number" id="splitval" min="0" max="100" step="1" style="width:62px" />
+        <span class="lbl" id="splitout"></span>
       </div>
       <div class="group">
         <span class="lbl">interp</span>
@@ -98,6 +112,7 @@
     </header>
     <div id="stage">
       <canvas id="view"></canvas>
+      <div class="panel" id="fieldtitle"><div class="eyebrow">field</div><div class="name" id="fieldname">—</div></div>
       <div class="panel" id="legend">
         <div class="cap" id="legcap">surface flux (kg m⁻² s⁻¹)</div>
         <div class="bar" id="legbar"></div>
@@ -161,6 +176,7 @@
       @group(0) @binding(0) var<uniform> U : Uniforms;
       @group(0) @binding(1) var<storage, read> values : array<f32>;
       @group(0) @binding(2) var<uniform> viridis : array<vec4<f32>, 12>;
+      @group(0) @binding(3) var<storage, read> land : array<u32>;
 
       fn project(p3 : vec3<f32>, p2 : vec2<f32>, inst : u32, flatZ : f32) -> vec4<f32> {
         if (U.projMode < 0.5) { return U.mvp * vec4<f32>(p3, 1.0); }
@@ -174,6 +190,7 @@
         @builtin(position) clip : vec4<f32>,
         @location(0) @interpolate(flat) t : f32,
         @location(1) shade : f32,
+        @location(2) @interpolate(flat) isLand : f32,
       };
 
       @vertex
@@ -189,6 +206,7 @@
           t = clamp(select(lin, s, U.useLog > 0.5), 0.0, 1.0);
         }
         out.t = t;
+        out.isLand = f32(land[cell]);                        // tint empty land cells
         if (U.projMode < 0.5) {
           let n = (U.rot * vec4<f32>(p3, 0.0)).xyz;          // camera-lit globe
           out.shade = clamp(n.z * 0.85 + 0.2, 0.18, 1.0);
@@ -205,7 +223,11 @@
       @fragment
       fn fs(in : VSOut) -> @location(0) vec4<f32> {
         var col : vec3<f32>;
-        if (in.t < 0.0) { col = vec3<f32>(0.07, 0.12, 0.20); } else { col = ramp(in.t); }
+        if (in.t < 0.0) {                                    // no emission: base map
+          let ocean = vec3<f32>(0.07, 0.12, 0.20);
+          let landc = vec3<f32>(0.11, 0.18, 0.27);           // slightly lighter, like the pixel view
+          col = select(ocean, landc, in.isLand > 0.5);
+        } else { col = ramp(in.t); }
         return vec4<f32>(col * in.shade, 1.0);
       }
 
@@ -216,14 +238,18 @@
       }
       @fragment
       fn fsLine() -> @location(0) vec4<f32> { return vec4<f32>(0.55, 0.66, 0.82, 0.35); }
+      @fragment
+      fn fsCoast() -> @location(0) vec4<f32> { return vec4<f32>(0.80, 0.85, 0.92, 0.85); }
     `;
 
     // ---- state ---------------------------------------------------------------
-    let device, ctx, format, bgl, layout, pCellsGlobe, pCellsFlat, pLines, bind, depthTex;
+    let device, ctx, format, bgl, layout, pCellsGlobe, pCellsFlat, pLines, pCoast, bind, depthTex;
     let uBuf, vBuf, viridisBuf, posBuf, xyBuf, cellBuf, idxBuf, idxCount, gp3Buf, gp2Buf, gCount;
+    let cp3Buf, cp2Buf, cCount = 0, landBuf, landData = null;
     let Module, NC, NT, NSEC, epochs, attrs, vmin, vmax, mode = 0, proj = 0;
     let sectors = [], sectorTotals = [], FIELDS = [], sel = { mask:0, scale:1 };
     let T0, T1, t = 0;
+    let baseVmin = -16, baseVmax = -11;   // fixed Σ-all reference range shared by the aggregate/split fields
     const uData = new Float32Array(40);        // mvp(16) rot(16) vmin vmax useLog projMode cLon cLat zoom aspect
     const GLOBE0 = { yaw: 2.1, pitch: -0.35, dist: 2.9 };
     const FLAT0 = { lon: 0, lat: 0, zoom: 1 };
@@ -261,7 +287,75 @@
       return { p3: new Float32Array(p3), p2: new Float32Array(p2), n: p2.length/2 };
     }
 
-    async function loadData() {
+    // Coastline line segments from the GeoJSON index.html already uses. Same
+    // line pipeline; segments that jump >180° in longitude cross the antimeridian
+    // and are dropped (the ±360° instanced copies still show the wrapped side).
+    function buildCoastline(gj) {
+      const p3 = [], p2 = [], R = 1.004, D2R = Math.PI/180;
+      const pt = (lo, la) => {
+        const cl = Math.cos(la*D2R);
+        p3.push(R*cl*Math.cos(lo*D2R), R*cl*Math.sin(lo*D2R), R*Math.sin(la*D2R));
+        p2.push(lo, la);
+      };
+      const ring = (r) => {
+        for (let i = 0; i + 1 < r.length; i++) {
+          const a = r[i], b = r[i+1];
+          if (Math.abs(b[0] - a[0]) > 180) continue;     // skip antimeridian crossing
+          pt(a[0], a[1]); pt(b[0], b[1]);
+        }
+      };
+      for (const f of gj.features || []) {
+        const g = f.geometry; if (!g) continue;
+        const polys = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
+        for (const poly of polys) for (const r of poly) ring(r);
+      }
+      return { p3: new Float32Array(p3), p2: new Float32Array(p2), n: p2.length/2 };
+    }
+
+    // --- datasets + MW-aware SpeciesMap split (same convention as index.html) ----
+    // A molar fraction becomes a SpeciesMap mass factor via each branch's MW: NOx
+    // is reported as NO2-equivalent mass, so NO is rescaled by MW_NO/MW_NO2. BC's
+    // two bins are the same species (mw ratio 1) -> a pure mass split.
+    const MW = { NO: 30.006, NO2: 46.006 };
+    const DATASETS = {
+      bc:  { label: "BC · CAMS-GLOB-ANT 2012", store: "./data/emissions.zarr",
+             split: { basisMW: 1, a: { name: "BC hydrophobic", mw: 1 }, b: { name: "BC hydrophilic", mw: 1 }, defFracA: 0.8, ctrl: "hydrophobic %" } },
+      nox: { label: "NOₓ · 2024 (NO/NO₂)", store: "./data/nox/emissions.zarr",
+             split: { basisMW: MW.NO2, a: { name: "NO", mw: MW.NO }, b: { name: "NO₂", mw: MW.NO2 }, defFracA: 0.9, ctrl: "NO mol %" } },
+    };
+    let dsKey = "bc", fracA = DATASETS.bc.split.defFracA;
+    const massFactors = () => {
+      const sp = DATASETS[dsKey].split;
+      return { a: fracA * sp.a.mw / sp.basisMW, b: (1 - fracA) * sp.b.mw / sp.basisMW };
+    };
+    function buildFields() {
+      const sp = DATASETS[dsKey].split, allMask = (1 << NSEC) - 1, MS = attrs.mech_species;
+      const f = massFactors(), pa = Math.round(fracA * 100);
+      FIELDS = [
+        { label: `${MS} — Σ all sectors (MIEM aggregate)`, mask: allMask, scale: 1 },
+        { label: `${sp.a.name} — ${pa}% → ${f.a.toFixed(2)}·Σ`, mask: allMask, scale: f.a },
+        { label: `${sp.b.name} — ${100 - pa}% → ${f.b.toFixed(2)}·Σ`, mask: allMask, scale: f.b },
+        ...sectors.map((s, i) => {
+          const code = sectorCode(s);
+          return { label: `sector: ${SECTOR_LABELS[code] || code} (${code})`, mask: 1 << i, scale: 1 };
+        }),
+      ];
+    }
+    function refreshFieldMenu(idx) {
+      const fieldSel = document.getElementById("field");
+      fieldSel.innerHTML = FIELDS.map((ff, i) => `<option value="${i}">${ff.label}</option>`).join("");
+      fieldSel.value = String(idx);
+    }
+    function syncSplitUI() {
+      const sp = DATASETS[dsKey].split, f = massFactors();
+      document.getElementById("splitlbl").textContent = sp.ctrl;
+      document.getElementById("splitval").value = String(Math.round(fracA * 100));
+      document.getElementById("splitout").textContent =
+        `→ ${sp.a.name} ${f.a.toFixed(2)}·Σ + ${sp.b.name} ${f.b.toFixed(2)}·Σ (mass)`;
+    }
+
+    // Geometry (the MPAS cells, graticule, coastline) is mesh-only and loads once.
+    async function loadGeometry() {
       const gstore = new zarr.FetchStore(new URL("./data/mesh_geometry.zarr", location.href));
       const G = await zarr.open(gstore, { kind: "group" });
       const garr = (n) => zarr.open(G.resolve(n), { kind: "array" }).then(a => zarr.get(a));
@@ -271,23 +365,38 @@
       const indices = (await garr("indices")).data;
       idxBuf  = mkBuf(indices, GPUBufferUsage.INDEX);
       idxCount = indices.length;
+      try { landData = (await garr("land_mask")).data; } catch (_) { /* pre-land store: all ocean */ }
 
       const grat = buildGraticule();
       gp3Buf = mkBuf(grat.p3, GPUBufferUsage.VERTEX);
       gp2Buf = mkBuf(grat.p2, GPUBufferUsage.VERTEX);
       gCount = grat.n;
 
-      const estore = new zarr.FetchStore(new URL("./data/emissions.zarr", location.href));
+      try {                                              // coastline overlay (optional)
+        const gj = await (await fetch(new URL("./data/land.geojson", location.href))).json();
+        const coast = buildCoastline(gj);
+        if (coast.n) {
+          cp3Buf = mkBuf(coast.p3, GPUBufferUsage.VERTEX);
+          cp2Buf = mkBuf(coast.p2, GPUBufferUsage.VERTEX);
+          cCount = coast.n;
+        }
+      } catch (_) { /* coastline optional */ }
+    }
+
+    // Emissions + WASM, re-runnable on dataset switch (geometry/GPU buffers persist).
+    async function loadDataset(key) {
+      dsKey = key; fracA = DATASETS[key].split.defFracA;
+      status.style.display = "flex"; status.textContent = "loading store + WASM…";
+      const estore = new zarr.FetchStore(new URL(DATASETS[key].store, location.href));
       const E = await zarr.open(estore, { kind: "group" });
       attrs = E.attrs;
       NC = attrs.n_cells; NT = attrs.n_time; NSEC = attrs.n_sectors;
-      vmin = attrs.log_vmin; vmax = attrs.log_vmax;
       sectors = attrs.sectors; sectorTotals = attrs.sector_totals;
       const earr = (n) => zarr.open(E.resolve(n), { kind: "array" }).then(a => zarr.get(a));
       epochs = Array.from((await earr("epochs")).data);
       const ss = (await earr("sector_slices")).data;
 
-      Module = await createMiem();
+      if (!Module) Module = await createMiem();                     // create once; reuse across datasets
       const epPtr = Module._malloc(NT * 8);
       Module.HEAPF64.set(Float64Array.from(epochs), epPtr / 8);
       Module._miem_load_times(NC, NT, NSEC, epPtr);
@@ -300,26 +409,22 @@
         Module._free(ptr);
       }
 
-      const allMask = (1 << NSEC) - 1, MS = attrs.mech_species;
-      FIELDS = [
-        { label: `${MS} — Σ all sectors (MIEM aggregate)`, mask: allMask, scale: 1 },
-        { label: `${MS} hydrophobic — split 0.8·Σ`, mask: allMask, scale: 0.8 },
-        { label: `${MS} hydrophilic — split 0.2·Σ`, mask: allMask, scale: 0.2 },
-        ...sectors.map((s, i) => {
-          const code = sectorCode(s);
-          return { label: `sector: ${SECTOR_LABELS[code] || code} (${code})`, mask: 1 << i, scale: 1 };
-        }),
-      ];
-      document.getElementById("field").innerHTML =
-        FIELDS.map((f, i) => `<option value="${i}">${f.label}</option>`).join("");
-      sel = FIELDS[0];
-      Module._miem_build(mode, sel.mask, sel.scale);
+      if (!vBuf) vBuf = device.createBuffer({ size: NC * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+      if (!landBuf) landBuf = mkBuf(landData ?? new Uint32Array(NC), GPUBufferUsage.STORAGE);   // static per-cell land bit
 
-      vBuf = device.createBuffer({ size: NC * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+      syncSplitUI();
+      buildFields();
+      refreshFieldMenu(0);
+      sel = FIELDS[0];
+      setFieldTitle();
+      Module._miem_build(mode, sel.mask, sel.scale);
+      computeFieldRange();                             // range the Σ-all aggregate...
+      baseVmin = vmin; baseVmax = vmax;               // ...and lock it as the shared reference
 
       T0 = epochs[0]; T1 = epochs[NT - 1]; t = T0;
       document.getElementById("time").max = Math.round((T1 - T0) / 3600);
       document.getElementById("legbar").style.background = cssGradient();
+      status.style.display = "none";
     }
 
     function buildPipelines() {
@@ -328,6 +433,7 @@
         { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
         { binding: 1, visibility: GPUShaderStage.VERTEX, buffer: { type: "read-only-storage" } },
         { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
+        { binding: 3, visibility: GPUShaderStage.VERTEX, buffer: { type: "read-only-storage" } },
       ]});
       layout = device.createPipelineLayout({ bindGroupLayouts: [bgl] });
 
@@ -346,18 +452,20 @@
       pCellsGlobe = cellPipe({ depthWriteEnabled: true,  depthCompare: "less" });
       pCellsFlat  = cellPipe({ depthWriteEnabled: false, depthCompare: "always" });
 
-      pLines = device.createRenderPipeline({
+      const linePipe = (entry) => device.createRenderPipeline({
         layout,
         vertex: { module: mod, entryPoint: "vsLine", buffers: [
           { arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x3" }] },
           { arrayStride: 8,  attributes: [{ shaderLocation: 1, offset: 0, format: "float32x2" }] },
         ]},
-        fragment: { module: mod, entryPoint: "fsLine", targets: [{ format, blend: {
+        fragment: { module: mod, entryPoint: entry, targets: [{ format, blend: {
           color: { srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha", operation: "add" },
           alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" } } }] },
         primitive: { topology: "line-list" },
         depthStencil: { format: "depth24plus", depthWriteEnabled: false, depthCompare: "less" },
       });
+      pLines = linePipe("fsLine");
+      pCoast = linePipe("fsCoast");
 
       uBuf = device.createBuffer({ size: uData.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
       const vir = new Float32Array(12 * 4);
@@ -369,6 +477,7 @@
         { binding: 0, resource: { buffer: uBuf } },
         { binding: 1, resource: { buffer: vBuf } },
         { binding: 2, resource: { buffer: viridisBuf } },
+        { binding: 3, resource: { buffer: landBuf } },
       ]});
     }
 
@@ -412,6 +521,11 @@
       pass.setPipeline(pLines);
       pass.setVertexBuffer(0, gp3Buf); pass.setVertexBuffer(1, gp2Buf);
       pass.draw(gCount, inst);
+      if (cCount) {
+        pass.setPipeline(pCoast);
+        pass.setVertexBuffer(0, cp3Buf); pass.setVertexBuffer(1, cp2Buf);
+        pass.draw(cCount, inst);
+      }
       pass.end();
       device.queue.submit([enc.finish()]);
     }
@@ -430,6 +544,21 @@
       }
       document.getElementById("legmin").textContent = fmtExp(vmin);
       document.getElementById("legmax").textContent = fmtExp(vmax);
+    }
+
+    // Mirror the current field's name onto the map overlay (legible in screen-shares).
+    function setFieldTitle() { document.getElementById("fieldname").textContent = sel.label; }
+
+    // Legend range: the aggregate + both split branches share the fixed Σ-all
+    // reference range (so the split % shows as brightness, not rescaling); each
+    // raw sector auto-scales to its own p10–p99.5.
+    function setRangeForSelection() {
+      const allMask = (1 << NSEC) - 1;
+      if (sel.mask === allMask) {
+        vmin = baseVmin; vmax = baseVmax;
+        document.getElementById("legmin").textContent = fmtExp(vmin);
+        document.getElementById("legmax").textContent = fmtExp(vmax);
+      } else computeFieldRange();
     }
 
     function setTime(newT, fromSlider) {
@@ -456,8 +585,21 @@
       mode = +e.target.value; Module._miem_build(mode, sel.mask, sel.scale); pushValues(); render();
     });
     document.getElementById("field").addEventListener("change", (e) => {
-      sel = FIELDS[+e.target.value]; Module._miem_build(mode, sel.mask, sel.scale);
-      computeFieldRange(); pushValues(); render();
+      sel = FIELDS[+e.target.value]; setFieldTitle(); Module._miem_build(mode, sel.mask, sel.scale);
+      setRangeForSelection(); pushValues(); render();
+    });
+    document.getElementById("dataset").addEventListener("change", async (e) => {
+      setPlaying(false);
+      await loadDataset(e.target.value);               // reloads emissions + WASM; geometry persists
+      pushValues(); setTime(T0); render();
+    });
+    document.getElementById("splitval").addEventListener("input", (e) => {
+      fracA = Math.max(0, Math.min(100, +e.target.value || 0)) / 100;
+      const curIdx = +document.getElementById("field").value;
+      buildFields(); refreshFieldMenu(curIdx); syncSplitUI();
+      sel = FIELDS[curIdx]; setFieldTitle();
+      Module._miem_build(mode, sel.mask, sel.scale);   // re-apply with the new MW-aware factor
+      setRangeForSelection(); pushValues(); render();  // legend stays fixed -> the % shows as brightness
     });
     document.getElementById("proj").addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b) return;
@@ -510,9 +652,11 @@
     (async () => {
       try {
         await initGPU();
-        await loadData();
-        buildPipelines();
-        computeFieldRange();
+        await loadGeometry();
+        const dsSel = document.getElementById("dataset");
+        dsSel.innerHTML = Object.entries(DATASETS).map(([k, d]) => `<option value="${k}">${d.label}</option>`).join("");
+        await loadDataset("bc");                        // creates vBuf/landBuf, loads WASM, builds fields
+        buildPipelines();                               // bind group references vBuf/landBuf/viridisBuf
         status.style.display = "none";
         resize();
         setTime(T0);
