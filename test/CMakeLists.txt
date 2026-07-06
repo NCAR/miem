@@ -1,7 +1,7 @@
 ################################################################################
 # Test utilities
 
-include(test_util)
+include(${PROJECT_SOURCE_DIR}/cmake/test_util.cmake)
 
 ################################################################################
 # Disable clang tidy for test files

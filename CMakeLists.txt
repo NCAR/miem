@@ -49,7 +49,7 @@ endif()
 # in place — but no library target links against it yet.  Consumers come
 # online in PR 4 (data layer).
 
-include(dependencies)
+include(${PROJECT_SOURCE_DIR}/cmake/dependencies.cmake)
 
 ################################################################################
 # Code coverage instrumentation
