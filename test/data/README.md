@@ -38,3 +38,25 @@ python3 -m pip install netCDF4 numpy
 python3 tools/subset_eccad.py <full_MPAS_grid_file>.nc \
     test/data/CAMS-GLOB-ANT_2012_MPAS_bc_subset.nc 40
 ```
+
+## `x1.163842_2024_nox_subset.nc` (336 KB)
+
+The same reduction applied to a **real** 2024 anthropogenic nitrogen-dioxide
+(NOx) inventory, also in the MPAS-regridded on-mesh layout. Exists to give
+MIEM's uptempo pipeline a second, differently-shaped real species (fewer
+sectors, a different year) alongside the black-carbon fixture above.
+
+| | |
+| --- | --- |
+| Source | `x1.163842-2024-anth_nitrogen-dioxide.MPAS.nc` (23 MB, Forrest Lacey & Rajesh Kumar) |
+| Reduction | every 40th cell of the `x1.163842` mesh → **4097 of 163842 cells** |
+| Retained | all 3 anthropogenic NOx sectors (`nox_anth_awb`, `nox_anth_res`, `nox_anth_sum`), all 12 months (2024), `xtime` |
+| Values | unmodified — real `kg m-2 s-1` fluxes (≈41.5k of 49.2k cell-months nonzero; provenance stamped in the `subset_*` global attributes) |
+
+### Regenerating
+
+```sh
+python3 -m pip install netCDF4 numpy
+python3 tools/subset_eccad.py <full_MPAS_grid_file>.nc \
+    test/data/x1.163842_2024_nox_subset.nc 40 "nitrogen dioxide (NOx)"
+```
