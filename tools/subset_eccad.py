@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Produce a heavily-reduced *real* CAMS-GLOB-ANT black-carbon fixture.
+"""Produce a heavily-reduced *real* CAMS-GLOB-ANT emissions fixture.
 
 Takes the MPAS-regridded UPTEMPO output (the flat-mesh layout MIEM's ECCAD
 reader actually consumes) and keeps a global stride of cells -- real values,
-all 12 anthropogenic sectors, all 12 months -- shrunk to a couple of MB so it
-can live in-repo as a reader test fixture.
+all sectors, all 12 months -- shrunk to a couple of MB so it can live in-repo
+as a reader test fixture.
+
+Usage: subset_eccad.py <src.nc> <dst.nc> [stride] [species label]
 """
 import sys
 import numpy as np
@@ -13,6 +15,7 @@ import netCDF4 as nc
 SRC = sys.argv[1]
 DST = sys.argv[2]
 STRIDE = int(sys.argv[3]) if len(sys.argv) > 3 else 40
+SPECIES = sys.argv[4] if len(sys.argv) > 4 else "black carbon"
 
 src = nc.Dataset(SRC, "r")
 n_cells_full = len(src.dimensions["nCells"])
@@ -36,7 +39,7 @@ for name, var in src.variables.items():
     if name == "xtime":
         out = dst.createVariable(name, var.dtype, var.dimensions)
         out[:] = var[:]
-    else:  # bc_anth_*(Time, nCells)
+    else:  # <species>_anth_*(Time, nCells)
         out = dst.createVariable(
             name, var.dtype, var.dimensions,
             zlib=True, complevel=4, fill_value=fill,
@@ -45,6 +48,7 @@ for name, var in src.variables.items():
     copy_attrs(var, out)
 
 # Global attributes: preserve originals, then stamp provenance.
+flux_vars = [name for name in src.variables if name != "xtime"]
 for a in src.ncattrs():
     dst.setncattr(a, src.getncattr(a))
 dst.setncattr("subset_source", SRC.split("/")[-1])
@@ -52,9 +56,9 @@ dst.setncattr(
     "subset_note",
     "Reader-test fixture for MIEM. Heavily reduced from the full "
     "MPAS x1.163842 grid by keeping every {}th cell ({} of {} cells); "
-    "all 12 anthropogenic BC sectors and all 12 months retained. Values "
-    "are unmodified real CAMS-GLOB-ANT v6.2 black-carbon emissions.".format(
-        STRIDE, len(idx), n_cells_full
+    "all {} anthropogenic {} sectors ({}) and all 12 months retained. "
+    "Values are unmodified real CAMS-GLOB-ANT emissions.".format(
+        STRIDE, len(idx), n_cells_full, len(flux_vars), SPECIES, ", ".join(flux_vars)
     ),
 )
 dst.close()
