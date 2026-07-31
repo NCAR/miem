@@ -7,9 +7,12 @@ cells -- real values, all variables retained -- shrunk to a couple of MB so
 it can live in-repo as a reader test fixture. An optional time stride
 further reduces high-cadence (e.g. hourly) files.
 
-Handles any variable shaped (Time, nCells), (Time, StrLen) [xtime], or
-(nCells,) [a bare cell-index coordinate variable, as FINN files have];
-other shapes raise rather than silently mis-slicing.
+Handles any variable shaped (Time, nCells), (Time, StrLen) [xtime],
+(nCells,) [a bare cell-index coordinate variable, as FINN files have], or
+any other single dimension other than Time/nCells [a bare coordinate
+variable unrelated to spatial/temporal reduction, e.g. some CAMS files'
+StrLen index array -- copied verbatim]; other shapes raise rather than
+silently mis-slicing.
 
 Usage: subset_eccad.py <src.nc> <dst.nc> [stride] [species label] [time_stride]
 """
@@ -64,6 +67,11 @@ for name, var in src.variables.items():
     elif dims == ("nCells",):  # bare cell-index coordinate var (e.g. FINN's)
         out = dst.createVariable(name, var.dtype, dims, **fill_kwargs)
         out[:] = var[cell_sel]
+    elif len(dims) == 1 and dims[0] not in ("Time", "nCells"):
+        # Bare coordinate var indexed by some other dimension (e.g. StrLen),
+        # unrelated to spatial/temporal reduction -- copy verbatim.
+        out = dst.createVariable(name, var.dtype, dims, **fill_kwargs)
+        out[:] = var[:]
     else:
         raise ValueError(
             "unhandled variable shape for {!r}: dims={}".format(name, dims)
