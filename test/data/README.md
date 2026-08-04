@@ -74,7 +74,7 @@ the BC/NOx fixtures above.
 | Source | `FINNv2.5.1_modvrs_nrt_MOZART_2024_x1.163842.static_hourly_netcdf3.nc` (9.9 GB, Forrest Lacey & Rajesh Kumar), hourly 2024-10-14 through 2024-11-30 |
 | Reduction | every 40th cell of the `x1.163842` mesh → **4097 of 163842 cells**; every 24th hourly timestep (daily 00:00 snapshots) → **48 of 1152 times** |
 | Retained | all 7 biomass-burning species (`so2_biob_modis`, `mnt_biob_modis`, `nh3_biob_modis`, `co_biob_modis`, `bc_biob_modis`, `iso_biob_modis`, `oc_biob_modis`), `xtime` |
-| Values | unmodified — real `kg m-2 s-1` fluxes (7008 of 196,656 cell-times nonzero per species — fire emissions are spatially sparse compared to the anthropogenic fixtures above; provenance stamped in the `subset_*` global attributes) |
+| Values | unmodified — real fluxes, but **in `molecules cm-2 s-1`, not `kg m-2 s-1`** like every other fixture here (MPAS-GOCART2G's biomass-burning convention). Consumers combining this with `kg m-2 s-1` inventories must convert it first — see musica's `configs/miem/cams_finn_all_species_emissions_config.yaml`. (7008 of 196,656 cell-times nonzero per species; provenance stamped in the `subset_*` global attributes) |
 
 ### Regenerating
 
