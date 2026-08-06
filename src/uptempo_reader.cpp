@@ -322,14 +322,26 @@ namespace miem
       std::vector<Real>& flux_out,
       int& n_cells_out) const
   {
+    ReadFluxSelected(time_index, species_names, {}, flux_out, n_cells_out);
+  }
+
+  void UptempoReader::ReadFluxSelected(
+      int time_index,
+      const std::vector<std::string>& species_names,
+      const std::vector<int>& selected_global_cell_ids,
+      std::vector<Real>& flux_out,
+      int& n_cells_out) const
+  {
     if (ncid_ < 0)
     {
       throw MiemException(MIEM_ERROR_CATEGORY_IO, MIEM_IO_ERROR_CODE_FILE_NOT_FOUND, "UptempoReader: file not open");
     }
 
-    n_cells_out = n_cells_;
+    n_cells_out = selected_global_cell_ids.empty()
+                      ? n_cells_
+                      : static_cast<int>(selected_global_cell_ids.size());
     const int n_species = static_cast<int>(species_names.size());
-    flux_out.assign(static_cast<std::size_t>(n_species) * n_cells_, Real{ 0 });
+    flux_out.assign(static_cast<std::size_t>(n_species) * n_cells_out, Real{ 0 });
 
     for (int isp = 0; isp < n_species; ++isp)
     {
@@ -344,21 +356,9 @@ namespace miem
       int ndims;
       MIEM_NC_CHECK(nc_inq_varndims(ncid_, varid, &ndims));
 
-      std::vector<Real> raw(n_cells_, Real{ 0 });
-      if (ndims == 2)
-      {
-        const std::size_t start[2] = { static_cast<std::size_t>(time_index), 0 };
-        const std::size_t count[2] = { 1, static_cast<std::size_t>(n_cells_) };
-        MIEM_NC_CHECK(NcGetVara(ncid_, varid, start, count, raw.data()));
-      }
-      else if (ndims == 1)
-      {
-        MIEM_NC_CHECK(NcGetVar(ncid_, varid, raw.data()));
-      }
-      else
-      {
-        continue;
-      }
+      std::vector<Real> raw;
+      NcGetSelectedCells(
+          ncid_, varid, ndims, time_index, n_cells_, selected_global_cell_ids, raw);
 
       Real fill_value = Real{ 0 };
       bool has_fill = false;
@@ -369,7 +369,7 @@ namespace miem
         has_fill = true;
       }
 
-      for (int ic = 0; ic < n_cells_; ++ic)
+      for (int ic = 0; ic < n_cells_out; ++ic)
       {
         Real val = raw[ic];
         // UPTEMPO files mark empty (e.g. ocean) cells with a NaN _FillValue.
@@ -379,7 +379,7 @@ namespace miem
         {
           val = Real{ 0 };
         }
-        flux_out[static_cast<std::size_t>(isp) * n_cells_ + ic] = val;
+        flux_out[static_cast<std::size_t>(isp) * n_cells_out + ic] = val;
       }
     }
   }

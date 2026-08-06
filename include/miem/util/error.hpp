@@ -27,6 +27,7 @@
 #define MIEM_ERROR_CATEGORY_VALIDATION                 "MIEM Validation"
 #define MIEM_VALIDATION_ERROR_CODE_CELL_COUNT_MISMATCH 1
 #define MIEM_VALIDATION_ERROR_CODE_MASS_CONSERVATION   2
+#define MIEM_VALIDATION_ERROR_CODE_INVALID_CELL_SELECTION 3
 
 // --- IO --------------------------------------------------------------
 #define MIEM_ERROR_CATEGORY_IO                  "MIEM IO"

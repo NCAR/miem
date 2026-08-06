@@ -22,6 +22,7 @@
 
 using miem::ECCADReader;
 using miem::MiemException;
+using miem::Real;
 using miem_test::CreateTestNetCDF;
 using miem_test::SyntheticNcOptions;
 using miem_test::TempDir;
@@ -62,6 +63,29 @@ TEST(ECCADReaderTimeTest, SecondsSinceEpoch)
   ASSERT_EQ(times.size(), 2u);
   EXPECT_NEAR(times[0], 0.0, 1.0e-3);  // 1 ms tolerance
   EXPECT_NEAR(times[1], 3600.0, 1.0e-3);
+}
+
+TEST(ECCADReaderSyntheticTest, SelectedHyperslabsPreserveHostOrder)
+{
+  TempDir dir;
+  const std::string path = dir.File("eccad_selected.nc");
+  const std::vector<double> data = {
+    10.0, 20.0, 30.0, 40.0, 50.0,
+    11.0, 21.0, 31.0, 41.0, 51.0,
+  };
+  CreateTestNetCDF(path, 2, 5, { 0.0, 3600.0 }, { "NOx" }, { data });
+
+  ECCADReader reader;
+  reader.Open(path);
+  std::vector<Real> flux;
+  int n_cells = 0;
+  reader.ReadFluxSelected(1, { "NOx" }, { 5, 2, 3 }, flux, n_cells);
+
+  ASSERT_EQ(n_cells, 3);
+  ASSERT_EQ(flux.size(), 3u);
+  EXPECT_DOUBLE_EQ(static_cast<double>(flux[0]), 51.0);
+  EXPECT_DOUBLE_EQ(static_cast<double>(flux[1]), 21.0);
+  EXPECT_DOUBLE_EQ(static_cast<double>(flux[2]), 31.0);
 }
 
 // ---------------------------------------------------------------------

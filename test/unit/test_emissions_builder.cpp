@@ -22,6 +22,7 @@
 #include <gtest/gtest.h>
 
 #include <string>
+#include <vector>
 
 using namespace miem;
 
@@ -214,6 +215,32 @@ TEST(EmissionsBuilderValidateTest, RejectsDuplicateCategoryHierarchy)
 TEST(EmissionsBuilderValidateTest, AcceptsMinimalConfig)
 {
   EXPECT_NO_THROW(MinimalBuilder().Build());
+}
+
+TEST(EmissionsBuilderValidateTest, AcceptsOrderedSelectedCells)
+{
+  Emissions module = EmissionsBuilder()
+                         .SetGridDimensions(4, 2)
+                         .SetCellSelection({ 4, 1, 3 })
+                         .AddSource(MakeMinimalSource())
+                         .Build();
+
+  EXPECT_EQ(module.NumGlobalCells(), 4);
+  EXPECT_EQ(module.NumCells(), 3);
+  EXPECT_EQ(module.SelectedGlobalCellIds(), (std::vector<int>{ 4, 1, 3 }));
+}
+
+TEST(EmissionsBuilderValidateTest, RejectsInvalidSelectedCells)
+{
+  for (const auto& ids : { std::vector<int>{ 0 }, std::vector<int>{ 5 }, std::vector<int>{ 2, 2 } })
+  {
+    EmissionsBuilder builder;
+    builder.SetGridDimensions(4, 2).SetCellSelection(ids).AddSource(MakeMinimalSource());
+    ExpectMiemThrow(
+        [&] { builder.Build(); },
+        MIEM_ERROR_CATEGORY_VALIDATION,
+        MIEM_VALIDATION_ERROR_CODE_INVALID_CELL_SELECTION);
+  }
 }
 
 // Throw-on-first: when a source fails several invariants at once (mode !=

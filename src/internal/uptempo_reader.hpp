@@ -71,6 +71,12 @@ namespace miem
         const std::vector<std::string>& species_names,
         std::vector<Real>& flux_out,
         int& n_cells_out) const override;
+    void ReadFluxSelected(
+        int time_index,
+        const std::vector<std::string>& species_names,
+        const std::vector<int>& selected_global_cell_ids,
+        std::vector<Real>& flux_out,
+        int& n_cells_out) const override;
 
    private:
     int ncid_ = -1;

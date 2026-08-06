@@ -15,9 +15,12 @@
 #include <miem/util/miem_exception.hpp>
 #include <miem/util/types.hpp>
 
+#include <algorithm>
 #include <cstddef>
 #include <netcdf.h>
 #include <string>
+#include <utility>
+#include <vector>
 
 // Throw MiemException (IO) on a non-NC_NOERR NetCDF status.
 #define MIEM_NC_CHECK(call)                                                                                            \
@@ -85,6 +88,104 @@ namespace miem
   inline int NcGetAttFill(int ncid, int varid, const char* name, float* out)
   {
     return nc_get_att_float(ncid, varid, name, out);
+  }
+
+  // Read a rank-local cell selection with coalesced contiguous hyperslabs.
+  // `selected_global_cell_ids` are one-based and output preserves their
+  // caller-provided order. An empty selection reads every global cell.
+  inline void NcGetSelectedCells(
+      int ncid,
+      int varid,
+      int ndims,
+      int time_index,
+      int global_n_cells,
+      const std::vector<int>& selected_global_cell_ids,
+      std::vector<Real>& out)
+  {
+    if (selected_global_cell_ids.empty())
+    {
+      out.assign(static_cast<std::size_t>(global_n_cells), Real{ 0 });
+      if (ndims == 2)
+      {
+        const std::size_t start[2] = { static_cast<std::size_t>(time_index), 0 };
+        const std::size_t count[2] = { 1, static_cast<std::size_t>(global_n_cells) };
+        MIEM_NC_CHECK(NcGetVara(ncid, varid, start, count, out.data()));
+      }
+      else if (ndims == 1)
+      {
+        MIEM_NC_CHECK(NcGetVar(ncid, varid, out.data()));
+      }
+      else
+      {
+        throw MiemException(
+            MIEM_ERROR_CATEGORY_IO,
+            MIEM_IO_ERROR_CODE_INVALID_FORMAT,
+            "emissions variable must have one or two dimensions");
+      }
+      return;
+    }
+
+    std::vector<std::pair<int, std::size_t>> ordered;
+    ordered.reserve(selected_global_cell_ids.size());
+    for (std::size_t output_index = 0; output_index < selected_global_cell_ids.size(); ++output_index)
+    {
+      const int global_id = selected_global_cell_ids[output_index];
+      if (global_id < 1 || global_id > global_n_cells)
+      {
+        throw MiemException(
+            MIEM_ERROR_CATEGORY_VALIDATION,
+            MIEM_VALIDATION_ERROR_CODE_INVALID_CELL_SELECTION,
+            "selected global cell ID " + std::to_string(global_id) + " is outside inventory bounds");
+      }
+      ordered.emplace_back(global_id - 1, output_index);
+    }
+    std::sort(ordered.begin(), ordered.end());
+    for (std::size_t i = 1; i < ordered.size(); ++i)
+    {
+      if (ordered[i - 1].first == ordered[i].first)
+      {
+        throw MiemException(
+            MIEM_ERROR_CATEGORY_VALIDATION,
+            MIEM_VALIDATION_ERROR_CODE_INVALID_CELL_SELECTION,
+            "selected global cell IDs must be unique");
+      }
+    }
+
+    out.assign(selected_global_cell_ids.size(), Real{ 0 });
+    std::size_t run_begin = 0;
+    while (run_begin < ordered.size())
+    {
+      std::size_t run_end = run_begin + 1;
+      while (run_end < ordered.size() && ordered[run_end].first == ordered[run_end - 1].first + 1)
+        ++run_end;
+
+      const std::size_t run_size = run_end - run_begin;
+      std::vector<Real> run_values(run_size, Real{ 0 });
+      const std::size_t global_start = static_cast<std::size_t>(ordered[run_begin].first);
+      if (ndims == 2)
+      {
+        const std::size_t start[2] = { static_cast<std::size_t>(time_index), global_start };
+        const std::size_t count[2] = { 1, run_size };
+        MIEM_NC_CHECK(NcGetVara(ncid, varid, start, count, run_values.data()));
+      }
+      else if (ndims == 1)
+      {
+        const std::size_t start[1] = { global_start };
+        const std::size_t count[1] = { run_size };
+        MIEM_NC_CHECK(NcGetVara(ncid, varid, start, count, run_values.data()));
+      }
+      else
+      {
+        throw MiemException(
+            MIEM_ERROR_CATEGORY_IO,
+            MIEM_IO_ERROR_CODE_INVALID_FORMAT,
+            "emissions variable must have one or two dimensions");
+      }
+
+      for (std::size_t i = 0; i < run_size; ++i)
+        out[ordered[run_begin + i].second] = run_values[i];
+      run_begin = run_end;
+    }
   }
 
 }  // namespace miem

@@ -25,6 +25,34 @@ namespace miem
   //   - (category, hierarchy) must be unique across sources
   void EmissionsBuilder::Validate() const
   {
+    if (n_cells_ < 1 || n_vert_levels_ < 1)
+    {
+      throw MiemException(
+          MIEM_ERROR_CATEGORY_VALIDATION,
+          MIEM_VALIDATION_ERROR_CODE_CELL_COUNT_MISMATCH,
+          "EmissionsBuilder: global cell and vertical-level counts must be positive.");
+    }
+
+    std::set<int> selected_ids;
+    for (const int global_id : cell_selection_.global_cell_ids_)
+    {
+      if (global_id < 1 || global_id > n_cells_)
+      {
+        throw MiemException(
+            MIEM_ERROR_CATEGORY_VALIDATION,
+            MIEM_VALIDATION_ERROR_CODE_INVALID_CELL_SELECTION,
+            "EmissionsBuilder: selected global cell ID " + std::to_string(global_id) + " is outside 1.." +
+                std::to_string(n_cells_) + ".");
+      }
+      if (!selected_ids.insert(global_id).second)
+      {
+        throw MiemException(
+            MIEM_ERROR_CATEGORY_VALIDATION,
+            MIEM_VALIDATION_ERROR_CODE_INVALID_CELL_SELECTION,
+            "EmissionsBuilder: duplicate selected global cell ID " + std::to_string(global_id) + ".");
+      }
+    }
+
     // Regridding type must be None.
     if (regridding_.type_ != RegriddingType::None)
     {
@@ -101,7 +129,7 @@ namespace miem
     // Emissions' private constructor compiles the Source list into runtime
     // sources via SourceFactory, throwing MiemException (tagged with the
     // source name) if any source is rejected.  EmissionsBuilder is a friend.
-    return Emissions(sources_, n_cells_, n_vert_levels_);
+    return Emissions(sources_, n_cells_, n_vert_levels_, cell_selection_);
   }
 
 }  // namespace miem

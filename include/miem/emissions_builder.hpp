@@ -14,6 +14,7 @@
 //                        .Build();
 #pragma once
 
+#include <miem/cell_selection.hpp>
 #include <miem/emissions.hpp>
 #include <miem/source_types.hpp>
 
@@ -31,6 +32,20 @@ namespace miem
     {
       n_cells_ = n_cells;
       n_vert_levels_ = n_vert_levels;
+      return *this;
+    }
+
+    /// Select one-based global inventory cells in host output order. An
+    /// empty selection retains the full-grid behavior.
+    EmissionsBuilder& SetCellSelection(std::vector<int> global_cell_ids)
+    {
+      cell_selection_.global_cell_ids_ = std::move(global_cell_ids);
+      return *this;
+    }
+
+    EmissionsBuilder& SetCellSelection(CellSelection selection)
+    {
+      cell_selection_ = std::move(selection);
       return *this;
     }
 
@@ -72,6 +87,7 @@ namespace miem
     void Validate() const;
 
     Regridding regridding_{};
+    CellSelection cell_selection_{};
     std::vector<Source> sources_{};
     int n_cells_ = 0;
     int n_vert_levels_ = 0;

@@ -28,6 +28,16 @@ namespace miem
     virtual void
     Update(double time_current, int n_cells, std::vector<Real>& flux_out, std::vector<std::string>& species_names_out) = 0;
 
+    // Selected-cell update. IDs are one-based global inventory slots and
+    // output follows the caller's order. Implementations that support
+    // distributed I/O override this method.
+    virtual void UpdateSelected(
+        double time_current,
+        int global_n_cells,
+        const std::vector<int>& selected_global_cell_ids,
+        std::vector<Real>& flux_out,
+        std::vector<std::string>& species_names_out) = 0;
+
     virtual const std::string& Name() const = 0;
   };
 

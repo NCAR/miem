@@ -5,6 +5,7 @@
 // fine-grained includes may include the individual headers instead.
 #pragma once
 
+#include <miem/cell_selection.hpp>
 #include <miem/emissions.hpp>
 #include <miem/emissions_builder.hpp>
 #include <miem/emissions_state.hpp>

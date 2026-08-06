@@ -14,6 +14,7 @@
 // time-out-of-range) are raised as `MiemException` from `Run`.
 #pragma once
 
+#include <miem/cell_selection.hpp>
 #include <miem/emissions_state.hpp>
 #include <miem/source.hpp>
 #include <miem/source_types.hpp>
@@ -68,6 +69,14 @@ namespace miem
     {
       return n_cells_;
     }
+    int NumGlobalCells() const
+    {
+      return global_n_cells_;
+    }
+    const std::vector<int>& SelectedGlobalCellIds() const
+    {
+      return cell_selection_.global_cell_ids_;
+    }
     int NumVertLevels() const
     {
       return n_vert_levels_;
@@ -83,7 +92,11 @@ namespace miem
     // Constructed only by `EmissionsBuilder::Build()` from an already-
     // validated `Source` list.  Throws MiemException (tagged with the
     // offending source's name) if a source factory rejects its description.
-    Emissions(const std::vector<Source>& sources, int n_cells, int n_vert_levels);
+    Emissions(
+        const std::vector<Source>& sources,
+        int global_n_cells,
+        int n_vert_levels,
+        CellSelection cell_selection);
 
     struct SourceEntry
     {
@@ -96,8 +109,10 @@ namespace miem
 
     std::vector<SourceEntry> sources_;
     std::vector<std::string> aggregated_species_;
+    int global_n_cells_;
     int n_cells_;
     int n_vert_levels_;
+    CellSelection cell_selection_;
 
     // Populate sources_ + aggregated_species_ from the Source list.  Throws
     // MiemException (tagged with the offending source's name) if a source

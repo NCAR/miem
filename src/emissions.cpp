@@ -51,9 +51,15 @@ namespace miem
   // validated the configuration.  A source-factory rejection here would mean
   // Validate() missed it, so we let it propagate (tagged with the source
   // name) rather than swallow it from a constructor.
-  Emissions::Emissions(const std::vector<Source>& sources, int n_cells, int n_vert_levels)
-      : n_cells_(n_cells),
-        n_vert_levels_(n_vert_levels)
+  Emissions::Emissions(
+      const std::vector<Source>& sources,
+      int global_n_cells,
+      int n_vert_levels,
+      CellSelection cell_selection)
+      : global_n_cells_(global_n_cells),
+        n_cells_(cell_selection.SelectedCellCount(global_n_cells)),
+        n_vert_levels_(n_vert_levels),
+        cell_selection_(std::move(cell_selection))
   {
     BuildSources(sources);  // throws MiemException on factory failure
   }
@@ -113,7 +119,12 @@ namespace miem
     {
       std::vector<Real> src_flux;
       std::vector<std::string> src_species;
-      entry.source_->Update(sim_time_sec, n_cells_, src_flux, src_species);
+      entry.source_->UpdateSelected(
+          sim_time_sec,
+          global_n_cells_,
+          cell_selection_.global_cell_ids_,
+          src_flux,
+          src_species);
 
       std::vector<Real> mapped(flux_size, Real{ 0 });
       const int n_src_sp = static_cast<int>(src_species.size());

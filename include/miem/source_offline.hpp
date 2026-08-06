@@ -37,6 +37,12 @@ namespace miem
     std::vector<std::string> QuerySpecies() const override;
     void Update(double time_current, int n_cells, std::vector<Real>& flux_out, std::vector<std::string>& species_names_out)
         override;
+    void UpdateSelected(
+        double time_current,
+        int global_n_cells,
+        const std::vector<int>& selected_global_cell_ids,
+        std::vector<Real>& flux_out,
+        std::vector<std::string>& species_names_out) override;
     const std::string& Name() const override
     {
       return name_;
@@ -53,8 +59,10 @@ namespace miem
 
     std::vector<std::string> inventory_species_;
     std::vector<std::string> mechanism_species_;
+    int cached_global_n_cells_ = 0;
+    std::vector<int> cached_selected_global_cell_ids_;
 
-    void LoadBrackets(double time_current, int n_cells);
+    void LoadBrackets(double time_current, int global_n_cells, const std::vector<int>& selected_global_cell_ids);
     std::string ResolveFilePath(double time) const;
   };
 

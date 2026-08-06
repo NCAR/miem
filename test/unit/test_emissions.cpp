@@ -163,6 +163,39 @@ TEST(EmissionsTest, PerSourceScalingAppliedBeforeHierarchy)
   }
 }
 
+TEST(EmissionsTest, SelectedModeIsBitwiseEqualToFullGrid)
+{
+  TempDir dir;
+  const int n_cells = 6;
+  const std::string path = dir.File("selected.nc");
+  const std::vector<double> data = {
+    1.0e-9, 2.0e-9, 3.0e-9, 4.0e-9, 5.0e-9, 6.0e-9,
+    2.0e-9, 4.0e-9, 6.0e-9, 8.0e-9, 10.0e-9, 12.0e-9,
+  };
+  CreateTestNetCDF(path, 2, n_cells, { 0.0, 3600.0 }, { "NOx" }, { data });
+
+  Emissions full = EmissionsBuilder()
+                       .SetGridDimensions(n_cells, 2)
+                       .AddSource(MakeSource("source", path, 0, 1))
+                       .Build();
+  const std::vector<int> selected_ids = { 6, 2, 3 };
+  Emissions selected = EmissionsBuilder()
+                           .SetGridDimensions(n_cells, 2)
+                           .SetCellSelection(selected_ids)
+                           .AddSource(MakeSource("source", path, 0, 1))
+                           .Build();
+
+  const auto full_state = full.Run(1800.0, 60.0);
+  const auto selected_state = selected.Run(1800.0, 60.0);
+  ASSERT_EQ(selected_state.n_cells_, static_cast<int>(selected_ids.size()));
+  for (std::size_t i = 0; i < selected_ids.size(); ++i)
+  {
+    EXPECT_EQ(
+        selected_state.surface_flux_(static_cast<int>(i), "NOx"),
+        full_state.surface_flux_(selected_ids[i] - 1, "NOx"));
+  }
+}
+
 // ---------------------------------------------------------------------
 // Sector fluxes are pre-hierarchy: both shadowing sources record their
 // contributions independently in sector_fluxes_ even when one shadows

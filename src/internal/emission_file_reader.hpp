@@ -49,6 +49,15 @@ namespace miem
         const std::vector<std::string>& species_names,
         std::vector<Real>& flux_out,
         int& n_cells_out) const = 0;
+
+    // Read only selected one-based global inventory cells. Output preserves
+    // selection order; an empty selection reads the full grid.
+    virtual void ReadFluxSelected(
+        int time_index,
+        const std::vector<std::string>& species_names,
+        const std::vector<int>& selected_global_cell_ids,
+        std::vector<Real>& flux_out,
+        int& n_cells_out) const = 0;
   };
 
 }  // namespace miem

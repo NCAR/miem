@@ -78,6 +78,12 @@ namespace miem
         const std::vector<std::string>& species_names,
         std::vector<Real>& flux_out,
         int& n_cells_out) const override;
+    void ReadFluxSelected(
+        int time_index,
+        const std::vector<std::string>& species_names,
+        const std::vector<int>& selected_global_cell_ids,
+        std::vector<Real>& flux_out,
+        int& n_cells_out) const override;
 
     // ECCAD format version, populated from the `eccad_version` global
     // attribute (legacy `ses_version` is also accepted for one release

@@ -265,3 +265,32 @@ TEST(UptempoReaderSyntheticTest, RejectsEccadLayoutFile)
   UptempoReader r;
   EXPECT_THROW(r.Open(path), MiemException);
 }
+
+TEST(UptempoReaderSyntheticTest, SelectedHyperslabsPreserveHostOrder)
+{
+  TempDir dir;
+  const std::string path = dir.File("uptempo_selected.nc");
+  const std::vector<double> data = {
+    10.0, 20.0, 30.0, 40.0, 50.0,
+    11.0, 21.0, 31.0, 41.0, 51.0,
+  };
+  CreateUptempoTestNetCDF(
+      path,
+      2,
+      5,
+      { "2012-01-01_00:00:00", "2012-01-01_01:00:00" },
+      { "NOx" },
+      { data });
+
+  UptempoReader reader;
+  reader.Open(path);
+  std::vector<Real> flux;
+  int n_cells = 0;
+  reader.ReadFluxSelected(1, { "NOx" }, { 5, 2, 3 }, flux, n_cells);
+
+  ASSERT_EQ(n_cells, 3);
+  ASSERT_EQ(flux.size(), 3u);
+  EXPECT_DOUBLE_EQ(static_cast<double>(flux[0]), 51.0);
+  EXPECT_DOUBLE_EQ(static_cast<double>(flux[1]), 21.0);
+  EXPECT_DOUBLE_EQ(static_cast<double>(flux[2]), 31.0);
+}

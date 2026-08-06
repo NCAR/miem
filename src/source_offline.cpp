@@ -111,7 +111,10 @@ namespace miem
     return pattern;
   }
 
-  void OfflineEmissionSource::LoadBrackets(double time_current, int n_cells)
+  void OfflineEmissionSource::LoadBrackets(
+      double time_current,
+      int global_n_cells,
+      const std::vector<int>& selected_global_cell_ids)
   {
     const std::string file_path = ResolveFilePath(time_current);
 
@@ -132,13 +135,13 @@ namespace miem
           "OfflineEmissionSource '" + name_ + "': no time steps in file '" + file_path + "'.");
     }
 
-    if (file_cells != n_cells)
+    if (file_cells != global_n_cells)
     {
       throw MiemException(
           MIEM_ERROR_CATEGORY_VALIDATION,
           MIEM_VALIDATION_ERROR_CODE_CELL_COUNT_MISMATCH,
           "OfflineEmissionSource '" + name_ + "': file '" + file_path + "' has " + std::to_string(file_cells) +
-              " cells but host expects " + std::to_string(n_cells) + ".");
+              " cells but host expects " + std::to_string(global_n_cells) + ".");
     }
 
     // Find the time steps bracketing `time_current`. Times outside the
@@ -174,21 +177,34 @@ namespace miem
     std::vector<Real> raw_left;
     std::vector<Real> raw_right;
     int n_cells_read = 0;
-    reader_->ReadFlux(left_idx, inventory_species_, raw_left, n_cells_read);
-    reader_->ReadFlux(right_idx, inventory_species_, raw_right, n_cells_read);
+    reader_->ReadFluxSelected(left_idx, inventory_species_, selected_global_cell_ids, raw_left, n_cells_read);
+    reader_->ReadFluxSelected(right_idx, inventory_species_, selected_global_cell_ids, raw_right, n_cells_read);
 
     // Apply species mapping: inventory → mechanism.  SpeciesMap::Apply and
     // TemporalInterpolator::SetBracket throw MiemException on failure, which
     // propagates to the caller.
     std::vector<Real> mapped_left;
     std::vector<Real> mapped_right;
-    species_map_.Apply(raw_left, inventory_species_, mapped_left, n_cells);
-    species_map_.Apply(raw_right, inventory_species_, mapped_right, n_cells);
+    const int selected_n_cells = selected_global_cell_ids.empty()
+                                     ? global_n_cells
+                                     : static_cast<int>(selected_global_cell_ids.size());
+    if (n_cells_read != selected_n_cells)
+    {
+      throw MiemException(
+          MIEM_ERROR_CATEGORY_VALIDATION,
+          MIEM_VALIDATION_ERROR_CODE_CELL_COUNT_MISMATCH,
+          "OfflineEmissionSource '" + name_ + "': reader returned " + std::to_string(n_cells_read) +
+              " cells but selection expects " + std::to_string(selected_n_cells) + ".");
+    }
+    species_map_.Apply(raw_left, inventory_species_, mapped_left, selected_n_cells);
+    species_map_.Apply(raw_right, inventory_species_, mapped_right, selected_n_cells);
 
     const double time_left = (n_times > 0) ? times[left_idx] : 0.0;
     const double time_right = (n_times > 1) ? times[right_idx] : time_left + 1.0;
 
     interpolator_.SetBracket(time_left, time_right, mapped_left, mapped_right);
+    cached_global_n_cells_ = global_n_cells;
+    cached_selected_global_cell_ids_ = selected_global_cell_ids;
   }
 
   void OfflineEmissionSource::Update(
@@ -197,9 +213,25 @@ namespace miem
       std::vector<Real>& flux_out,
       std::vector<std::string>& species_names_out)
   {
+    UpdateSelected(time_current, n_cells, {}, flux_out, species_names_out);
+  }
+
+  void OfflineEmissionSource::UpdateSelected(
+      double time_current,
+      int global_n_cells,
+      const std::vector<int>& selected_global_cell_ids,
+      std::vector<Real>& flux_out,
+      std::vector<std::string>& species_names_out)
+  {
+    if (cached_global_n_cells_ != global_n_cells ||
+        cached_selected_global_cell_ids_ != selected_global_cell_ids)
+    {
+      interpolator_ = TemporalInterpolator(AsInterpolationMode(config_.temporal_interpolation_));
+    }
+
     if (!interpolator_.HasBracket() || !interpolator_.CoversTime(time_current))
     {
-      LoadBrackets(time_current, n_cells);  // throws on failure
+      LoadBrackets(time_current, global_n_cells, selected_global_cell_ids);  // throws on failure
     }
 
     std::vector<Real> interpolated;
@@ -208,7 +240,10 @@ namespace miem
     species_names_out = mechanism_species_;
     const int n_mech = static_cast<int>(mechanism_species_.size());
 
-    const std::size_t expected_size = static_cast<std::size_t>(n_mech) * n_cells;
+    const int selected_n_cells = selected_global_cell_ids.empty()
+                                     ? global_n_cells
+                                     : static_cast<int>(selected_global_cell_ids.size());
+    const std::size_t expected_size = static_cast<std::size_t>(n_mech) * selected_n_cells;
     if (!interpolated.empty() && interpolated.size() != expected_size)
     {
       throw MiemException(
