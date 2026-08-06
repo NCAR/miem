@@ -15,6 +15,7 @@
 #pragma once
 
 #include <miem/cell_selection.hpp>
+#include <miem/diagnostic_selection.hpp>
 #include <miem/emissions_state.hpp>
 #include <miem/source.hpp>
 #include <miem/source_types.hpp>
@@ -105,7 +106,8 @@ namespace miem
         const std::vector<Source>& sources,
         int global_n_cells,
         int n_vert_levels,
-        CellSelection cell_selection);
+        CellSelection cell_selection,
+        DiagnosticSelection diagnostic_selection);
 
     struct SourceEntry
     {
@@ -123,6 +125,7 @@ namespace miem
     int n_cells_;
     int n_vert_levels_;
     CellSelection cell_selection_;
+    DiagnosticSelection diagnostic_selection_;
     bool grid_metadata_initialized_ = false;
     InventoryGridMetadata inventory_grid_metadata_;
 

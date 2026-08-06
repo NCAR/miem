@@ -349,19 +349,22 @@ TEST(EmissionsTest, ConflictingSourceGridMetadataIsRejected)
 }
 
 // ---------------------------------------------------------------------
-// Sector fluxes are pre-hierarchy: both shadowing sources record their
-// contributions independently in sector_fluxes_ even when one shadows
-// the other in surface_flux_.
+// Diagnostics are opt-in and follow hierarchy selection, so a shadowed
+// source cannot appear in a group while being absent from the total.
 // ---------------------------------------------------------------------
-TEST(EmissionsTest, SectorFluxesPreHierarchy)
+TEST(EmissionsTest, SelectedSectorFluxUsesHierarchyWinner)
 {
   TempDir dir;
   const int n_cells = 3;
   const std::string p_low = MakeFile(dir, "low.nc", n_cells, 1.0e-9);
   const std::string p_high = MakeFile(dir, "high.nc", n_cells, 7.0e-9);
 
+  DiagnosticSelection diagnostics;
+  diagnostics.sectors_ = { "anthropogenic" };
+  diagnostics.max_fields_ = 1;
   Emissions module = EmissionsBuilder()
                          .SetGridDimensions(n_cells, 2)
+                         .SetDiagnosticSelection(diagnostics)
                          .AddSource(MakeSource("low", p_low, 0, 1, /*sector=*/"anthropogenic"))
                          .AddSource(MakeSource("high", p_high, 0, 2, /*sector=*/"anthropogenic"))
                          .Build();
@@ -374,12 +377,90 @@ TEST(EmissionsTest, SectorFluxesPreHierarchy)
     EXPECT_NEAR(static_cast<double>(state.surface_flux_(ic, "NOx")), 7.0e-9, kFluxTol);
   }
 
-  // sector_fluxes_ aggregates both sources (1e-9 + 7e-9 = 8e-9).
+  // The requested sector receives only the hierarchy winner.
   const EmissionsArray* anthro = state.GetSectorFlux("anthropogenic");
   ASSERT_NE(anthro, nullptr);
   for (int ic = 0; ic < n_cells; ++ic)
   {
-    EXPECT_NEAR(static_cast<double>((*anthro)(ic, "NOx")), 8.0e-9, kFluxTol);
+    EXPECT_NEAR(static_cast<double>((*anthro)(ic, "NOx")), 7.0e-9, kFluxTol);
+  }
+}
+
+TEST(EmissionsTest, EmptyDiagnosticSelectionAllocatesNoGroups)
+{
+  TempDir dir;
+  const int n_cells = 2;
+  Emissions module = EmissionsBuilder()
+                         .SetGridDimensions(n_cells, 2)
+                         .AddSource(MakeSource("source", MakeFile(dir, "none.nc", n_cells, 1.0e-9), 0, 1, "anthro"))
+                         .Build();
+  const auto state = module.Run(1800.0, 60.0);
+  EXPECT_TRUE(state.sector_fluxes_.empty());
+  EXPECT_TRUE(state.category_fluxes_.empty());
+  EXPECT_TRUE(state.sector_layer_fluxes_.empty());
+  EXPECT_TRUE(state.category_layer_fluxes_.empty());
+}
+
+TEST(EmissionsTest, SelectedCategoryAndSectorLayerDiagnosticsCloseToColumns)
+{
+  TempDir dir;
+  const int n_cells = 2;
+  const int n_levels = 3;
+  Source surface = MakeSource("surface", MakeFile(dir, "diag_surface.nc", n_cells, 2.0e-9), 0, 1, "ground");
+  Source elevated = MakeSource("elevated", MakeFile(dir, "diag_elevated.nc", n_cells, 6.0e-9), 1, 1, "stack");
+  elevated.vertical_injection_ = VerticalInjection::Profile;
+  elevated.vertical_profile_ = { 0.0, 0.25, 0.75 };
+  DiagnosticSelection diagnostics;
+  diagnostics.sectors_ = { "ground", "stack" };
+  diagnostics.categories_ = { 0, 1 };
+  diagnostics.layered_output_ = true;
+  diagnostics.max_fields_ = 12;  // 1 species * 4 groups * 3 levels
+  Emissions module = EmissionsBuilder()
+                         .SetGridDimensions(n_cells, n_levels)
+                         .SetDiagnosticSelection(diagnostics)
+                         .AddSource(surface)
+                         .AddSource(elevated)
+                         .Build();
+
+  const auto state = module.Run(1800.0, 60.0);
+  ASSERT_EQ(state.sector_names_, (std::vector<std::string>{ "ground", "stack" }));
+  ASSERT_EQ(state.category_ids_, (std::vector<int>{ 0, 1 }));
+  for (int cell = 0; cell < n_cells; ++cell)
+  {
+    const auto* category_zero = state.GetCategoryFlux(0);
+    const auto* category_one = state.GetCategoryFlux(1);
+    const auto* ground = state.GetSectorFlux("ground");
+    const auto* stack = state.GetSectorFlux("stack");
+    ASSERT_NE(category_zero, nullptr);
+    ASSERT_NE(category_one, nullptr);
+    ASSERT_NE(ground, nullptr);
+    ASSERT_NE(stack, nullptr);
+    EXPECT_NEAR(static_cast<double>((*category_zero)(cell, "NOx")), 2.0e-9, kFluxTol);
+    EXPECT_NEAR(static_cast<double>((*category_one)(cell, "NOx")), 6.0e-9, kFluxTol);
+    EXPECT_EQ((*category_zero)(cell, "NOx"), (*ground)(cell, "NOx"));
+    EXPECT_EQ((*category_one)(cell, "NOx"), (*stack)(cell, "NOx"));
+    EXPECT_EQ(
+        (*category_zero)(cell, "NOx") + (*category_one)(cell, "NOx"),
+        state.surface_flux_(cell, "NOx"));
+
+    const auto expect_layer_closure = [&](const EmissionsArray* column, const std::vector<Real>* layered)
+    {
+      ASSERT_NE(layered, nullptr);
+      Real sum = Real{ 0 };
+      for (int level = 0; level < n_levels; ++level)
+      {
+        sum += (*layered)[static_cast<std::size_t>(level) * n_cells + cell];
+      }
+      EXPECT_EQ(sum, (*column)(cell, "NOx"));
+    };
+    expect_layer_closure(category_zero, state.GetCategoryLayerFlux(0));
+    expect_layer_closure(category_one, state.GetCategoryLayerFlux(1));
+    expect_layer_closure(ground, state.GetSectorLayerFlux("ground"));
+    expect_layer_closure(stack, state.GetSectorLayerFlux("stack"));
+    const auto* category_one_layers = state.GetCategoryLayerFlux(1);
+    EXPECT_EQ((*category_one_layers)[cell], Real{ 0 });
+    EXPECT_NEAR(static_cast<double>((*category_one_layers)[n_cells + cell]), 1.5e-9, kFluxTol);
+    EXPECT_NEAR(static_cast<double>((*category_one_layers)[2 * n_cells + cell]), 4.5e-9, kFluxTol);
   }
 }
 

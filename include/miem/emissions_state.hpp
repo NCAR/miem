@@ -113,9 +113,9 @@ namespace miem
   /// @brief Per-cell, per-species emissions output returned by
   ///        @c Emissions::Run.
   ///
-  /// Holds the surface flux and volumetric tendency arrays, plus optional
-  /// per-sector diagnostic fluxes. All field names carry a trailing
-  /// underscore.
+  /// Holds column and layered flux and volumetric tendency arrays, plus
+  /// explicitly selected sector/category diagnostics. All field names carry
+  /// a trailing underscore.
   ///
   /// Memory layout:
   /// - @c surface_flux_ : species-major, @c [species_idx*n_cells_+cell_idx]
@@ -161,6 +161,15 @@ namespace miem
     std::map<std::string, EmissionsArray> sector_fluxes_;
     std::vector<std::string> sector_names_;  ///< Sector insertion order.
 
+    /// @brief Optional selected category column fluxes.
+    std::map<int, EmissionsArray> category_fluxes_;
+    std::vector<int> category_ids_;
+
+    /// @brief Optional selected layered diagnostic fluxes. Each vector uses
+    ///        the same species/level/cell layout as layer_flux_.
+    std::map<std::string, std::vector<Real>> sector_layer_fluxes_;
+    std::map<int, std::vector<Real>> category_layer_fluxes_;
+
     EmissionsState() = default;
     EmissionsState(int n_species, int n_cells, int n_vert_levels)
     {
@@ -178,8 +187,24 @@ namespace miem
       return !sector_fluxes_.empty();
     }
 
+    bool HasCategories() const
+    {
+      return !category_fluxes_.empty();
+    }
+
+    bool HasLayeredDiagnostics() const
+    {
+      return !sector_layer_fluxes_.empty() || !category_layer_fluxes_.empty();
+    }
+
     /// @brief Sector flux by name; returns nullptr if the sector is absent.
     const EmissionsArray* GetSectorFlux(const std::string& sector) const;
+
+    const EmissionsArray* GetCategoryFlux(int category) const;
+
+    const std::vector<Real>* GetSectorLayerFlux(const std::string& sector) const;
+
+    const std::vector<Real>* GetCategoryLayerFlux(int category) const;
 
     /// @name Raw-pointer accessors for the zero-copy host/MUSICA hand-off.
     /// @{

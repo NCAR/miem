@@ -98,7 +98,14 @@ TEST(NoxPipelineIntegrationTest, NOxSplitAndO3Passthrough)
   src.species_map_.AddMapping("NOx", "NO2", 0.1);
   src.species_map_.AddMapping("O3", "O3", 1.0);
 
-  Emissions module = EmissionsBuilder().SetGridDimensions(kNCells, kNVertLevels).AddSource(src).Build();
+  DiagnosticSelection diagnostics;
+  diagnostics.sectors_ = { "anthropogenic" };
+  diagnostics.max_fields_ = 3;
+  Emissions module = EmissionsBuilder()
+                         .SetGridDimensions(kNCells, kNVertLevels)
+                         .SetDiagnosticSelection(diagnostics)
+                         .AddSource(src)
+                         .Build();
 
   // Run at midpoint t=1800s (between 0 and 3600); inventory is constant
   // so the blend equals the input flux.

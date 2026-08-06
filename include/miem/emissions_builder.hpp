@@ -15,6 +15,7 @@
 #pragma once
 
 #include <miem/cell_selection.hpp>
+#include <miem/diagnostic_selection.hpp>
 #include <miem/emissions.hpp>
 #include <miem/source_types.hpp>
 
@@ -46,6 +47,15 @@ namespace miem
     EmissionsBuilder& SetCellSelection(CellSelection selection)
     {
       cell_selection_ = std::move(selection);
+      return *this;
+    }
+
+    /// Select only the named disaggregated outputs. An empty selection
+    /// allocates none; nonempty selections must provide a sufficient hard
+    /// max_fields cap.
+    EmissionsBuilder& SetDiagnosticSelection(DiagnosticSelection selection)
+    {
+      diagnostic_selection_ = std::move(selection);
       return *this;
     }
 
@@ -88,6 +98,7 @@ namespace miem
 
     Regridding regridding_{};
     CellSelection cell_selection_{};
+    DiagnosticSelection diagnostic_selection_{};
     std::vector<Source> sources_{};
     int n_cells_ = 0;
     int n_vert_levels_ = 0;

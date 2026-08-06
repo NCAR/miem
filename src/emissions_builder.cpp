@@ -8,6 +8,7 @@
 #include <miem/util/miem_exception.hpp>
 
 #include <cmath>
+#include <limits>
 #include <set>
 #include <string>
 #include <utility>
@@ -66,6 +67,9 @@ namespace miem
 
     // Track (category, hierarchy) to flag duplicates.
     std::set<std::pair<int, int>> cat_hier;
+    std::set<std::string> known_sectors;
+    std::set<int> known_categories;
+    std::set<std::string> mechanism_species;
 
     for (const auto& src : sources_)
     {
@@ -158,6 +162,82 @@ namespace miem
             "Duplicate (category=" + std::to_string(src.category_) + ", hierarchy=" + std::to_string(src.hierarchy_) +
                 ") at source '" + src.name_ + "'.");
       }
+      if (!src.sector_.empty())
+      {
+        known_sectors.insert(src.sector_);
+      }
+      known_categories.insert(src.category_);
+      const auto source_species = src.species_map_.MechanismSpecies();
+      mechanism_species.insert(source_species.begin(), source_species.end());
+    }
+
+    std::set<std::string> selected_sectors;
+    for (const auto& sector : diagnostic_selection_.sectors_)
+    {
+      if (sector.empty() || !selected_sectors.insert(sector).second)
+      {
+        throw MiemException(
+            MIEM_ERROR_CATEGORY_CONFIGURATION,
+            MIEM_CONFIGURATION_ERROR_CODE_INVALID_DIAGNOSTIC_SELECTION,
+            "EmissionsBuilder: diagnostic sector names must be nonempty and unique.");
+      }
+      if (!known_sectors.contains(sector))
+      {
+        throw MiemException(
+            MIEM_ERROR_CATEGORY_CONFIGURATION,
+            MIEM_CONFIGURATION_ERROR_CODE_INVALID_DIAGNOSTIC_SELECTION,
+            "EmissionsBuilder: unknown diagnostic sector '" + sector + "'.");
+      }
+    }
+
+    std::set<int> selected_categories;
+    for (const int category : diagnostic_selection_.categories_)
+    {
+      if (!selected_categories.insert(category).second)
+      {
+        throw MiemException(
+            MIEM_ERROR_CATEGORY_CONFIGURATION,
+            MIEM_CONFIGURATION_ERROR_CODE_INVALID_DIAGNOSTIC_SELECTION,
+            "EmissionsBuilder: diagnostic category IDs must be unique.");
+      }
+      if (!known_categories.contains(category))
+      {
+        throw MiemException(
+            MIEM_ERROR_CATEGORY_CONFIGURATION,
+            MIEM_CONFIGURATION_ERROR_CODE_INVALID_DIAGNOSTIC_SELECTION,
+            "EmissionsBuilder: unknown diagnostic category " + std::to_string(category) + ".");
+      }
+    }
+
+    const std::size_t group_count = selected_sectors.size() + selected_categories.size();
+    std::size_t requested_fields = mechanism_species.size();
+    if (group_count != 0 && requested_fields > std::numeric_limits<std::size_t>::max() / group_count)
+    {
+      requested_fields = std::numeric_limits<std::size_t>::max();
+    }
+    else
+    {
+      requested_fields *= group_count;
+    }
+    if (diagnostic_selection_.layered_output_)
+    {
+      const std::size_t levels = static_cast<std::size_t>(n_vert_levels_);
+      if (levels != 0 && requested_fields > std::numeric_limits<std::size_t>::max() / levels)
+      {
+        requested_fields = std::numeric_limits<std::size_t>::max();
+      }
+      else
+      {
+        requested_fields *= levels;
+      }
+    }
+    if (requested_fields > diagnostic_selection_.max_fields_)
+    {
+      throw MiemException(
+          MIEM_ERROR_CATEGORY_CONFIGURATION,
+          MIEM_CONFIGURATION_ERROR_CODE_INVALID_DIAGNOSTIC_SELECTION,
+          "EmissionsBuilder: diagnostic selection requests " + std::to_string(requested_fields) +
+              " fields, exceeding max_fields=" + std::to_string(diagnostic_selection_.max_fields_) + ".");
     }
   }
 
@@ -168,7 +248,7 @@ namespace miem
     // Emissions' private constructor compiles the Source list into runtime
     // sources via SourceFactory, throwing MiemException (tagged with the
     // source name) if any source is rejected.  EmissionsBuilder is a friend.
-    return Emissions(sources_, n_cells_, n_vert_levels_, cell_selection_);
+    return Emissions(sources_, n_cells_, n_vert_levels_, cell_selection_, diagnostic_selection_);
   }
 
 }  // namespace miem

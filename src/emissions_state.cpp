@@ -21,6 +21,12 @@ namespace miem
     emis_to_chem_idx_.assign(n_species, -1);
     injection_layer_.assign(n_species, 0);
     species_names_.assign(n_species, std::string{});
+    sector_fluxes_.clear();
+    sector_names_.clear();
+    category_fluxes_.clear();
+    category_ids_.clear();
+    sector_layer_fluxes_.clear();
+    category_layer_fluxes_.clear();
   }
 
   void EmissionsState::Zero()
@@ -32,6 +38,18 @@ namespace miem
     {
       std::fill(flux.raw().begin(), flux.raw().end(), Real{ 0 });
     }
+    for (auto& [category, flux] : category_fluxes_)
+    {
+      std::fill(flux.raw().begin(), flux.raw().end(), Real{ 0 });
+    }
+    for (auto& [name, flux] : sector_layer_fluxes_)
+    {
+      std::fill(flux.begin(), flux.end(), Real{ 0 });
+    }
+    for (auto& [category, flux] : category_layer_fluxes_)
+    {
+      std::fill(flux.begin(), flux.end(), Real{ 0 });
+    }
   }
 
   const EmissionsArray* EmissionsState::GetSectorFlux(const std::string& sector) const
@@ -42,6 +60,24 @@ namespace miem
       return nullptr;
     }
     return &it->second;
+  }
+
+  const EmissionsArray* EmissionsState::GetCategoryFlux(int category) const
+  {
+    const auto it = category_fluxes_.find(category);
+    return it == category_fluxes_.end() ? nullptr : &it->second;
+  }
+
+  const std::vector<Real>* EmissionsState::GetSectorLayerFlux(const std::string& sector) const
+  {
+    const auto it = sector_layer_fluxes_.find(sector);
+    return it == sector_layer_fluxes_.end() ? nullptr : &it->second;
+  }
+
+  const std::vector<Real>* EmissionsState::GetCategoryLayerFlux(int category) const
+  {
+    const auto it = category_layer_fluxes_.find(category);
+    return it == category_layer_fluxes_.end() ? nullptr : &it->second;
   }
 
 }  // namespace miem

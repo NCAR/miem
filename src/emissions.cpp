@@ -70,11 +70,13 @@ namespace miem
       const std::vector<Source>& sources,
       int global_n_cells,
       int n_vert_levels,
-      CellSelection cell_selection)
+      CellSelection cell_selection,
+      DiagnosticSelection diagnostic_selection)
       : global_n_cells_(global_n_cells),
         n_cells_(cell_selection.SelectedCellCount(global_n_cells)),
         n_vert_levels_(n_vert_levels),
-        cell_selection_(std::move(cell_selection))
+        cell_selection_(std::move(cell_selection)),
+        diagnostic_selection_(std::move(diagnostic_selection))
   {
     BuildSources(sources);  // throws MiemException on factory failure
   }
@@ -115,6 +117,30 @@ namespace miem
     }
 
     const std::size_t flux_size = static_cast<std::size_t>(n_agg) * n_cells_;
+    const std::size_t layered_flux_size = flux_size * static_cast<std::size_t>(n_vert_levels_);
+
+    for (const auto& sector : diagnostic_selection_.sectors_)
+    {
+      EmissionsArray flux(n_agg, n_cells_);
+      flux.SetSpecies(aggregated_species_);
+      state.sector_fluxes_.emplace(sector, std::move(flux));
+      state.sector_names_.push_back(sector);
+      if (diagnostic_selection_.layered_output_)
+      {
+        state.sector_layer_fluxes_.emplace(sector, std::vector<Real>(layered_flux_size, Real{ 0 }));
+      }
+    }
+    for (const int category : diagnostic_selection_.categories_)
+    {
+      EmissionsArray flux(n_agg, n_cells_);
+      flux.SetSpecies(aggregated_species_);
+      state.category_fluxes_.emplace(category, std::move(flux));
+      state.category_ids_.push_back(category);
+      if (diagnostic_selection_.layered_output_)
+      {
+        state.category_layer_fluxes_.emplace(category, std::vector<Real>(layered_flux_size, Real{ 0 }));
+      }
+    }
 
     // Per-source flux + metadata for HEMCO-style aggregation.
     struct SourceFlux
@@ -218,6 +244,19 @@ namespace miem
             {
               const Real chosen_flux = src->flux_[idx];
               state.surface_flux_.At(isp, ic) += chosen_flux;
+              auto category_flux = state.category_fluxes_.find(cat);
+              if (category_flux != state.category_fluxes_.end())
+              {
+                category_flux->second.At(isp, ic) += chosen_flux;
+              }
+              auto sector_flux = state.sector_fluxes_.find(src->sector_);
+              if (sector_flux != state.sector_fluxes_.end())
+              {
+                sector_flux->second.At(isp, ic) += chosen_flux;
+              }
+
+              auto category_layer_flux = state.category_layer_fluxes_.find(cat);
+              auto sector_layer_flux = state.sector_layer_fluxes_.find(src->sector_);
 
               int residual_level = 0;
               for (int level = 0; level < n_vert_levels_; ++level)
@@ -243,6 +282,14 @@ namespace miem
                 const std::size_t layer_index =
                     (static_cast<std::size_t>(isp) * n_vert_levels_ + level) * n_cells_ + ic;
                 state.layer_flux_[layer_index] += level_flux;
+                if (category_layer_flux != state.category_layer_fluxes_.end())
+                {
+                  category_layer_flux->second[layer_index] += level_flux;
+                }
+                if (sector_layer_flux != state.sector_layer_fluxes_.end())
+                {
+                  sector_layer_flux->second[layer_index] += level_flux;
+                }
               }
               break;
             }
@@ -251,57 +298,43 @@ namespace miem
       }
     }
 
-    // Close the aggregate column after category summation. Each chosen
-    // source is already residual-corrected, but category addition and layer
+    // Close a layered buffer against its column field. Each chosen source is
+    // already residual-corrected, but group/category addition and layer
     // summation can round in a different order. Put only that roundoff in the
-    // highest populated level so the public layer sum reproduces the column.
-    for (int isp = 0; isp < n_agg; ++isp)
+    // highest populated level.
+    const auto close_layered_flux = [&](const EmissionsArray& column_flux, std::vector<Real>& layer_flux)
     {
-      for (int ic = 0; ic < n_cells_; ++ic)
+      for (int isp = 0; isp < n_agg; ++isp)
       {
-        Real layer_sum = Real{ 0 };
-        int highest_populated_level = 0;
-        for (int level = 0; level < n_vert_levels_; ++level)
+        for (int ic = 0; ic < n_cells_; ++ic)
         {
-          const std::size_t layer_index =
-              (static_cast<std::size_t>(isp) * n_vert_levels_ + level) * n_cells_ + ic;
-          layer_sum += state.layer_flux_[layer_index];
-          if (state.layer_flux_[layer_index] != Real{ 0 })
+          Real layer_sum = Real{ 0 };
+          int highest_populated_level = 0;
+          for (int level = 0; level < n_vert_levels_; ++level)
           {
-            highest_populated_level = level;
+            const std::size_t layer_index =
+                (static_cast<std::size_t>(isp) * n_vert_levels_ + level) * n_cells_ + ic;
+            layer_sum += layer_flux[layer_index];
+            if (layer_flux[layer_index] != Real{ 0 })
+            {
+              highest_populated_level = level;
+            }
           }
+          const std::size_t correction_index =
+              (static_cast<std::size_t>(isp) * n_vert_levels_ + highest_populated_level) * n_cells_ + ic;
+          layer_flux[correction_index] += column_flux.At(isp, ic) - layer_sum;
         }
-        const std::size_t correction_index =
-            (static_cast<std::size_t>(isp) * n_vert_levels_ + highest_populated_level) * n_cells_ + ic;
-        state.layer_flux_[correction_index] += state.surface_flux_.At(isp, ic) - layer_sum;
       }
-    }
+    };
+    close_layered_flux(state.surface_flux_, state.layer_flux_);
 
-    // Per-sector diagnostic fluxes.  Same-sector sources sum.
-    for (const auto& sf : source_fluxes)
+    for (auto& [sector, layer_flux] : state.sector_layer_fluxes_)
     {
-      if (sf.sector_.empty())
-      {
-        continue;
-      }
-      auto it = state.sector_fluxes_.find(sf.sector_);
-      if (it == state.sector_fluxes_.end())
-      {
-        EmissionsArray fa(n_agg, n_cells_);
-        fa.SetSpecies(aggregated_species_);
-        auto& raw = fa.raw();
-        raw = sf.flux_;
-        state.sector_fluxes_.emplace(sf.sector_, std::move(fa));
-        state.sector_names_.push_back(sf.sector_);
-      }
-      else
-      {
-        auto& raw = it->second.raw();
-        for (std::size_t i = 0; i < raw.size(); ++i)
-        {
-          raw[i] += sf.flux_[i];
-        }
-      }
+      close_layered_flux(state.sector_fluxes_.at(sector), layer_flux);
+    }
+    for (auto& [category, layer_flux] : state.category_layer_fluxes_)
+    {
+      close_layered_flux(state.category_fluxes_.at(category), layer_flux);
     }
 
     return state;

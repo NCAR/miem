@@ -45,9 +45,14 @@ builds the runtime module in ``Build()`` (which throws
 
 .. code-block:: cpp
 
+   DiagnosticSelection diagnostics;
+   diagnostics.sectors_ = { "anthropogenic" };
+   diagnostics.max_fields_ = 16;  // hard cap: species * selected groups
+
    Emissions module = EmissionsBuilder()
                           .SetGridDimensions(/*n_cells=*/163842,
                                              /*n_vert_levels=*/60)
+                          .SetDiagnosticSelection(diagnostics)
                           .AddSource(cams_anthro)
                           .Build();
 
@@ -64,6 +69,10 @@ Reading the Output
    double no_flux = state.surface_flux_(0, "NO");  // kg m-2 s-1 at cell 0
 
    double anthro_no = state.sector_fluxes_.at("anthropogenic")(0, "NO");
+
+An empty ``DiagnosticSelection`` (the default) allocates no sector or category
+buffers. Layered group output is opt-in and its cap counts
+``species * groups * vertical levels``.
 
 See ``examples/full_example.cpp`` for the complete worked example including
 multiple layered sources and sector diagnostics.

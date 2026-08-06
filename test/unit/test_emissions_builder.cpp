@@ -290,6 +290,61 @@ TEST(EmissionsBuilderValidateTest, RejectsInvalidSelectedCells)
   }
 }
 
+TEST(EmissionsBuilderValidateTest, AcceptsBoundedDiagnosticSelection)
+{
+  Source src = MakeMinimalSource();
+  src.sector_ = "anthropogenic";
+  src.species_map_.AddMapping("NOx", "NO", 1.0);
+  DiagnosticSelection diagnostics;
+  diagnostics.sectors_ = { "anthropogenic" };
+  diagnostics.categories_ = { 0 };
+  diagnostics.layered_output_ = true;
+  diagnostics.max_fields_ = 4;  // 1 species * 2 groups * 2 levels
+  EmissionsBuilder builder;
+  builder.SetGridDimensions(4, 2).SetDiagnosticSelection(diagnostics).AddSource(src);
+  EXPECT_NO_THROW(builder.Build());
+}
+
+TEST(EmissionsBuilderValidateTest, RejectsDiagnosticSelectionOverFieldCap)
+{
+  Source src = MakeMinimalSource();
+  src.sector_ = "anthropogenic";
+  src.species_map_.AddMapping("NOx", "NO", 1.0);
+  DiagnosticSelection diagnostics;
+  diagnostics.sectors_ = { "anthropogenic" };
+  diagnostics.categories_ = { 0 };
+  diagnostics.layered_output_ = true;
+  diagnostics.max_fields_ = 3;
+  EmissionsBuilder builder;
+  builder.SetGridDimensions(4, 2).SetDiagnosticSelection(diagnostics).AddSource(src);
+  ExpectMiemThrow(
+      [&] { builder.Build(); },
+      MIEM_ERROR_CATEGORY_CONFIGURATION,
+      MIEM_CONFIGURATION_ERROR_CODE_INVALID_DIAGNOSTIC_SELECTION);
+}
+
+TEST(EmissionsBuilderValidateTest, RejectsDuplicateOrUnknownDiagnosticGroups)
+{
+  Source src = MakeMinimalSource();
+  src.sector_ = "anthropogenic";
+  src.species_map_.AddMapping("NOx", "NO", 1.0);
+  std::vector<DiagnosticSelection> invalid(4);
+  invalid[0].sectors_ = { "anthropogenic", "anthropogenic" };
+  invalid[1].sectors_ = { "missing" };
+  invalid[2].categories_ = { 0, 0 };
+  invalid[3].categories_ = { 9 };
+  for (auto& diagnostics : invalid)
+  {
+    diagnostics.max_fields_ = 100;
+    EmissionsBuilder builder;
+    builder.SetGridDimensions(4, 2).SetDiagnosticSelection(diagnostics).AddSource(src);
+    ExpectMiemThrow(
+        [&] { builder.Build(); },
+        MIEM_ERROR_CATEGORY_CONFIGURATION,
+        MIEM_CONFIGURATION_ERROR_CODE_INVALID_DIAGNOSTIC_SELECTION);
+  }
+}
+
 // Throw-on-first: when a source fails several invariants at once (mode !=
 // Offline AND vertical != Surface), Build() throws on the first one it
 // checks — the mode check (ONLINE_NOT_SUPPORTED) precedes the

@@ -341,7 +341,7 @@ about source lines.
 │   ECCADReader · SourceFactory · TemporalInterpolator · Regrid ·     │
 │   SpeciesMap  ──▶  EmissionsState                                   │
 │                                                                     │
-│   Run() ──▶ EmissionsState { surface_flux, tendency, sector_fluxes }│
+│   Run() ──▶ EmissionsState { surface/layer flux, tendency, groups } │
 └─────────────────────────────────┬───────────────────────────────────┘
                                   │  musica wraps Run for C / Fortran
                                   ▼
@@ -556,10 +556,8 @@ sources:
     inventory: finn fires
     species map: MOZART-T1 from CAMS
     temporal interpolation: nearest
-    vertical injection: surface       # MVP accepts only `surface`; `plume` is
-                                      # a hard UnsupportedVerticalInjection
-                                      # error until the plume-rise module
-                                      # lands. No silent downgrade.
+    vertical injection: profile       # fixed bottom-up normalized fractions;
+    vertical profile: [0.0, 0.25, 0.75]
     category: 1
     hierarchy: 1
     sector: fire
@@ -583,8 +581,8 @@ sources:
 | --- | --- |
 | `regridding.type: scrip` (and `weights file`) | Parser accepts only `type: none`; `type: scrip` is `UnsupportedRegriddingType` error |
 | `mode: online` on a source | `OnlineSourcesNotSupported` error |
-| `vertical injection: plume` | `UnsupportedVerticalInjection` error — no silent downgrade |
-| `sector` diagnostic output | Parsed, stored on `EmissionsState::sector_fluxes_`, but no diagnostic reader tool yet (consumed by any host that asks) |
+| `vertical injection: plume` | `UnsupportedVerticalInjection` error — use `surface` or a fixed normalized `profile`; no silent downgrade |
+| Sector/category diagnostic output | Runtime allocates only explicit `DiagnosticSelection` groups and rejects requests above `max_fields`; an empty selection allocates none |
 | Sector-templated `file pattern` (`{sector}`) | Parsed and substituted at read time; `finn fires` example omits it; `ceds legacy` uses it |
 
 **Policy:** every aspirational construct is a hard load-time error until its
@@ -614,7 +612,7 @@ validation at load; filesystem and numerical checks at runtime.
 | `inventory.convention` is one of the known strings (`eccad`, `descriptor`) | Config repo — string enum check; `UnknownConvention` load-time error. The actual string→reader-class dispatch lives in MIEM. |
 | Species-map scaling factors sum ≤ 1.0 per inventory species | Config repo (numerical invariant, no I/O) |
 | `regridding.type` is one of the known strings; v1 accepts only `none` | Config repo — `UnsupportedRegriddingType` load-time error |
-| `vertical injection` is one of the known strings; v1 accepts only `surface` | Config repo — `UnsupportedVerticalInjection` load-time error |
+| `vertical injection` is `surface` or a fixed normalized `profile`; `plume` is rejected | Config repo validates profile values; MIEM validates profile length against the host column |
 | `mode` is one of the known strings; v1 accepts only `offline` | Config repo — `OnlineSourcesNotSupported` load-time error |
 | `inventories.*.directory` resolves to an existing directory | MIEM runtime (filesystem) |
 | `regridding.weights file` exists (when v1.1 lands `type: scrip`) | MIEM runtime |
@@ -660,7 +658,7 @@ SourceRequiresUnknownDescriptor, UnknownConvention,
 SpeciesMapScalingExceedsOne, UndefinedEnvironmentVariable,
 OnlineSourcesNotSupported /* v1 only */,
 UnsupportedRegriddingType /* v1 accepts only `none` */,
-UnsupportedVerticalInjection /* v1 accepts only `surface` */
+UnsupportedVerticalInjection /* plume rise is not implemented */
 ```
 
 MIEM-side errors (runtime I/O, numerical) are raised as
