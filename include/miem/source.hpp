@@ -5,6 +5,7 @@
 // provides and accumulates their flux for a requested time step.
 #pragma once
 
+#include <miem/inventory_grid_metadata.hpp>
 #include <miem/util/types.hpp>
 
 #include <string>
@@ -37,6 +38,11 @@ namespace miem
         const std::vector<int>& selected_global_cell_ids,
         std::vector<Real>& flux_out,
         std::vector<std::string>& species_names_out) = 0;
+
+    // Exact-grid identity from the currently open inventory. The value is
+    // populated by the first update and remains unavailable for legacy
+    // full-grid inventories that predate the identity contract.
+    virtual const InventoryGridMetadata& GridMetadata() const = 0;
 
     virtual const std::string& Name() const = 0;
   };

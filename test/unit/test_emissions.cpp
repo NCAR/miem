@@ -12,6 +12,8 @@
 #include <miem/emissions_builder.hpp>
 #include <miem/emissions_state.hpp>
 #include <miem/source_types.hpp>
+#include <miem/util/error.hpp>
+#include <miem/util/miem_exception.hpp>
 #include <miem/util/types.hpp>
 
 #include <gtest/gtest.h>
@@ -22,7 +24,9 @@
 
 using namespace miem;
 using miem_test::CreateTestNetCDF;
+using miem_test::CreateUptempoTestNetCDF;
 using miem_test::TempDir;
+using miem_test::UptempoNcOptions;
 
 namespace
 {
@@ -172,17 +176,28 @@ TEST(EmissionsTest, SelectedModeIsBitwiseEqualToFullGrid)
     1.0e-9, 2.0e-9, 3.0e-9, 4.0e-9, 5.0e-9, 6.0e-9,
     2.0e-9, 4.0e-9, 6.0e-9, 8.0e-9, 10.0e-9, 12.0e-9,
   };
-  CreateTestNetCDF(path, 2, n_cells, { 0.0, 3600.0 }, { "NOx" }, { data });
+  UptempoNcOptions options;
+  options.write_grid_metadata = true;
+  CreateUptempoTestNetCDF(
+      path,
+      2,
+      n_cells,
+      { "1970-01-01_00:00:00", "1970-01-01_01:00:00" },
+      { "NOx" },
+      { data },
+      options);
+  Source source = MakeSource("source", path, 0, 1);
+  source.convention_ = "uptempo";
 
   Emissions full = EmissionsBuilder()
                        .SetGridDimensions(n_cells, 2)
-                       .AddSource(MakeSource("source", path, 0, 1))
+                       .AddSource(source)
                        .Build();
   const std::vector<int> selected_ids = { 6, 2, 3 };
   Emissions selected = EmissionsBuilder()
                            .SetGridDimensions(n_cells, 2)
                            .SetCellSelection(selected_ids)
-                           .AddSource(MakeSource("source", path, 0, 1))
+                           .AddSource(source)
                            .Build();
 
   const auto full_state = full.Run(1800.0, 60.0);
@@ -193,6 +208,80 @@ TEST(EmissionsTest, SelectedModeIsBitwiseEqualToFullGrid)
     EXPECT_EQ(
         selected_state.surface_flux_(static_cast<int>(i), "NOx"),
         full_state.surface_flux_(selected_ids[i] - 1, "NOx"));
+  }
+
+  ASSERT_TRUE(selected.HasInventoryGridMetadata());
+  const auto& metadata = selected.GridMetadata();
+  EXPECT_EQ(metadata.selected_global_cell_ids_, selected_ids);
+  EXPECT_EQ(metadata.index_to_cell_id_, (std::vector<std::int64_t>{ 6, 2, 3 }));
+  ASSERT_NE(metadata.FindField("xCell"), nullptr);
+  EXPECT_EQ(metadata.FindField("xCell")->values_, (std::vector<double>{ 600.0, 200.0, 300.0 }));
+}
+
+TEST(EmissionsTest, SelectedModeRejectsInventoryWithoutExactGridMetadata)
+{
+  TempDir dir;
+  const int n_cells = 3;
+  const std::string path = dir.File("legacy_uptempo.nc");
+  std::vector<double> data(2 * n_cells, 1.0e-9);
+  CreateUptempoTestNetCDF(
+      path,
+      2,
+      n_cells,
+      { "1970-01-01_00:00:00", "1970-01-01_01:00:00" },
+      { "NOx" },
+      { data });
+  Source source = MakeSource("legacy", path, 0, 1);
+  source.convention_ = "uptempo";
+  Emissions selected = EmissionsBuilder()
+                           .SetGridDimensions(n_cells, 2)
+                           .SetCellSelection({ 3, 1 })
+                           .AddSource(source)
+                           .Build();
+
+  try
+  {
+    (void)selected.Run(1800.0, 60.0);
+    FAIL() << "expected missing exact-grid metadata to fail";
+  }
+  catch (const MiemException& error)
+  {
+    EXPECT_EQ(error.Code(), MIEM_VALIDATION_ERROR_CODE_INVALID_GRID_METADATA);
+  }
+}
+
+TEST(EmissionsTest, ConflictingSourceGridMetadataIsRejected)
+{
+  TempDir dir;
+  const int n_cells = 3;
+  std::vector<double> data(2 * n_cells, 1.0e-9);
+  UptempoNcOptions first_options;
+  first_options.write_grid_metadata = true;
+  UptempoNcOptions second_options = first_options;
+  second_options.grid_coordinate_offset = 0.5;
+  const std::string first_path = dir.File("first.nc");
+  const std::string second_path = dir.File("second.nc");
+  const std::vector<std::string> stamps = { "1970-01-01_00:00:00", "1970-01-01_01:00:00" };
+  CreateUptempoTestNetCDF(first_path, 2, n_cells, stamps, { "NOx" }, { data }, first_options);
+  CreateUptempoTestNetCDF(second_path, 2, n_cells, stamps, { "NOx" }, { data }, second_options);
+  Source first = MakeSource("first", first_path, 0, 1);
+  first.convention_ = "uptempo";
+  Source second = MakeSource("second", second_path, 1, 1);
+  second.convention_ = "uptempo";
+  Emissions module = EmissionsBuilder()
+                         .SetGridDimensions(n_cells, 2)
+                         .AddSource(first)
+                         .AddSource(second)
+                         .Build();
+
+  try
+  {
+    (void)module.Run(1800.0, 60.0);
+    FAIL() << "expected inconsistent source metadata to fail";
+  }
+  catch (const MiemException& error)
+  {
+    EXPECT_EQ(error.Code(), MIEM_VALIDATION_ERROR_CODE_INCONSISTENT_GRID_METADATA);
   }
 }
 

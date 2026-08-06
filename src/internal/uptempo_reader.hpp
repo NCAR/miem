@@ -77,6 +77,9 @@ namespace miem
         const std::vector<int>& selected_global_cell_ids,
         std::vector<Real>& flux_out,
         int& n_cells_out) const override;
+    InventoryGridMetadata ReadGridMetadata(
+        const std::vector<int>& selected_global_cell_ids,
+        bool require_exact_grid) const override;
 
    private:
     int ncid_ = -1;

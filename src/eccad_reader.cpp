@@ -491,4 +491,15 @@ namespace miem
     }
   }
 
+  InventoryGridMetadata ECCADReader::ReadGridMetadata(
+      const std::vector<int>& selected_global_cell_ids,
+      bool require_exact_grid) const
+  {
+    if (ncid_ < 0)
+    {
+      throw MiemException(MIEM_ERROR_CATEGORY_IO, MIEM_IO_ERROR_CODE_FILE_NOT_FOUND, "ECCADReader: file not open");
+    }
+    return ReadInventoryGridMetadata(ncid_, n_cells_, selected_global_cell_ids, require_exact_grid);
+  }
+
 }  // namespace miem

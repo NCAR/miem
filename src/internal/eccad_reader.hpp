@@ -84,6 +84,9 @@ namespace miem
         const std::vector<int>& selected_global_cell_ids,
         std::vector<Real>& flux_out,
         int& n_cells_out) const override;
+    InventoryGridMetadata ReadGridMetadata(
+        const std::vector<int>& selected_global_cell_ids,
+        bool require_exact_grid) const override;
 
     // ECCAD format version, populated from the `eccad_version` global
     // attribute (legacy `ses_version` is also accepted for one release

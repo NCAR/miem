@@ -11,6 +11,7 @@
 // <netcdf.h>, which must stay off MIEM's public install surface.
 #pragma once
 
+#include <miem/inventory_grid_metadata.hpp>
 #include <miem/util/types.hpp>
 
 #include <string>
@@ -58,6 +59,13 @@ namespace miem
         const std::vector<int>& selected_global_cell_ids,
         std::vector<Real>& flux_out,
         int& n_cells_out) const = 0;
+
+    // Read exact-grid identity arrays in output-cell order. Legacy full-grid
+    // inventories may return unavailable metadata; selected mode requires a
+    // complete exact-grid identity and throws when it is absent or malformed.
+    virtual InventoryGridMetadata ReadGridMetadata(
+        const std::vector<int>& selected_global_cell_ids,
+        bool require_exact_grid) const = 0;
   };
 
 }  // namespace miem

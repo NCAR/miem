@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cstdint>
 #include <filesystem>
 #include <netcdf.h>
 #include <random>
@@ -186,6 +187,82 @@ namespace miem_test
       }
     }
 
+    int index_to_cell_id_varid = -1;
+    int area_cell_varid = -1;
+    int coordinate_varids[3] = { -1, -1, -1 };
+    if (opts.write_grid_metadata)
+    {
+      const char* on_a_sphere = opts.spherical_grid ? "YES" : "NO";
+      const char* is_periodic = "NO";
+      const char* algorithm = "chempas-mesh-sha256-v1";
+      const char* manifest = "[{\"name\":\"synthetic-grid\"}]";
+      NcCheck(
+          nc_put_att_text(ncid, NC_GLOBAL, "on_a_sphere", std::strlen(on_a_sphere), on_a_sphere),
+          "nc_put_att_text(on_a_sphere)");
+      NcCheck(
+          nc_put_att_text(ncid, NC_GLOBAL, "is_periodic", std::strlen(is_periodic), is_periodic),
+          "nc_put_att_text(is_periodic)");
+      if (opts.spherical_grid)
+      {
+        const double sphere_radius = 6371220.0;
+        NcCheck(
+            nc_put_att_double(ncid, NC_GLOBAL, "sphere_radius", NC_DOUBLE, 1, &sphere_radius),
+            "nc_put_att_double(sphere_radius)");
+      }
+      NcCheck(
+          nc_put_att_text(ncid, NC_GLOBAL, "chempas_mesh_fingerprint_algorithm", std::strlen(algorithm), algorithm),
+          "nc_put_att_text(fingerprint_algorithm)");
+      NcCheck(
+          nc_put_att_text(
+              ncid,
+              NC_GLOBAL,
+              "chempas_mesh_sha256",
+              opts.grid_fingerprint.size(),
+              opts.grid_fingerprint.c_str()),
+          "nc_put_att_text(mesh_sha256)");
+      NcCheck(
+          nc_put_att_text(ncid, NC_GLOBAL, "chempas_mesh_field_manifest", std::strlen(manifest), manifest),
+          "nc_put_att_text(field_manifest)");
+
+      NcCheck(
+          nc_def_var(ncid, "indexToCellID", NC_INT64, 1, &cell_dim, &index_to_cell_id_varid),
+          "nc_def_var(indexToCellID)");
+      NcCheck(nc_def_var(ncid, "areaCell", NC_DOUBLE, 1, &cell_dim, &area_cell_varid), "nc_def_var(areaCell)");
+      const char* coordinate_names[3] = {
+        opts.spherical_grid ? "latCell" : "xCell",
+        opts.spherical_grid ? "lonCell" : "yCell",
+        opts.spherical_grid ? nullptr : "zCell",
+      };
+      const int coordinate_count = opts.spherical_grid ? 2 : 3;
+      for (int i = 0; i < coordinate_count; ++i)
+      {
+        NcCheck(
+            nc_def_var(ncid, coordinate_names[i], NC_DOUBLE, 1, &cell_dim, &coordinate_varids[i]),
+            std::string("nc_def_var(") + coordinate_names[i] + ")");
+      }
+
+      const char* unitless = "1";
+      const char* area_units = "m2";
+      const char* coordinate_units = opts.spherical_grid ? "radian" : "m";
+      NcCheck(
+          nc_put_att_text(ncid, index_to_cell_id_varid, "units", std::strlen(unitless), unitless),
+          "nc_put_att_text(indexToCellID units)");
+      NcCheck(
+          nc_put_att_text(ncid, area_cell_varid, "units", std::strlen(area_units), area_units),
+          "nc_put_att_text(areaCell units)");
+      for (int i = 0; i < coordinate_count; ++i)
+      {
+        NcCheck(
+            nc_put_att_text(
+                ncid,
+                coordinate_varids[i],
+                "units",
+                std::strlen(coordinate_units),
+                coordinate_units),
+            "nc_put_att_text(coordinate units)");
+      }
+    }
+
     NcCheck(nc_enddef(ncid), "nc_enddef");
 
     // Write xtime, padding each stamp to the fixed StrLen width.
@@ -205,6 +282,42 @@ namespace miem_test
     for (std::size_t i = 0; i < variables.size(); ++i)
     {
       NcCheck(nc_put_var_double(ncid, flux_varids[i], flux_data[i].data()), "nc_put_var_double(" + variables[i] + ")");
+    }
+
+    if (opts.write_grid_metadata)
+    {
+      std::vector<long long> global_ids(static_cast<std::size_t>(n_cells));
+      std::vector<double> area(static_cast<std::size_t>(n_cells));
+      std::vector<double> first_coordinate(static_cast<std::size_t>(n_cells));
+      std::vector<double> second_coordinate(static_cast<std::size_t>(n_cells));
+      std::vector<double> third_coordinate(static_cast<std::size_t>(n_cells));
+      for (int cell = 0; cell < n_cells; ++cell)
+      {
+        global_ids[static_cast<std::size_t>(cell)] = static_cast<long long>(cell + 1);
+        area[static_cast<std::size_t>(cell)] = 1000.0 + cell;
+        first_coordinate[static_cast<std::size_t>(cell)] =
+            opts.grid_coordinate_offset + (opts.spherical_grid ? 0.01 : 100.0) * (cell + 1);
+        second_coordinate[static_cast<std::size_t>(cell)] =
+            opts.grid_coordinate_offset + (opts.spherical_grid ? 0.02 : 200.0) * (cell + 1);
+        third_coordinate[static_cast<std::size_t>(cell)] =
+            opts.grid_coordinate_offset + 300.0 * (cell + 1);
+      }
+      NcCheck(
+          nc_put_var_longlong(ncid, index_to_cell_id_varid, global_ids.data()),
+          "nc_put_var_longlong(indexToCellID)");
+      NcCheck(nc_put_var_double(ncid, area_cell_varid, area.data()), "nc_put_var_double(areaCell)");
+      NcCheck(
+          nc_put_var_double(ncid, coordinate_varids[0], first_coordinate.data()),
+          "nc_put_var_double(first coordinate)");
+      NcCheck(
+          nc_put_var_double(ncid, coordinate_varids[1], second_coordinate.data()),
+          "nc_put_var_double(second coordinate)");
+      if (!opts.spherical_grid)
+      {
+        NcCheck(
+            nc_put_var_double(ncid, coordinate_varids[2], third_coordinate.data()),
+            "nc_put_var_double(third coordinate)");
+      }
     }
 
     NcCheck(nc_close(ncid), "nc_close");

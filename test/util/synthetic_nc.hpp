@@ -95,6 +95,13 @@ namespace miem_test
     // the reader's masked-cell handling can be exercised. Callers embed the
     // NaN sentinel directly in `flux_data`.
     bool nan_fill = false;
+
+    // Emit the exact-grid identity fields written by CheMPAS inventory
+    // preparation. Disabled by default so legacy-layout tests stay focused.
+    bool write_grid_metadata = false;
+    bool spherical_grid = false;
+    double grid_coordinate_offset = 0.0;
+    std::string grid_fingerprint = std::string(64, 'a');
   };
 
   // Create a NetCDF file at `path` in the UPTEMPO on-mesh layout (MPAS

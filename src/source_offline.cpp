@@ -144,6 +144,10 @@ namespace miem
               " cells but host expects " + std::to_string(global_n_cells) + ".");
     }
 
+    grid_metadata_ = reader_->ReadGridMetadata(
+        selected_global_cell_ids,
+        /*require_exact_grid=*/!selected_global_cell_ids.empty());
+
     // Find the time steps bracketing `time_current`. Times outside the
     // file's range are a hard error (no climatological wrap-around).
     int left_idx = 0;
@@ -227,6 +231,7 @@ namespace miem
         cached_selected_global_cell_ids_ != selected_global_cell_ids)
     {
       interpolator_ = TemporalInterpolator(AsInterpolationMode(config_.temporal_interpolation_));
+      grid_metadata_ = {};
     }
 
     if (!interpolator_.HasBracket() || !interpolator_.CoversTime(time_current))

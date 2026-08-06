@@ -43,6 +43,10 @@ namespace miem
         const std::vector<int>& selected_global_cell_ids,
         std::vector<Real>& flux_out,
         std::vector<std::string>& species_names_out) override;
+    const InventoryGridMetadata& GridMetadata() const override
+    {
+      return grid_metadata_;
+    }
     const std::string& Name() const override
     {
       return name_;
@@ -59,6 +63,7 @@ namespace miem
 
     std::vector<std::string> inventory_species_;
     std::vector<std::string> mechanism_species_;
+    InventoryGridMetadata grid_metadata_;
     int cached_global_n_cells_ = 0;
     std::vector<int> cached_selected_global_cell_ids_;
 

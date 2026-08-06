@@ -294,3 +294,49 @@ TEST(UptempoReaderSyntheticTest, SelectedHyperslabsPreserveHostOrder)
   EXPECT_DOUBLE_EQ(static_cast<double>(flux[1]), 21.0);
   EXPECT_DOUBLE_EQ(static_cast<double>(flux[2]), 31.0);
 }
+
+TEST(UptempoReaderSyntheticTest, ExactGridMetadataPreservesSelectedHostOrder)
+{
+  TempDir dir;
+  const std::string path = dir.File("uptempo_metadata.nc");
+  std::vector<double> data(5, 1.0e-9);
+  UptempoNcOptions options;
+  options.write_grid_metadata = true;
+  options.spherical_grid = true;
+  CreateUptempoTestNetCDF(
+      path,
+      1,
+      5,
+      { "2012-01-01_00:00:00" },
+      { "NOx" },
+      { data },
+      options);
+
+  UptempoReader reader;
+  reader.Open(path);
+  const auto metadata = reader.ReadGridMetadata({ 5, 2, 3 }, true);
+  EXPECT_TRUE(metadata.IsExactGrid());
+  EXPECT_EQ(metadata.geometry_, miem::InventoryGridGeometry::Spherical);
+  EXPECT_EQ(metadata.selected_global_cell_ids_, (std::vector<int>{ 5, 2, 3 }));
+  EXPECT_EQ(metadata.index_to_cell_id_, (std::vector<std::int64_t>{ 5, 2, 3 }));
+  EXPECT_TRUE(metadata.has_sphere_radius_);
+  EXPECT_DOUBLE_EQ(metadata.sphere_radius_, 6371220.0);
+  ASSERT_NE(metadata.FindField("latCell"), nullptr);
+  EXPECT_EQ(metadata.FindField("latCell")->units_, "radian");
+  EXPECT_EQ(metadata.FindField("latCell")->values_, (std::vector<double>{ 0.05, 0.02, 0.03 }));
+  ASSERT_NE(metadata.FindField("areaCell"), nullptr);
+  EXPECT_EQ(metadata.FindField("areaCell")->values_, (std::vector<double>{ 1004.0, 1001.0, 1002.0 }));
+}
+
+TEST(UptempoReaderSyntheticTest, LegacyFullGridMetadataIsReportedUnavailable)
+{
+  TempDir dir;
+  const std::string path = dir.File("uptempo_legacy_metadata.nc");
+  std::vector<double> data(3, 1.0e-9);
+  CreateUptempoTestNetCDF(path, 1, 3, { "2012-01-01_00:00:00" }, { "NOx" }, { data });
+
+  UptempoReader reader;
+  reader.Open(path);
+  EXPECT_FALSE(reader.ReadGridMetadata({}, false).available_);
+  EXPECT_THROW(reader.ReadGridMetadata({ 1 }, true), MiemException);
+}

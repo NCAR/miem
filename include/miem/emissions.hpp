@@ -85,6 +85,14 @@ namespace miem
     {
       return aggregated_species_;
     }
+    bool HasInventoryGridMetadata() const
+    {
+      return inventory_grid_metadata_.available_;
+    }
+    const InventoryGridMetadata& GridMetadata() const
+    {
+      return inventory_grid_metadata_;
+    }
 
    private:
     friend class EmissionsBuilder;
@@ -113,6 +121,8 @@ namespace miem
     int n_cells_;
     int n_vert_levels_;
     CellSelection cell_selection_;
+    bool grid_metadata_initialized_ = false;
+    InventoryGridMetadata inventory_grid_metadata_;
 
     // Populate sources_ + aggregated_species_ from the Source list.  Throws
     // MiemException (tagged with the offending source's name) if a source

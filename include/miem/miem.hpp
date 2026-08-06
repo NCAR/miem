@@ -10,6 +10,7 @@
 #include <miem/emissions_builder.hpp>
 #include <miem/emissions_state.hpp>
 #include <miem/flux_converter.hpp>
+#include <miem/inventory_grid_metadata.hpp>
 #include <miem/source.hpp>
 #include <miem/source_factory.hpp>
 #include <miem/source_offline.hpp>

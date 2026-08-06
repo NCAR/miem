@@ -4,6 +4,7 @@
 #include <miem/emissions.hpp>
 #include <miem/flux_converter.hpp>
 #include <miem/source_factory.hpp>
+#include <miem/util/error.hpp>
 #include <miem/util/miem_exception.hpp>
 
 #include <algorithm>
@@ -125,6 +126,21 @@ namespace miem
           cell_selection_.global_cell_ids_,
           src_flux,
           src_species);
+
+      const auto& source_metadata = entry.source_->GridMetadata();
+      if (!grid_metadata_initialized_)
+      {
+        inventory_grid_metadata_ = source_metadata;
+        grid_metadata_initialized_ = true;
+      }
+      else if (inventory_grid_metadata_ != source_metadata)
+      {
+        throw MiemException(
+            MIEM_ERROR_CATEGORY_VALIDATION,
+            MIEM_VALIDATION_ERROR_CODE_INCONSISTENT_GRID_METADATA,
+            "Emissions: source '" + entry.source_->Name() +
+                "' reports inventory grid metadata that differs from the first configured source or an earlier file.");
+      }
 
       std::vector<Real> mapped(flux_size, Real{ 0 });
       const int n_src_sp = static_cast<int>(src_species.size());
