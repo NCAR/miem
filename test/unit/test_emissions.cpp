@@ -120,6 +120,69 @@ TEST(EmissionsTest, SameCategoryHigherHierarchyShadows)
   }
 }
 
+TEST(EmissionsTest, HierarchyWinnerUsesItsNormalizedVerticalProfile)
+{
+  TempDir dir;
+  const int n_cells = 3;
+  const int n_levels = 3;
+  const std::string p_low = MakeFile(dir, "profile_low.nc", n_cells, 5.0e-9);
+  const std::string p_high = MakeFile(dir, "profile_high.nc", n_cells, 8.0e-9);
+  Source low = MakeSource("low", p_low, 0, 1);
+  Source high = MakeSource("high", p_high, 0, 2);
+  high.vertical_injection_ = VerticalInjection::Profile;
+  high.vertical_profile_ = { 0.0, 0.25, 0.75 };
+
+  Emissions module = EmissionsBuilder()
+                         .SetGridDimensions(n_cells, n_levels)
+                         .AddSource(low)
+                         .AddSource(high)
+                         .Build();
+  const auto state = module.Run(1800.0, 60.0);
+
+  EXPECT_TRUE(state.has_layer_flux_);
+  for (int cell = 0; cell < n_cells; ++cell)
+  {
+    EXPECT_NEAR(static_cast<double>(state.surface_flux_(cell, "NOx")), 8.0e-9, kFluxTol);
+    Real layer_sum = Real{ 0 };
+    const std::vector<double> expected = { 0.0, 2.0e-9, 6.0e-9 };
+    for (int level = 0; level < n_levels; ++level)
+    {
+      const std::size_t index = static_cast<std::size_t>(level) * n_cells + cell;
+      EXPECT_NEAR(static_cast<double>(state.layer_flux_[index]), expected[level], kFluxTol);
+      layer_sum += state.layer_flux_[index];
+    }
+    EXPECT_EQ(layer_sum, state.surface_flux_.At(0, cell));
+  }
+}
+
+TEST(EmissionsTest, DifferentCategoryProfilesCloseToColumnTotal)
+{
+  TempDir dir;
+  const int n_cells = 2;
+  const int n_levels = 3;
+  Source surface = MakeSource("surface", MakeFile(dir, "surface.nc", n_cells, 2.0e-9), 0, 1);
+  Source elevated = MakeSource("elevated", MakeFile(dir, "elevated.nc", n_cells, 6.0e-9), 1, 1);
+  elevated.vertical_injection_ = VerticalInjection::Profile;
+  elevated.vertical_profile_ = { 0.0, 0.5, 0.5 };
+  Emissions module = EmissionsBuilder()
+                         .SetGridDimensions(n_cells, n_levels)
+                         .AddSource(surface)
+                         .AddSource(elevated)
+                         .Build();
+
+  const auto state = module.Run(1800.0, 60.0);
+  for (int cell = 0; cell < n_cells; ++cell)
+  {
+    EXPECT_NEAR(static_cast<double>(state.surface_flux_(cell, "NOx")), 8.0e-9, kFluxTol);
+    EXPECT_NEAR(static_cast<double>(state.layer_flux_[cell]), 2.0e-9, kFluxTol);
+    EXPECT_NEAR(static_cast<double>(state.layer_flux_[n_cells + cell]), 3.0e-9, kFluxTol);
+    EXPECT_NEAR(static_cast<double>(state.layer_flux_[2 * n_cells + cell]), 3.0e-9, kFluxTol);
+    const Real sum =
+        state.layer_flux_[cell] + state.layer_flux_[n_cells + cell] + state.layer_flux_[2 * n_cells + cell];
+    EXPECT_EQ(sum, state.surface_flux_.At(0, cell));
+  }
+}
+
 // ---------------------------------------------------------------------
 // Same category, B higher hierarchy, B has bit-exact 0 -> A wins.
 // ---------------------------------------------------------------------

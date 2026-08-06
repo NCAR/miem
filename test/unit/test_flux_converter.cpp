@@ -153,6 +153,57 @@ TEST(FluxConverterTest, ColumnIntegralMatchesSurfaceFlux)
   }
 }
 
+TEST(FluxConverterTest, ProfileLayerFluxConvertsEveryLevelAndClosesMass)
+{
+  const int n_cells = 2;
+  const int n_vl = 3;
+  const Real column_flux = static_cast<Real>(8.0e-9);
+  EmissionsState state = MakeState(n_cells, n_vl, column_flux);
+  state.has_layer_flux_ = true;
+  const std::vector<Real> fractions = { Real{ 0 }, static_cast<Real>(0.25), static_cast<Real>(0.75) };
+  for (int level = 0; level < n_vl; ++level)
+  {
+    for (int cell = 0; cell < n_cells; ++cell)
+    {
+      state.layer_flux_[static_cast<std::size_t>(level) * n_cells + cell] = column_flux * fractions[level];
+    }
+  }
+  std::vector<Real> rho = {
+    static_cast<Real>(1.2), static_cast<Real>(1.1),
+    static_cast<Real>(1.0), static_cast<Real>(0.9),
+    static_cast<Real>(0.8), static_cast<Real>(0.7),
+  };
+  std::vector<Real> dz = {
+    static_cast<Real>(100.0), static_cast<Real>(110.0),
+    static_cast<Real>(120.0), static_cast<Real>(130.0),
+    static_cast<Real>(140.0), static_cast<Real>(150.0),
+  };
+
+  ASSERT_NO_THROW(FluxConverter::Apply(state, rho.data(), dz.data(), n_vl * n_cells));
+  for (int cell = 0; cell < n_cells; ++cell)
+  {
+    Real reconstructed = Real{ 0 };
+    for (int level = 0; level < n_vl; ++level)
+    {
+      const std::size_t index = static_cast<std::size_t>(level) * n_cells + cell;
+      const Real expected = FluxConverter::FluxToTendency(state.layer_flux_[index], rho[index], dz[index]);
+      EXPECT_NEAR(static_cast<double>(state.tendency_[index]), static_cast<double>(expected), kTendTol);
+      reconstructed += state.tendency_[index] * rho[index] * dz[index];
+    }
+    EXPECT_NEAR(static_cast<double>(reconstructed), static_cast<double>(column_flux), kFluxTol);
+  }
+}
+
+TEST(FluxConverterTest, MalformedLayerFluxSizeThrows)
+{
+  EmissionsState state = MakeState(2, 3, static_cast<Real>(1.0e-9));
+  state.has_layer_flux_ = true;
+  state.layer_flux_.pop_back();
+  std::vector<Real> rho(6, Real{ 1 });
+  std::vector<Real> dz(6, static_cast<Real>(100.0));
+  EXPECT_THROW(FluxConverter::Apply(state, rho.data(), dz.data(), 6), MiemException);
+}
+
 // ---------------------------------------------------------------------
 // Cell-count mismatch: too few rho/dz elements -> throws.
 // ---------------------------------------------------------------------

@@ -36,12 +36,26 @@ namespace miem
       }
       const auto sp = source->QuerySpecies();
       species_set.insert(sp.begin(), sp.end());
+      std::vector<Real> vertical_profile(static_cast<std::size_t>(n_vert_levels_), Real{ 0 });
+      if (src.vertical_injection_ == VerticalInjection::Profile)
+      {
+        std::transform(
+            src.vertical_profile_.begin(),
+            src.vertical_profile_.end(),
+            vertical_profile.begin(),
+            [](double fraction) { return static_cast<Real>(fraction); });
+      }
+      else
+      {
+        vertical_profile.front() = Real{ 1 };
+      }
       sources_.push_back(SourceEntry{
           std::move(source),
           src.category_,
           src.hierarchy_,
           src.sector_,
           src.scaling_factor_,
+          std::move(vertical_profile),
       });
     }
 
@@ -92,6 +106,7 @@ namespace miem
     EmissionsState state(n_agg, n_cells_, n_vert_levels_);
     state.species_names_ = aggregated_species_;
     state.surface_flux_.SetSpecies(aggregated_species_);
+    state.has_layer_flux_ = true;
 
     std::map<std::string, int> agg_idx;
     for (int i = 0; i < n_agg; ++i)
@@ -108,6 +123,7 @@ namespace miem
       int hierarchy_;
       std::string sector_;
       std::vector<Real> flux_;  // (n_agg * n_cells)
+      const std::vector<Real>* vertical_profile_;
     };
 
     std::vector<SourceFlux> source_fluxes;
@@ -164,6 +180,7 @@ namespace miem
           entry.hierarchy_,
           entry.sector_,
           std::move(mapped),
+          &entry.vertical_profile_,
       });
     }
 
@@ -199,11 +216,64 @@ namespace miem
           {
             if (src->flux_[idx] != Real{ 0 })
             {
-              state.surface_flux_.At(isp, ic) += src->flux_[idx];
+              const Real chosen_flux = src->flux_[idx];
+              state.surface_flux_.At(isp, ic) += chosen_flux;
+
+              int residual_level = 0;
+              for (int level = 0; level < n_vert_levels_; ++level)
+              {
+                if ((*src->vertical_profile_)[static_cast<std::size_t>(level)] > Real{ 0 })
+                {
+                  residual_level = level;
+                }
+              }
+              Real assigned_flux = Real{ 0 };
+              for (int level = 0; level < n_vert_levels_; ++level)
+              {
+                Real level_flux = Real{ 0 };
+                if (level == residual_level)
+                {
+                  level_flux = chosen_flux - assigned_flux;
+                }
+                else
+                {
+                  level_flux = chosen_flux * (*src->vertical_profile_)[static_cast<std::size_t>(level)];
+                  assigned_flux += level_flux;
+                }
+                const std::size_t layer_index =
+                    (static_cast<std::size_t>(isp) * n_vert_levels_ + level) * n_cells_ + ic;
+                state.layer_flux_[layer_index] += level_flux;
+              }
               break;
             }
           }
         }
+      }
+    }
+
+    // Close the aggregate column after category summation. Each chosen
+    // source is already residual-corrected, but category addition and layer
+    // summation can round in a different order. Put only that roundoff in the
+    // highest populated level so the public layer sum reproduces the column.
+    for (int isp = 0; isp < n_agg; ++isp)
+    {
+      for (int ic = 0; ic < n_cells_; ++ic)
+      {
+        Real layer_sum = Real{ 0 };
+        int highest_populated_level = 0;
+        for (int level = 0; level < n_vert_levels_; ++level)
+        {
+          const std::size_t layer_index =
+              (static_cast<std::size_t>(isp) * n_vert_levels_ + level) * n_cells_ + ic;
+          layer_sum += state.layer_flux_[layer_index];
+          if (state.layer_flux_[layer_index] != Real{ 0 })
+          {
+            highest_populated_level = level;
+          }
+        }
+        const std::size_t correction_index =
+            (static_cast<std::size_t>(isp) * n_vert_levels_ + highest_populated_level) * n_cells_ + ic;
+        state.layer_flux_[correction_index] += state.surface_flux_.At(isp, ic) - layer_sum;
       }
     }
 

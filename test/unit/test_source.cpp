@@ -30,6 +30,7 @@ TEST(SourceDefaultsTest, BareSourceDefaultsMatchHeader)
   EXPECT_EQ(src.convention_, "eccad");
   EXPECT_EQ(src.temporal_interpolation_, TemporalInterpolation::Linear);
   EXPECT_EQ(src.vertical_injection_, VerticalInjection::Surface);
+  EXPECT_TRUE(src.vertical_profile_.empty());
   EXPECT_EQ(src.category_, 0);
   EXPECT_EQ(src.hierarchy_, 1);
   EXPECT_DOUBLE_EQ(static_cast<double>(src.scaling_factor_), 1.0);

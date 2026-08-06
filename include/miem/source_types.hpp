@@ -6,6 +6,7 @@
 #include <miem/util/types.hpp>
 
 #include <string>
+#include <vector>
 
 namespace miem
 {
@@ -40,6 +41,7 @@ namespace miem
   enum class VerticalInjection
   {
     Surface,
+    Profile,
     Plume
   };
 
@@ -116,6 +118,11 @@ namespace miem
 
     /// @brief Vertical placement of the emitted mass.
     VerticalInjection vertical_injection_ = VerticalInjection::Surface;
+
+    /// @brief Fixed bottom-up layer fractions for Profile injection.
+    /// EmissionsBuilder requires exactly n_vert_levels finite, nonnegative
+    /// values whose sum is one. Surface sources leave this empty.
+    std::vector<double> vertical_profile_;
 
     int category_ = 0;           ///< HEMCO category index.
     int hierarchy_ = 1;          ///< HEMCO hierarchy level.

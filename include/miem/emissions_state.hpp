@@ -119,6 +119,8 @@ namespace miem
   ///
   /// Memory layout:
   /// - @c surface_flux_ : species-major, @c [species_idx*n_cells_+cell_idx]
+  /// - @c layer_flux_   : species + level major,
+  ///   @c [species_idx*n_vert_levels_*n_cells_ + level_idx*n_cells_ + cell_idx]
   /// - @c tendency_     : species + level major,
   ///   @c [species_idx*n_vert_levels_*n_cells_ + level_idx*n_cells_ + cell_idx]
   ///
@@ -140,9 +142,15 @@ namespace miem
     std::vector<int> emis_to_chem_idx_;
 
     /// @brief Per-species injection layer (0 = surface).
+    /// Retained for legacy states that do not populate layer_flux_.
     std::vector<int> injection_layer_;
 
     EmissionsArray surface_flux_;  ///< (n_species, n_cells) [kg m-2 s-1].
+
+    /// @brief Per-layer area flux, flat
+    ///        (n_species * n_vert_levels * n_cells) [kg m-2 s-1].
+    std::vector<Real> layer_flux_;
+    bool has_layer_flux_ = false;
 
     /// @brief Volumetric tendency, flat
     ///        (n_species * n_vert_levels * n_cells) [kg kg-1 s-1].
@@ -182,6 +190,14 @@ namespace miem
     const Real* SurfaceFluxData() const
     {
       return surface_flux_.data();
+    }
+    Real* LayerFluxData()
+    {
+      return layer_flux_.data();
+    }
+    const Real* LayerFluxData() const
+    {
+      return layer_flux_.data();
     }
     Real* TendencyData()
     {

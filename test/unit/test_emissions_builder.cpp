@@ -21,6 +21,7 @@
 
 #include <gtest/gtest.h>
 
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -135,7 +136,7 @@ TEST(EmissionsBuilderValidateTest, RejectsOnlineMode)
 }
 
 // ---------------------------------------------------------------------
-// Vertical injection must be Surface
+// Vertical injection accepts Surface or a normalized fixed Profile.
 // ---------------------------------------------------------------------
 TEST(EmissionsBuilderValidateTest, RejectsPlumeInjection)
 {
@@ -149,6 +150,52 @@ TEST(EmissionsBuilderValidateTest, RejectsPlumeInjection)
       [&] { builder.Build(); },
       MIEM_ERROR_CATEGORY_CONFIGURATION,
       MIEM_CONFIGURATION_ERROR_CODE_UNSUPPORTED_VERTICAL_INJECTION);
+}
+
+TEST(EmissionsBuilderValidateTest, AcceptsNormalizedVerticalProfile)
+{
+  Source src = MakeMinimalSource();
+  src.vertical_injection_ = VerticalInjection::Profile;
+  src.vertical_profile_ = { 0.0, 0.25, 0.75 };
+
+  EmissionsBuilder builder;
+  builder.SetGridDimensions(4, 3).AddSource(src);
+  EXPECT_NO_THROW(builder.Build());
+}
+
+TEST(EmissionsBuilderValidateTest, RejectsInvalidVerticalProfiles)
+{
+  const std::vector<std::vector<double>> invalid_profiles = {
+    {},
+    { 0.5, 0.5 },
+    { 0.0, -0.25, 1.25 },
+    { 0.2, 0.2, 0.2 },
+    { 0.0, std::numeric_limits<double>::quiet_NaN(), 1.0 },
+  };
+  for (const auto& profile : invalid_profiles)
+  {
+    Source src = MakeMinimalSource();
+    src.vertical_injection_ = VerticalInjection::Profile;
+    src.vertical_profile_ = profile;
+    EmissionsBuilder builder;
+    builder.SetGridDimensions(4, 3).AddSource(src);
+    ExpectMiemThrow(
+        [&] { builder.Build(); },
+        MIEM_ERROR_CATEGORY_CONFIGURATION,
+        MIEM_CONFIGURATION_ERROR_CODE_INVALID_VERTICAL_PROFILE);
+  }
+}
+
+TEST(EmissionsBuilderValidateTest, RejectsProfileOnSurfaceSource)
+{
+  Source src = MakeMinimalSource();
+  src.vertical_profile_ = { 1.0, 0.0 };
+  EmissionsBuilder builder;
+  builder.SetGridDimensions(4, 2).AddSource(src);
+  ExpectMiemThrow(
+      [&] { builder.Build(); },
+      MIEM_ERROR_CATEGORY_CONFIGURATION,
+      MIEM_CONFIGURATION_ERROR_CODE_INVALID_VERTICAL_PROFILE);
 }
 
 // ---------------------------------------------------------------------

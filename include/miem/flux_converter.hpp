@@ -10,10 +10,10 @@
 namespace miem
 {
 
-  /// @brief Converts surface emission fluxes into volumetric tendencies.
+  /// @brief Converts per-layer emission fluxes into volumetric tendencies.
   ///
-  /// Converts a surface emission flux [kg m-2 s-1] into a volumetric tendency
-  /// [kg kg-1 s-1] at a given injection layer, using a host-supplied air
+  /// Converts each layer emission flux [kg m-2 s-1] into a volumetric tendency
+  /// [kg kg-1 s-1], using a host-supplied air
   /// density [kg m-3] and layer thickness [m]:
   ///
   /// \f[
@@ -28,13 +28,14 @@ namespace miem
   class FluxConverter
   {
    public:
-    /// @brief Convert @c state.surface_flux_ into @c state.tendency_ in place.
+    /// @brief Convert @c state.layer_flux_ into @c state.tendency_ in place.
     ///
     /// Both atmospheric arrays use the layout @c [level*n_cells+cell] and must
     /// hold exactly @c n_vert_levels_*n_cells_ elements.
     ///
-    /// @param state           Emissions state; reads @c surface_flux_, writes
-    ///                        @c tendency_.
+    /// @param state           Emissions state; reads @c layer_flux_, writes
+    ///                        @c tendency_. Legacy states without layer flux
+    ///                        use surface_flux_ and injection_layer_.
     /// @param air_density     Air density [kg m-3], one value per atm element.
     /// @param layer_thickness Layer thickness [m], one value per atm element.
     /// @param n_atm_elements  Length of @p air_density and @p layer_thickness.

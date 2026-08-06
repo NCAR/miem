@@ -15,6 +15,8 @@ namespace miem
     n_vert_levels_ = n_vert_levels;
 
     surface_flux_.Resize(n_species, n_cells);
+    layer_flux_.assign(static_cast<std::size_t>(n_species) * n_vert_levels * n_cells, Real{ 0 });
+    has_layer_flux_ = false;
     tendency_.assign(static_cast<std::size_t>(n_species) * n_vert_levels * n_cells, Real{ 0 });
     emis_to_chem_idx_.assign(n_species, -1);
     injection_layer_.assign(n_species, 0);
@@ -24,6 +26,7 @@ namespace miem
   void EmissionsState::Zero()
   {
     std::fill(surface_flux_.raw().begin(), surface_flux_.raw().end(), Real{ 0 });
+    std::fill(layer_flux_.begin(), layer_flux_.end(), Real{ 0 });
     std::fill(tendency_.begin(), tendency_.end(), Real{ 0 });
     for (auto& [name, flux] : sector_fluxes_)
     {

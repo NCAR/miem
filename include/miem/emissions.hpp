@@ -46,9 +46,10 @@ namespace miem
       return aggregated_species_;
     }
 
-    // Surface-flux-only run (no tendency conversion).  Returned EmissionsState
-    // has `surface_flux_` and `sector_fluxes_` populated; `tendency_` is
-    // zero-filled.  Throws MiemException on a runtime failure.
+    // Flux-only run (no tendency conversion). Returned EmissionsState has
+    // column-integrated `surface_flux_`, vertically distributed `layer_flux_`,
+    // and requested diagnostics populated; `tendency_` is zero-filled.
+    // Throws MiemException on a runtime failure.
     EmissionsState Run(double sim_time_sec, double dt_sec);
 
     // Full run with tendency conversion.  Both `air_density` and
@@ -113,6 +114,7 @@ namespace miem
       int hierarchy_;
       std::string sector_;
       Real scaling_factor_;
+      std::vector<Real> vertical_profile_;
     };
 
     std::vector<SourceEntry> sources_;

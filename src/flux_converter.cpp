@@ -37,35 +37,64 @@ namespace miem
               std::to_string(n_atm_elements) + ".");
     }
 
+    const std::size_t expected_layer_flux = static_cast<std::size_t>(n_sp) * expect;
+    if (state.has_layer_flux_ && state.layer_flux_.size() != expected_layer_flux)
+    {
+      throw MiemException(
+          MIEM_ERROR_CATEGORY_VALIDATION,
+          MIEM_VALIDATION_ERROR_CODE_CELL_COUNT_MISMATCH,
+          "FluxConverter: layer_flux needs " + std::to_string(expected_layer_flux) + " elements, got " +
+              std::to_string(state.layer_flux_.size()) + ".");
+    }
+
     // Re-zero the tendency buffer before accumulating.
     std::fill(state.tendency_.begin(), state.tendency_.end(), Real{ 0 });
 
-    for (int isp = 0; isp < n_sp; ++isp)
+    if (state.has_layer_flux_)
     {
-      int layer = (isp < static_cast<int>(state.injection_layer_.size())) ? state.injection_layer_[isp] : 0;
-      if (layer < 0 || layer >= n_vl)
+      for (int isp = 0; isp < n_sp; ++isp)
       {
-        layer = 0;
+        for (int layer = 0; layer < n_vl; ++layer)
+        {
+          for (int ic = 0; ic < n_cells; ++ic)
+          {
+            const std::size_t flux_idx =
+                (static_cast<std::size_t>(isp) * n_vl + layer) * n_cells + ic;
+            const std::size_t atm_idx = static_cast<std::size_t>(layer) * n_cells + ic;
+            state.tendency_[flux_idx] =
+                FluxToTendency(state.layer_flux_[flux_idx], air_density[atm_idx], layer_thickness[atm_idx]);
+          }
+        }
       }
-
-      for (int ic = 0; ic < n_cells; ++ic)
+    }
+    else
+    {
+      for (int isp = 0; isp < n_sp; ++isp)
       {
-        const Real flux = state.surface_flux_.At(isp, ic);
-        const Real rho = air_density[(layer * n_cells) + ic];
-        const Real dz = layer_thickness[(layer * n_cells) + ic];
+        int layer = (isp < static_cast<int>(state.injection_layer_.size())) ? state.injection_layer_[isp] : 0;
+        if (layer < 0 || layer >= n_vl)
+        {
+          layer = 0;
+        }
 
-        const std::size_t tend_idx =
-            (static_cast<std::size_t>(isp) * n_vl * n_cells) + (static_cast<std::size_t>(layer) * n_cells) + ic;
-        state.tendency_[tend_idx] = FluxToTendency(flux, rho, dz);
+        for (int ic = 0; ic < n_cells; ++ic)
+        {
+          const Real flux = state.surface_flux_.At(isp, ic);
+          const Real rho = air_density[(layer * n_cells) + ic];
+          const Real dz = layer_thickness[(layer * n_cells) + ic];
+
+          const std::size_t tend_idx =
+              (static_cast<std::size_t>(isp) * n_vl * n_cells) + (static_cast<std::size_t>(layer) * n_cells) + ic;
+          state.tendency_[tend_idx] = FluxToTendency(flux, rho, dz);
+        }
       }
     }
 
 #ifdef MIEM_CHECK_MASS_CONSERVATION
     // Column-integral check: tendency × ρ × Δz summed over levels should
     // equal the input surface flux (to within `kMassToleranceFactor *
-    // |flux|`).  We only check the injection layer here because the rest
-    // is identically zero — but iterate every level so a stray write is
-    // also caught.
+    // |flux|`). Iterate every level so both fixed profiles and legacy
+    // single-layer injection are checked by the same invariant.
     for (int isp = 0; isp < n_sp; ++isp)
     {
       for (int ic = 0; ic < n_cells; ++ic)

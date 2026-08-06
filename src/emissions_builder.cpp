@@ -7,6 +7,7 @@
 #include <miem/util/error.hpp>
 #include <miem/util/miem_exception.hpp>
 
+#include <cmath>
 #include <set>
 #include <string>
 #include <utility>
@@ -20,7 +21,8 @@ namespace miem
   //   - each source's convention must be supported ("eccad" or "uptempo",
   //     case-insensitive)
   //   - each source's mode must be SourceMode::Offline
-  //   - each source's vertical injection must be VerticalInjection::Surface
+  //   - vertical injection is Surface or a normalized fixed Profile; Plume
+  //     remains unsupported
   //   - each source's species map must validate (scaling sum <= 1.0)
   //   - (category, hierarchy) must be unique across sources
   void EmissionsBuilder::Validate() const
@@ -87,15 +89,52 @@ namespace miem
                 "supported in v1.");
       }
 
-      // Vertical injection must be Surface.
-      if (src.vertical_injection_ != VerticalInjection::Surface)
+      if (src.vertical_injection_ == VerticalInjection::Plume)
       {
         throw MiemException(
             MIEM_ERROR_CATEGORY_CONFIGURATION,
             MIEM_CONFIGURATION_ERROR_CODE_UNSUPPORTED_VERTICAL_INJECTION,
             "Source '" + src.name_ +
-                "': only "
-                "VerticalInjection::Surface is supported in v1.");
+                "': VerticalInjection::Plume is not supported; use Surface or a fixed Profile.");
+      }
+      if (src.vertical_injection_ == VerticalInjection::Surface && !src.vertical_profile_.empty())
+      {
+        throw MiemException(
+            MIEM_ERROR_CATEGORY_CONFIGURATION,
+            MIEM_CONFIGURATION_ERROR_CODE_INVALID_VERTICAL_PROFILE,
+            "Source '" + src.name_ + "': vertical_profile is only valid with VerticalInjection::Profile.");
+      }
+      if (src.vertical_injection_ == VerticalInjection::Profile)
+      {
+        if (src.vertical_profile_.size() != static_cast<std::size_t>(n_vert_levels_))
+        {
+          throw MiemException(
+              MIEM_ERROR_CATEGORY_CONFIGURATION,
+              MIEM_CONFIGURATION_ERROR_CODE_INVALID_VERTICAL_PROFILE,
+              "Source '" + src.name_ + "': vertical_profile has " +
+                  std::to_string(src.vertical_profile_.size()) + " entries but the grid has " +
+                  std::to_string(n_vert_levels_) + " vertical levels.");
+        }
+        double sum = 0.0;
+        for (const double fraction : src.vertical_profile_)
+        {
+          if (!std::isfinite(fraction) || fraction < 0.0)
+          {
+            throw MiemException(
+                MIEM_ERROR_CATEGORY_CONFIGURATION,
+                MIEM_CONFIGURATION_ERROR_CODE_INVALID_VERTICAL_PROFILE,
+                "Source '" + src.name_ + "': vertical_profile values must be finite and nonnegative.");
+          }
+          sum += fraction;
+        }
+        if (std::abs(sum - 1.0) > 1.0e-12)
+        {
+          throw MiemException(
+              MIEM_ERROR_CATEGORY_CONFIGURATION,
+              MIEM_CONFIGURATION_ERROR_CODE_INVALID_VERTICAL_PROFILE,
+              "Source '" + src.name_ + "': vertical_profile fractions must sum to one; got " +
+                  std::to_string(sum) + ".");
+        }
       }
 
       // Species map invariants (scaling sum <= 1.0).  Rethrow with the
