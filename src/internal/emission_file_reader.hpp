@@ -38,11 +38,8 @@ namespace miem
     // ReadFlux and keys its SpeciesMap on.
     virtual std::vector<std::string> QuerySpecies() const = 0;
 
-    // Molecular weights [kg mol-1] the reader may need to convert a
-    // molar/number flux variable to the mass flux [kg m-2 s-1] the rest of
-    // the pipeline assumes, keyed by inventory species name. Call after
-    // Open() and before ReadFlux(). Default no-op: a convention whose
-    // files are always already a mass flux (e.g. ECCAD) has no use for it.
+    // [kg mol-1] per inventory species, for converting a molar/number flux to kg m-2 s-1.
+    // Call after Open(), before ReadFlux(). Default no-op.
     virtual void SetMolecularWeights(const std::unordered_map<std::string, double>& /*molecular_weights*/) {}
 
     // Time coordinate as seconds since the Unix epoch (UTC).  Throws

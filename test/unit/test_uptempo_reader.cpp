@@ -42,9 +42,7 @@ namespace
     return std::string(MIEM_TEST_DATA_DIR) + "/CAMS-GLOB-ANT_2012_MPAS_bc_subset.nc";
   }
 
-  // Real 2024 NOx fixture reprocessed by UPTEMPO into molecules m-2 s-1
-  // (units/comment attributes on nox_anth_sum preserved from the source
-  // file), subsetted the same way as the legacy x1.163842_2024_nox_subset.nc.
+  // Real NOx fixture with nox_anth_sum in molecules m-2 s-1.
   std::string RealSiUnitsFixturePath()
   {
     return std::string(MIEM_TEST_DATA_DIR) + "/x1.163842_2024_nox_SI_units_subset.nc";
@@ -276,7 +274,6 @@ TEST(UptempoReaderSyntheticTest, RejectsEccadLayoutFile)
 }
 
 // ---------------------------------------------------------------------
-// Real SI-units fixture: nox_anth_sum carries units = "molecules m-2 s-1".
 // Without a declared molecular weight, the reader refuses to guess.
 // ---------------------------------------------------------------------
 TEST(UptempoReaderRealFixtureTest, RejectsMolecularFluxWithoutMolecularWeight)
@@ -298,10 +295,7 @@ TEST(UptempoReaderRealFixtureTest, RejectsMolecularFluxWithoutMolecularWeight)
 }
 
 // ---------------------------------------------------------------------
-// Real SI-units fixture: with the molecular weight Forrest Lacey's own
-// file `comment` attribute names (30 g/mol for NOx), the reader converts
-// molecules m-2 s-1 to kg m-2 s-1 exactly -- hand-verified against the raw
-// value read directly from the file (cell 0, time 0).
+// Converts exactly, using the molecular weight named in the file itself.
 // ---------------------------------------------------------------------
 TEST(UptempoReaderRealFixtureTest, ConvertsMolecularFluxWithMolecularWeight)
 {
@@ -321,9 +315,7 @@ TEST(UptempoReaderRealFixtureTest, ConvertsMolecularFluxWithMolecularWeight)
 }
 
 // ---------------------------------------------------------------------
-// The legacy NOx fixture (no `units` attribute at all, predating this
-// units check) still reads unmodified with no SetMolecularWeights call --
-// the "missing units -> legacy kg m-2 s-1" default doesn't regress it.
+// A fixture with no `units` attribute at all still reads unmodified.
 // ---------------------------------------------------------------------
 TEST(UptempoReaderRealFixtureTest, LegacyFixtureWithoutUnitsAttributeUnaffected)
 {

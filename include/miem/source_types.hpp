@@ -124,11 +124,7 @@ namespace miem
 
     std::string sector_;  ///< Optional diagnostic label.
 
-    /// Per inventory-species molecular weight [kg mol-1], keyed by the
-    /// inventory's own variable name. Consulted by the reader only when a
-    /// flux variable's own `units` attribute says it is a molar/number
-    /// flux (e.g. "molecules m-2 s-1"); a variable already in kg m-2 s-1
-    /// (or with no `units` attribute at all) never needs an entry here.
+    /// [kg mol-1] per inventory species; only consulted for a molar/number flux (e.g. "molecules m-2 s-1").
     std::unordered_map<std::string, double> molecular_weights_;
   };
 

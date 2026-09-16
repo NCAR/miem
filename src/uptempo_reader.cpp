@@ -352,12 +352,8 @@ namespace miem
       int ndims;
       MIEM_NC_CHECK(nc_inq_varndims(ncid_, varid, &ndims));
 
-      // Flux variables are kg m-2 s-1 by contract for this convention -- an
-      // absent `units` attribute (every fixture committed before this
-      // check existed) means exactly that, unconverted. A variable that
-      // explicitly says so is also a no-op. Only a molar/number flux needs
-      // converting, and only once we know its molecular weight; anything
-      // else unrecognized is refused rather than silently misinterpreted.
+      // Absent or "kg m-2 s-1": no-op (legacy default). "molecules m-2 s-1": convert via the
+      // declared molecular weight. Anything else: refused rather than silently misinterpreted.
       Real conversion_factor = Real{ 1 };
       const std::string units_str = ReadTextAttribute(ncid_, varid, "units");
       if (!units_str.empty() && units_str != "kg m-2 s-1")

@@ -5,9 +5,7 @@
 namespace miem
 {
 
-  // CODATA 2018 / SI-exact value, matching the constant used to derive the
-  // molecular-weight-based scaling factors already hardcoded elsewhere in
-  // this project's emissions configs (e.g. the FINN species map).
+  // CODATA 2018 / SI-exact.
   inline constexpr double kAvogadroNumber = 6.02214076e23;
 
 }  // namespace miem
