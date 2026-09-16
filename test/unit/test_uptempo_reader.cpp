@@ -12,6 +12,7 @@
 #include "internal/uptempo_reader.hpp"
 #include "synthetic_nc.hpp"
 
+#include <miem/util/error.hpp>
 #include <miem/util/miem_exception.hpp>
 #include <miem/util/types.hpp>
 
@@ -39,6 +40,14 @@ namespace
   std::string RealFixturePath()
   {
     return std::string(MIEM_TEST_DATA_DIR) + "/CAMS-GLOB-ANT_2012_MPAS_bc_subset.nc";
+  }
+
+  // Real 2024 NOx fixture reprocessed by UPTEMPO into molecules m-2 s-1
+  // (units/comment attributes on nox_anth_sum preserved from the source
+  // file), subsetted the same way as the legacy x1.163842_2024_nox_subset.nc.
+  std::string RealSiUnitsFixturePath()
+  {
+    return std::string(MIEM_TEST_DATA_DIR) + "/x1.163842_2024_nox_SI_units_subset.nc";
   }
 
   // 2012-01-01 00:00:00 UTC in seconds since the Unix epoch.
@@ -264,4 +273,72 @@ TEST(UptempoReaderSyntheticTest, RejectsEccadLayoutFile)
 
   UptempoReader r;
   EXPECT_THROW(r.Open(path), MiemException);
+}
+
+// ---------------------------------------------------------------------
+// Real SI-units fixture: nox_anth_sum carries units = "molecules m-2 s-1".
+// Without a declared molecular weight, the reader refuses to guess.
+// ---------------------------------------------------------------------
+TEST(UptempoReaderRealFixtureTest, RejectsMolecularFluxWithoutMolecularWeight)
+{
+  UptempoReader r;
+  r.Open(RealSiUnitsFixturePath());
+
+  std::vector<Real> flux;
+  int n_cells = 0;
+  try
+  {
+    r.ReadFlux(/*time_index=*/0, { "nox_anth_sum" }, flux, n_cells);
+    FAIL() << "expected MiemException (missing molecular weight)";
+  }
+  catch (const MiemException& e)
+  {
+    EXPECT_EQ(e.Code(), MIEM_IO_ERROR_CODE_MISSING_MOLECULAR_WEIGHT);
+  }
+}
+
+// ---------------------------------------------------------------------
+// Real SI-units fixture: with the molecular weight Forrest Lacey's own
+// file `comment` attribute names (30 g/mol for NOx), the reader converts
+// molecules m-2 s-1 to kg m-2 s-1 exactly -- hand-verified against the raw
+// value read directly from the file (cell 0, time 0).
+// ---------------------------------------------------------------------
+TEST(UptempoReaderRealFixtureTest, ConvertsMolecularFluxWithMolecularWeight)
+{
+  UptempoReader r;
+  r.Open(RealSiUnitsFixturePath());
+  r.SetMolecularWeights({ { "nox_anth_sum", 0.030 } });
+
+  std::vector<Real> flux;
+  int n_cells = 0;
+  r.ReadFlux(/*time_index=*/0, { "nox_anth_sum" }, flux, n_cells);
+
+  ASSERT_GT(n_cells, 0);
+  constexpr double kRawMoleculesCell0Time0 = 8132819000000.0;
+  constexpr double kAvogadroNumber = 6.02214076e23;
+  const double expected_kg = kRawMoleculesCell0Time0 * 0.030 / kAvogadroNumber;
+  EXPECT_NEAR(static_cast<double>(flux[0]), expected_kg, expected_kg * 1e-6);
+}
+
+// ---------------------------------------------------------------------
+// The legacy NOx fixture (no `units` attribute at all, predating this
+// units check) still reads unmodified with no SetMolecularWeights call --
+// the "missing units -> legacy kg m-2 s-1" default doesn't regress it.
+// ---------------------------------------------------------------------
+TEST(UptempoReaderRealFixtureTest, LegacyFixtureWithoutUnitsAttributeUnaffected)
+{
+  UptempoReader r;
+  r.Open(std::string(MIEM_TEST_DATA_DIR) + "/x1.163842_2024_nox_subset.nc");
+
+  std::vector<Real> flux;
+  int n_cells = 0;
+  EXPECT_NO_THROW(r.ReadFlux(/*time_index=*/0, { "nox_anth_sum" }, flux, n_cells));
+
+  bool any_positive = false;
+  for (const Real v : flux)
+  {
+    EXPECT_FALSE(std::isnan(static_cast<double>(v)));
+    any_positive = any_positive || (static_cast<double>(v) > 0.0);
+  }
+  EXPECT_TRUE(any_positive);
 }

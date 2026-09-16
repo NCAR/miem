@@ -118,6 +118,7 @@ namespace miem
     // The reader throws MiemException (IO) on open/IO failures; it
     // propagates to the caller (Emissions::Run / the C boundary).
     reader_->Open(file_path);
+    reader_->SetMolecularWeights(config_.molecular_weights_);
     inventory_species_ = reader_->QuerySpecies();
 
     const auto times = reader_->GetTimeValues();
