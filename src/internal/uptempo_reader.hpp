@@ -29,6 +29,7 @@
 #include <miem/util/types.hpp>
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace miem
@@ -71,6 +72,7 @@ namespace miem
         const std::vector<std::string>& species_names,
         std::vector<Real>& flux_out,
         int& n_cells_out) const override;
+    void SetMolecularWeights(const std::unordered_map<std::string, double>& molecular_weights) override;
 
    private:
     int ncid_ = -1;
@@ -80,6 +82,7 @@ namespace miem
     int time_dim_id_ = -1;  // -1 when the file is a single snapshot
     int cell_dim_id_ = -1;
     std::vector<std::string> available_species_;
+    std::unordered_map<std::string, double> molecular_weights_;
 
     void DetectDimensions();
     void DiscoverSpecies();

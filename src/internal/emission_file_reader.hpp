@@ -14,6 +14,7 @@
 #include <miem/util/types.hpp>
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace miem
@@ -36,6 +37,10 @@ namespace miem
     // Inventory species available in the file: the names a caller passes to
     // ReadFlux and keys its SpeciesMap on.
     virtual std::vector<std::string> QuerySpecies() const = 0;
+
+    // [kg mol-1] per inventory species, for converting a molar/number flux to kg m-2 s-1.
+    // Call after Open(), before ReadFlux(). Default no-op.
+    virtual void SetMolecularWeights(const std::unordered_map<std::string, double>& /*molecular_weights*/) {}
 
     // Time coordinate as seconds since the Unix epoch (UTC).  Throws
     // MiemException (IO) on a missing/unsupported time encoding.

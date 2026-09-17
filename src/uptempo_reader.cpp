@@ -4,6 +4,7 @@
 #include "internal/uptempo_reader.hpp"
 
 #include "internal/netcdf_io.hpp"
+#include "internal/physical_constants.hpp"
 #include "internal/time_utils.hpp"
 
 #include <miem/util/error.hpp>
@@ -110,7 +111,8 @@ namespace miem
         n_cells_(other.n_cells_),
         time_dim_id_(other.time_dim_id_),
         cell_dim_id_(other.cell_dim_id_),
-        available_species_(std::move(other.available_species_))
+        available_species_(std::move(other.available_species_)),
+        molecular_weights_(std::move(other.molecular_weights_))
   {
     other.ncid_ = -1;
   }
@@ -127,6 +129,7 @@ namespace miem
       time_dim_id_ = other.time_dim_id_;
       cell_dim_id_ = other.cell_dim_id_;
       available_species_ = std::move(other.available_species_);
+      molecular_weights_ = std::move(other.molecular_weights_);
       other.ncid_ = -1;
     }
     return *this;
@@ -242,6 +245,11 @@ namespace miem
     return available_species_;
   }
 
+  void UptempoReader::SetMolecularWeights(const std::unordered_map<std::string, double>& molecular_weights)
+  {
+    molecular_weights_ = molecular_weights;
+  }
+
   std::vector<double> UptempoReader::GetTimeValues() const
   {
     std::vector<double> times(n_time_steps_, 0.0);
@@ -344,6 +352,35 @@ namespace miem
       int ndims;
       MIEM_NC_CHECK(nc_inq_varndims(ncid_, varid, &ndims));
 
+      // Absent or "kg m-2 s-1": no-op (legacy default). "molecules m-2 s-1": convert via the
+      // declared molecular weight. Anything else: refused rather than silently misinterpreted.
+      Real conversion_factor = Real{ 1 };
+      const std::string units_str = ReadTextAttribute(ncid_, varid, "units");
+      if (!units_str.empty() && units_str != "kg m-2 s-1")
+      {
+        if (units_str != "molecules m-2 s-1")
+        {
+          throw MiemException(
+              MIEM_ERROR_CATEGORY_IO,
+              MIEM_IO_ERROR_CODE_UNSUPPORTED_FLUX_UNITS,
+              "UptempoReader: unsupported flux units '" + units_str + "' for variable '" + species_names[isp] +
+                  "' in " + file_path_ +
+                  ". v1 supports 'kg m-2 s-1' (or no units attribute, treated as legacy "
+                  "'kg m-2 s-1') and 'molecules m-2 s-1'.");
+        }
+
+        const auto mw_it = molecular_weights_.find(species_names[isp]);
+        if (mw_it == molecular_weights_.end())
+        {
+          throw MiemException(
+              MIEM_ERROR_CATEGORY_IO,
+              MIEM_IO_ERROR_CODE_MISSING_MOLECULAR_WEIGHT,
+              "UptempoReader: variable '" + species_names[isp] + "' in " + file_path_ +
+                  "' is 'molecules m-2 s-1' but no molecular weight was supplied to convert it to kg m-2 s-1.");
+        }
+        conversion_factor = static_cast<Real>(mw_it->second / kAvogadroNumber);
+      }
+
       std::vector<Real> raw(n_cells_, Real{ 0 });
       if (ndims == 2)
       {
@@ -378,6 +415,10 @@ namespace miem
         if (std::isnan(static_cast<double>(val)) || (has_fill && val == fill_value))
         {
           val = Real{ 0 };
+        }
+        else
+        {
+          val = val * conversion_factor;
         }
         flux_out[static_cast<std::size_t>(isp) * n_cells_ + ic] = val;
       }

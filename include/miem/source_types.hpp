@@ -6,6 +6,7 @@
 #include <miem/util/types.hpp>
 
 #include <string>
+#include <unordered_map>
 
 namespace miem
 {
@@ -122,6 +123,9 @@ namespace miem
     Real scaling_factor_ = 1.0;  ///< Multiplicative flux scaling.
 
     std::string sector_;  ///< Optional diagnostic label.
+
+    /// [kg mol-1] per inventory species; only consulted for a molar/number flux (e.g. "molecules m-2 s-1").
+    std::unordered_map<std::string, double> molecular_weights_;
   };
 
 }  // namespace miem
