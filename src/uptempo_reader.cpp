@@ -363,8 +363,8 @@ namespace miem
           throw MiemException(
               MIEM_ERROR_CATEGORY_IO,
               MIEM_IO_ERROR_CODE_UNSUPPORTED_FLUX_UNITS,
-              "UptempoReader: unsupported flux units '" + units_str + "' for variable '" + species_names[isp] +
-                  "' in " + file_path_ +
+              "UptempoReader: unsupported flux units '" + units_str + "' for variable '" + species_names[isp] + "' in " +
+                  file_path_ +
                   ". v1 supports 'kg m-2 s-1' (or no units attribute, treated as legacy "
                   "'kg m-2 s-1') and 'molecules m-2 s-1'.");
         }

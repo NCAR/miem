@@ -40,7 +40,9 @@ namespace miem
 
     // [kg mol-1] per inventory species, for converting a molar/number flux to kg m-2 s-1.
     // Call after Open(), before ReadFlux(). Default no-op.
-    virtual void SetMolecularWeights(const std::unordered_map<std::string, double>& /*molecular_weights*/) {}
+    virtual void SetMolecularWeights(const std::unordered_map<std::string, double>& /*molecular_weights*/)
+    {
+    }
 
     // Time coordinate as seconds since the Unix epoch (UTC).  Throws
     // MiemException (IO) on a missing/unsupported time encoding.
