@@ -5,8 +5,8 @@ include(FetchContent)
 #
 # Try `find_package(netCDF)` (Conda/Homebrew/system installs ship one of two
 # config-package layouts).  Fall back to the in-tree FindnetCDF.cmake which
-# queries `nc-config` for Autotools/HPC builds, and finally FetchContent to a
-# pinned tag if nothing is installed.
+# queries `nc-config` for Autotools/HPC builds.  MIEM does not build netCDF
+# itself, because a netCDF-4 build also needs HDF5.
 #
 # We expose a single normalized target `netCDF::netcdf_normalized` for the
 # rest of the build to consume, so consumers do not have to disambiguate
@@ -19,23 +19,12 @@ if(DEFINED ENV{NETCDF} AND NOT "$ENV{NETCDF}" STREQUAL "")
   list(PREPEND CMAKE_PREFIX_PATH "$ENV{NETCDF}")
 endif()
 
-# Try a system/module-installed netCDF first; fall back to FetchContent.
-# Note: FIND_PACKAGE_ARGS in FetchContent_Declare passes extra args to
-# find_package using the *content name* as the package name — it cannot
-# override the name, so FetchContent_Declare(netcdf-c ... FIND_PACKAGE_ARGS netCDF)
-# would call find_package(netcdf-c netCDF), which is invalid.
-# We therefore call find_package explicitly before FetchContent.
 find_package(netCDF QUIET)
 
 if(NOT netCDF_FOUND)
-  set(BUILD_UTILITIES OFF CACHE BOOL "" FORCE)
-  set(ENABLE_TESTS    OFF CACHE BOOL "" FORCE)
-  set(ENABLE_NETCDF_4 ON  CACHE BOOL "" FORCE)
-  FetchContent_Declare(netcdf-c
-    GIT_REPOSITORY https://github.com/Unidata/netcdf-c.git
-    GIT_TAG v4.9.2
-  )
-  FetchContent_MakeAvailable(netcdf-c)
+  message(FATAL_ERROR
+    "MIEM needs netCDF-C, but CMake cannot find it. Load a netCDF module, put nc-config "
+    "on PATH, set NETCDF to the netCDF install prefix, or add the prefix to CMAKE_PREFIX_PATH.")
 endif()
 
 if(NOT TARGET netCDF::netcdf_normalized)
